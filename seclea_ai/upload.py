@@ -33,7 +33,7 @@ def create_project(project_name: str, description: str):
     :param description:
     :return:
     """
-    s.manager.trans.url_pfath = "/collection/projects"
+    s.manager.trans.url_path = "/collection/projects"
     r = s.manager.trans.send_json(
         {"name": project_name, "created_by": USERNAME, "description": description}
     )

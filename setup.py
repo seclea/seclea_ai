@@ -9,7 +9,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="seclea_ai",
-    version="0.0.1",
+    version="0.0.2",
     author="octavio",
     author_email="octavio.delser@gmail.com",
     description="Utilities written for seclea to use throughout the company",
