@@ -83,6 +83,6 @@ def save_training_run(model, project_name: str, dataset_id: str, training_run_id
         save_path,
         {
             "sequence_num": str(sequence_no),
-            "training_run": "training-run-0",
+            "training_run": training_run_id,
         },
     )
