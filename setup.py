@@ -11,7 +11,7 @@ setup(
     version="0.0.5",
     author="octavio",
     author_email="octavio.delser@gmail.com",
-    description="Utilities written for seclea to use throughout the company",
+    description="Seclea integration.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/seclea/seclea_ai",
