@@ -96,3 +96,6 @@ testing/testing/MNIST
 
 # MacOS files
 .DS_Store
+
+# temp files
+**/.seclea
