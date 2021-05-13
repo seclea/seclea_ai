@@ -1,7 +1,9 @@
 # from sklearn.ensemble import HistGradientBoostingClassifier
-from seclea_utils.models.sklearn.SkLearnModelManager import SkLearnModelManager
-from seclea_utils.data.transmission.resquests_wrapper import RequestWrapper
+import pickle  # nosec
+
 from seclea_utils.auth.tokem_manager import update_token
+from seclea_utils.data.transmission.requests_wrapper import RequestWrapper
+from seclea_utils.models.sklearn.SkLearnModelManager import SkLearnModelManager
 
 
 class Seclea:
@@ -15,11 +17,10 @@ class Seclea:
     def login(self, plat_url="https://platform.seclea.com", auth_url="https://auth.seclea.com"):
         self.s.manager.trans.server_root = plat_url
         self.trans_auth.server_root = auth_url
-        credentials = {
-            'username': self.username,
-            'password': self.password
-        }
-        update_token(trans_plat=self.s.manager.trans, trans_auth=self.trans_auth, credentials=credentials)
+        credentials = {"username": self.username, "password": self.password}
+        update_token(
+            trans_plat=self.s.manager.trans, trans_auth=self.trans_auth, credentials=credentials
+        )
 
     def create_project(self, description, project_name: str = None):
         """
@@ -59,14 +60,18 @@ class Seclea:
         if self.project_name is None:
             raise Exception("You need to create a project before uploading a dataset")
         self.s.manager.trans.url_path = "/collection/datasets"
-        dataset_queryparams = {"project": self.project_name, "identifier": dataset_id, "metadata": metadata}
-        res = self.s.manager.send_file(
-            path=dataset_path, server_query_params=dataset_queryparams
-        )
+        dataset_queryparams = {
+            "project": self.project_name,
+            "identifier": dataset_id,
+            "metadata": metadata,
+        }
+        res = self.s.manager.send_file(path=dataset_path, server_query_params=dataset_queryparams)
         if not res.ok:
             raise Exception(f"Error uploading dataset: {res.status_code} - {res.data}")
 
-    def save_training_run(self, model, dataset_id: str, training_run_id: str, metadata: dict, sequence_no=0):
+    def save_training_run(
+        self, model, dataset_id: str, training_run_id: str, metadata: dict, sequence_no=0
+    ):
         """
 
         :param model:
@@ -99,3 +104,14 @@ class Seclea:
                 "training_run": training_run_id,
             },
         )
+
+
+if __name__ == "__main__":
+    folder_path = "../../explanation/app/analysis/tests/processed"
+    model = pickle.load(open(f"{folder_path}/pickle_model_gbm.pkl", "rb"))  # nosec
+
+    seclea = Seclea(username="onespanadmin", password="logmein1")  # nosec
+    seclea.login(
+        plat_url="https://tristar-admin.seclea.com", auth_url="https://tristar-auth.seclea.com"
+    )
+    seclea.create_project()
