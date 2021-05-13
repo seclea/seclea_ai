@@ -1,7 +1,7 @@
 # from sklearn.ensemble import HistGradientBoostingClassifier
 import pickle  # nosec
 
-from seclea_utils.auth.tokem_manager import update_token
+from seclea_utils.auth.token_manager import update_token
 from seclea_utils.data.transmission.requests_wrapper import RequestWrapper
 from seclea_utils.models.sklearn.SkLearnModelManager import SkLearnModelManager
 
