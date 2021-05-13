@@ -1,6 +1,4 @@
 # from sklearn.ensemble import HistGradientBoostingClassifier
-import pickle  # nosec
-
 from seclea_utils.auth.token_manager import update_token
 from seclea_utils.data.transmission.requests_wrapper import RequestWrapper
 from seclea_utils.models.sklearn.SkLearnModelManager import SkLearnModelManager
@@ -104,14 +102,3 @@ class Seclea:
                 "training_run": training_run_id,
             },
         )
-
-
-if __name__ == "__main__":
-    folder_path = "../../explanation/app/analysis/tests/processed"
-    model = pickle.load(open(f"{folder_path}/pickle_model_gbm.pkl", "rb"))  # nosec
-
-    seclea = Seclea(username="onespanadmin", password="logmein1")  # nosec
-    seclea.login(
-        plat_url="https://tristar-admin.seclea.com", auth_url="https://tristar-auth.seclea.com"
-    )
-    seclea.create_project()
