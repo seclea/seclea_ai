@@ -5,16 +5,27 @@ from seclea_utils.models.sklearn.SkLearnModelManager import SkLearnModelManager
 
 
 class Seclea:
-    def __init__(self, username, password, project_name=None):
+    def __init__(
+        self,
+        plat_url="https://platform.seclea.com",
+        auth_url="https://auth.seclea.com",
+        project_name=None,
+    ):
         self.s = SkLearnModelManager()
         self.trans_auth = RequestWrapper()
-        self.username = username
-        self.password = password
-        self.project_name = project_name
-
-    def login(self, plat_url="https://platform.seclea.com", auth_url="https://auth.seclea.com"):
         self.s.manager.trans.server_root = plat_url
         self.trans_auth.server_root = auth_url
+        self.username = None
+        self.password = None
+        self.project_name = project_name
+
+    def login(
+        self,
+        username,
+        password,
+    ):
+        self.username = username
+        self.password = password
         credentials = {"username": self.username, "password": self.password}
         update_token(
             trans_plat=self.s.manager.trans, trans_auth=self.trans_auth, credentials=credentials
@@ -67,7 +78,7 @@ class Seclea:
         if not res.ok:
             raise Exception(f"Error uploading dataset: {res.status_code} - {res.data}")
 
-    def save_training_run(
+    def upload_training_run(
         self, model, dataset_id: str, training_run_id: str, metadata: dict, sequence_no=0
     ):
         """
