@@ -1,1 +1,1 @@
-from upload import Seclea
+from .upload import Seclea
