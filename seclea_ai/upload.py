@@ -1,4 +1,6 @@
 # from sklearn.ensemble import HistGradientBoostingClassifier
+import os
+
 from seclea_utils.auth.token_manager import update_token
 from seclea_utils.data.transmission.requests_wrapper import RequestWrapper
 from seclea_utils.models.sklearn.SkLearnModelManager import SkLearnModelManager
@@ -101,8 +103,13 @@ class Seclea:
                 "metadata": metadata,
             }
         )
-        print("Saving model")
+        print("Uploading model")
 
+        try:
+            os.makedirs(f".seclea/{self.project_name}/{training_run_id}")
+        except FileExistsError:
+            print("Folder already exists, continuing")
+            pass
         save_path = self.s.save_model(model, f".seclea/{self.project_name}/{training_run_id}/model")
 
         self.s.manager.trans.url_path = f"/collection/training-runs/{training_run_id}/states"
