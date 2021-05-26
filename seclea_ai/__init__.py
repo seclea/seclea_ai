@@ -1,1 +1,1 @@
-from .upload import Seclea
+from .seclea_ai import SecleaAI
