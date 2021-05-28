@@ -1,21 +1,20 @@
-# from sklearn.ensemble import HistGradientBoostingClassifier
+import base64
+import inspect
+import marshal
 import os
+import types
 
 from seclea_utils.auth.token_manager import update_token
 from seclea_utils.data.transmission.requests_wrapper import RequestWrapper
 from seclea_utils.models.sklearn.SkLearnModelManager import SkLearnModelManager
-import marshal
-import types
-import base64
-import inspect
-import pandas as pd
+
 
 class SecleaAI:
     def __init__(
-            self,
-            plat_url="https://platform.seclea.com",
-            auth_url="https://auth.seclea.com",
-            project_name=None,
+        self,
+        plat_url="https://platform.seclea.com",
+        auth_url="https://auth.seclea.com",
+        project_name=None,
     ):
         self.s = SkLearnModelManager()
         self.trans_auth = RequestWrapper()
@@ -26,9 +25,9 @@ class SecleaAI:
         self.project_name = project_name
 
     def login(
-            self,
-            username,
-            password,
+        self,
+        username,
+        password,
     ):
         print("LOGGIN IN: ")
         self.username = username
@@ -62,7 +61,7 @@ class SecleaAI:
             {"name": project_name, "created_by": self.username, "description": description}
         )
         # check for already created
-        self.handle_response(res, f"Error creating project: ")
+        self.handle_response(res, "Error creating project: ")
         self.project_name = project_name
 
     def handle_response(self, res, msg):
@@ -76,42 +75,39 @@ class SecleaAI:
             print("error upload: ", e)
 
     def encode_func(self, func):
-        return base64.b64encode(marshal.dumps(func.__code__)).decode('ascii')
+        return base64.b64encode(marshal.dumps(func.__code__)).decode("ascii")
 
     def decode_func(self, func):
         try:
-            code = marshal.loads(base64.b64decode(func))
-            f = types.FunctionType(
-                code,
-                globals(), 'transformation1'
-            )
+            code = marshal.loads(base64.b64decode(func))  # nosec
+            f = types.FunctionType(code, globals(), "transformation1")
         except Exception as e:
             f = e
         return f
 
     def upload_transformations(self, transformations: list, training_run_pk: str):
         self.s.manager.trans.query_params = {}
-        self.s.manager.trans.url_path = '/collection/dataset-transformations'
+        self.s.manager.trans.url_path = "/collection/dataset-transformations"
         for idx, trans in enumerate(transformations):
-            data = {'name': trans.__name__,
-                    'code_raw': inspect.getsource(trans),
-                    'code_encoded': self.encode_func(trans),
-                    'order': idx,
-                    'training_run': training_run_pk}
+            data = {
+                "name": trans.__name__,
+                "code_raw": inspect.getsource(trans),
+                "code_encoded": self.encode_func(trans),
+                "order": idx,
+                "training_run": training_run_pk,
+            }
             res = self.s.manager.trans.send_json(data)
-            self.handle_response(res, f'upload transformation err: {data}')
+            self.handle_response(res, f"upload transformation err: {data}")
 
     def load_transformations(self, training_run_pk: str):
         """
         Exects a list of code_encoded as set by upload_transformations.
         """
-        self.s.manager.trans.url_path = '/collection/dataset-transformations'
-        self.s.manager.trans.query_params = {
-            'training_run': training_run_pk
-        }
+        self.s.manager.trans.url_path = "/collection/dataset-transformations"
+        self.s.manager.trans.query_params = {"training_run": training_run_pk}
         res = self.s.manager.trans.get()
-        print(list(map(lambda x: x['code_encoded'], res.json())))
-        transformations = list(map(lambda x: x['code_encoded'], res.json()))
+        print(list(map(lambda x: x["code_encoded"], res.json())))
+        transformations = list(map(lambda x: x["code_encoded"], res.json()))
         return list(map(self.decode_func, transformations))
 
     def upload_dataset(self, dataset_path: str, dataset_id: str, metadata: dict):
@@ -131,10 +127,10 @@ class SecleaAI:
             "metadata": metadata,
         }
         res = self.s.manager.send_file(path=dataset_path, server_query_params=dataset_queryparams)
-        self.handle_response(res, f"Error uploading dataset: ")
+        self.handle_response(res, "Error uploading dataset: ")
 
     def upload_training_run(
-            self, model, dataset_id: str, training_run_id: str, metadata: dict, sequence_no=0
+        self, model, dataset_id: str, training_run_id: str, metadata: dict, sequence_no=0
     ):
         """
 
