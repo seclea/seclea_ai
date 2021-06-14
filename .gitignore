@@ -79,14 +79,14 @@ venv.bak/
 
 
 # pytorch dataset files.
-testing/testing/processed
-testing/testing/raw
-testing/processed
-testing/raw
+test/testing/processed
+test/testing/raw
+test/processed
+test/raw
 /processed
 /raw
-testing/MNIST
-testing/testing/MNIST
+test/MNIST
+test/testing/MNIST
 
 # pycharm files
 .idea
