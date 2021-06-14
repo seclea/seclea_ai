@@ -2,6 +2,7 @@ import inspect
 import json
 import os
 from getpass import getpass
+from pathlib import Path
 
 from seclea_utils.data.compression import Zstd
 from seclea_utils.data.manager import Manager
@@ -23,12 +24,14 @@ class SecleaAI:
             Manager(compression=Zstd(), transmission=RequestWrapper(server_root_url=plat_url))
         )
         self._trans_auth = RequestWrapper(auth_url)
+        self._username = None
         self._access = None
         self.project_name = project_name
         self.project_exists = False
-        if not os.path.exists("~/.seclea/config"):
+        if not os.path.exists(os.path.join(Path.home(), ".seclea/config")):
+            print("cant find config file.")
             try:
-                os.mkdir("~/.seclea")
+                os.mkdir(os.path.join(Path.home(), ".seclea"))
             except FileExistsError:
                 # do nothing.
                 pass
@@ -36,14 +39,20 @@ class SecleaAI:
         else:
             self._refresh_token()
         # here check the project exists and call create if not.
+        res = self.s.manager.trans.get(f"/collection/projects/{self.project_name}")
+        if not res.ok:
+            self._create_project()
+        else:
+            print("project exists")
+            self.project_exists = True
 
     def login(self):
         """
         @param: credentials ={"username": "John", "password": "Cena"}
         """
-        username = input("Username: ")
-        password = getpass()
-        credentials = {"username": username, "password": password}
+        self._username = input("Username: ")
+        password = getpass("Password: ")
+        credentials = {"username": self._username, "password": password}
         response = self._trans_auth.send_json(url_path="/api/token/obtain/", obj=credentials)
         try:
             response_content = json.loads(response.content.decode("utf-8"))
@@ -55,23 +64,32 @@ class SecleaAI:
             self.s.manager.trans.headers = {"Authorization": f"Bearer {self._access}"}
             # note from this api access and refresh are returned together. Something to be aware of though.
             # TODO refactor when adding more to config
-            with open("~/.seclea/config", "w+") as f:
-                f.write(json.dumps({"refresh": response_content.get("refresh")}))
+            with open(os.path.join(Path.home(), ".seclea/config"), "w+") as f:
+                f.write(
+                    json.dumps(
+                        {"refresh": response_content.get("refresh"), "username": self._username}
+                    )
+                )
         else:
             raise AuthenticationError(
                 f"There was some issue logging in: {response.status_code} {response.text}"
             )
 
     def _refresh_token(self):
-        with open("~/.seclea/config", "r") as f:
+        with open(os.path.join(Path.home(), ".seclea/config"), "r") as f:
             config = json.loads(f.read())
         try:
-            req = config["refresh"]
-        except KeyError:
+            refresh = config["refresh"]
+            self._username = config["username"]
+        except KeyError as e:
+            print(e)
             # refresh token missing, prompt and login
             return self.login()
-        response = self._trans_auth.send_json(url_path="/api/token/refresh/", obj=req)
+        response = self._trans_auth.send_json(
+            url_path="/api/token/refresh/", obj={"refresh": refresh}
+        )
         if not response.ok:
+            self.handle_response(res=response, msg="some issue with refresh token")
             return self.login()
         else:
             try:
@@ -85,18 +103,17 @@ class SecleaAI:
                 print(e)
                 self.login()
 
-    def create_project(self, description: str):
+    def _create_project(self):
         """
 
-        :param description:
         :return:
         """
         res = self.s.manager.trans.send_json(
             url_path="/collection/projects",
             obj={
                 "name": self.project_name,
-                "created_by": self.username,
-                "description": description,
+                "created_by": self._username,
+                "description": "Please add a description..",
             },
         )
         # check for already created
