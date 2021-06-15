@@ -28,10 +28,11 @@ class SecleaAI:
         self._access = None
         self.project_name = project_name
         self.project_exists = False
-        if not os.path.exists(os.path.join(Path.home(), ".seclea/config")):
-            print("cant find config file.")
+        if not os.path.isfile(os.path.join(Path.home(), ".seclea/config")):
             try:
-                os.mkdir(os.path.join(Path.home(), ".seclea"))
+                os.mkdir(
+                    os.path.join(Path.home(), ".seclea"), mode=0o660
+                )  # set mode to allow user and group rw only
             except FileExistsError:
                 # do nothing.
                 pass
@@ -40,16 +41,12 @@ class SecleaAI:
             self._refresh_token()
         # here check the project exists and call create if not.
         res = self.s.manager.trans.get(f"/collection/projects/{self.project_name}")
-        if not res.ok:
-            self._create_project()
-        else:
-            print("project exists")
+        if res.status_code == 200:
             self.project_exists = True
+        else:
+            self._create_project()
 
     def login(self):
-        """
-        @param: credentials ={"username": "John", "password": "Cena"}
-        """
         self._username = input("Username: ")
         password = getpass("Password: ")
         credentials = {"username": self._username, "password": password}
@@ -89,7 +86,7 @@ class SecleaAI:
             url_path="/api/token/refresh/", obj={"refresh": refresh}
         )
         if not response.ok:
-            self.handle_response(res=response, msg="some issue with refresh token")
+            self.handle_response(res=response, msg="There was an issue with the refresh token")
             return self.login()
         else:
             try:
@@ -116,7 +113,6 @@ class SecleaAI:
                 "description": "Please add a description..",
             },
         )
-        # check for already created
         if res.status_code == 201:
             self.project_exists = True
         else:
@@ -152,13 +148,12 @@ class SecleaAI:
             url_path="/collection/dataset-transformations",
             query_params={"training_run": training_run_pk},
         )
-        print(list(map(lambda x: x["code_encoded"], res.json())))
         transformations = list(map(lambda x: x["code_encoded"], res.json()))
         return list(map(decode_func, transformations))
 
     def upload_dataset(self, dataset_path: str, dataset_id: str, metadata: dict):
         """
-
+        TODO add pii check to here before upload.
         :param dataset_path:
         :param dataset_id:
         :param metadata:
@@ -178,21 +173,17 @@ class SecleaAI:
         )
         self.handle_response(res, "Error uploading dataset: ")
 
-    def upload_training_run(
-        self, model, dataset_id: str, training_run_id: str, metadata: dict, sequence_num=0
-    ):
+    def upload_training_run(self, training_run_id: str, dataset_id: str, metadata: dict):
         """
 
-        :param model:
         :param dataset_id: "test-dataset-0"
         :param training_run_id: "training-run-0"
         :param metadata:  {"type": "GradientBoostedClassifier"}
-        :param sequence_num: 0
         :return:
         """
         if not self.project_exists:
             raise Exception("You need to create a project before uploading a training run")
-        self.s.manager.trans.send_json(
+        res = self.s.manager.trans.send_json(
             url_path="/collection/training-runs",
             obj={
                 "project": self.project_name,
@@ -201,20 +192,31 @@ class SecleaAI:
                 "metadata": metadata,
             },
         )
-        print("Uploading model")
+        self.handle_response(res, "There was an issue uploading the training run")
 
+    def upload_model_state(self, model, training_run_id, sequence_num, final=False):
         try:
-            os.makedirs(f".seclea/{self.project_name}/{training_run_id}")
+            os.makedirs(os.path.join(Path.home(), f".seclea/{self.project_name}/{training_run_id}"))
         except FileExistsError:
             print("Folder already exists, continuing")
             pass
-        save_path = self.s.save_model(model, f".seclea/{self.project_name}/{training_run_id}/model")
+        save_path = self.s.save_model(
+            model,
+            os.path.join(
+                Path.home(), f".seclea/{self.project_name}/{training_run_id}/model-{sequence_num}"
+            ),
+        )
 
-        self.s.manager.trans.send_file(
-            url_path=f"/collection/training-runs/{training_run_id}/states",
+        res = self.s.manager.trans.send_file(
+            url_path="/collection/model-states",
             file_path=save_path,
             query_params={
                 "sequence_num": sequence_num,
                 "training_run": training_run_id,
+                "project": self.project_name,
+                "final_state": final,
             },
         )
+        self.handle_response(res, "There was and issue uploading the model state")
+        if res.status_code == 201:
+            os.remove(save_path)
