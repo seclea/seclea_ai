@@ -1,5 +1,6 @@
 import unittest
 from unittest import mock
+from unittest.mock import mock_open, patch
 
 import responses
 
@@ -29,12 +30,18 @@ class TestSecleaAI(unittest.TestCase):
             json={"access": "dummy_access_token", "refresh": "dummy_refresh_token"},
             status=200,
         )
-
-        SecleaAI(
-            project_name="test-project",
-            plat_url="http://localhost:8000",
-            auth_url="http://localhost:8010",
-        )
+        with patch(
+            "builtins.open",
+            new=mock_open(
+                read_data='{"refresh": "dummy_refresh_token", "username": "test_user"}\n'
+            ),
+        ) as mock_file:
+            SecleaAI(
+                project_name="test-project",
+                plat_url="http://localhost:8000",
+                auth_url="http://localhost:8010",
+            )
+        mock_file.assert_called()
 
 
 if __name__ == "__main__":
