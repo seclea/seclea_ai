@@ -1,19 +1,21 @@
 import unittest
+from unittest import mock
 
-from seclea_ai.seclea_ai import SecleaAI
+from seclea_ai import SecleaAI
 
 
 class TestUpload(unittest.TestCase):
-    def test_create_project_no_name(self) -> None:
+    @mock.patch("seclea_ai.seclea_ai.RequestWrapper", autospec=True)
+    @mock.patch("getpass.fallback_getpass", autospec=True, return_value="test_pass")
+    @mock.patch("builtins.input", autospec=True, return_value="test_user")
+    def test_create_project(self, mock_input, mock_getpass, mock_trans) -> None:
 
-        with self.assertRaises(Exception) as context:
-            seclea = SecleaAI(
-                plat_url="https://tristar-platform.seclea.com",
-                auth_url="https://tristar-auth.seclea.com",
-            )
-            seclea.login(username="onespanadmin", password="logmein1")  # nosec
-            seclea.create_project(description="A test project")
-            self.assertTrue("No project name specified, please provide one" in context.exception)
+        SecleaAI(
+            project_name="test_project",
+            plat_url="http://localhost:8000",
+            auth_url="http://localhost:8010",
+        )
+        self.assertTrue(mock_trans.get.called, "something")
 
 
 if __name__ == "__main__":
