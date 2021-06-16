@@ -30,13 +30,13 @@ class SecleaAI:
         self._auth_service = AuthenticationService(RequestWrapper(auth_url))
         self._username, auth_creds = self._auth_service.handle_auth()
         self.s.manager.trans.headers = auth_creds
-        self.project_name = project_name
-        self.project_exists = False
+        self._project_name = project_name
+        self._project_exists = False
 
         # here check the project exists and call create if not.
-        res = self.s.manager.trans.get(f"/collection/projects/{self.project_name}")
+        res = self.s.manager.trans.get(f"/collection/projects/{self._project_name}")
         if res.status_code == 200:
-            self.project_exists = True
+            self._project_exists = True
         else:
             self._create_project()
 
@@ -56,13 +56,13 @@ class SecleaAI:
         res = self.s.manager.trans.send_json(
             url_path="/collection/projects",
             obj={
-                "name": self.project_name,
+                "name": self._project_name,
                 "created_by": self._username,
                 "description": "Please add a description..",
             },
         )
         if res.status_code == 201:
-            self.project_exists = True
+            self._project_exists = True
         else:
             handle_response(
                 res,
@@ -102,10 +102,10 @@ class SecleaAI:
         :param metadata:
         :return:
         """
-        if not self.project_exists:
+        if not self._project_exists:
             raise Exception("You need to create a project before uploading a dataset")
         dataset_queryparams = {
-            "project": self.project_name,
+            "project": self._project_name,
             "identifier": dataset_id,
             "metadata": metadata,
         }
@@ -124,12 +124,12 @@ class SecleaAI:
         :param metadata:  {"type": "GradientBoostedClassifier"}
         :return:
         """
-        if not self.project_exists:
+        if not self._project_exists:
             raise Exception("You need to create a project before uploading a training run")
         res = self.s.manager.trans.send_json(
             url_path="/collection/training-runs",
             obj={
-                "project": self.project_name,
+                "project": self._project_name,
                 "dataset": dataset_id,
                 "identifier": training_run_id,
                 "metadata": metadata,
@@ -139,14 +139,16 @@ class SecleaAI:
 
     def upload_model_state(self, model, training_run_id, sequence_num, final=False):
         try:
-            os.makedirs(os.path.join(Path.home(), f".seclea/{self.project_name}/{training_run_id}"))
+            os.makedirs(
+                os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_id}")
+            )
         except FileExistsError:
             print("Folder already exists, continuing")
             pass
         save_path = self.s.save_model(
             model,
             os.path.join(
-                Path.home(), f".seclea/{self.project_name}/{training_run_id}/model-{sequence_num}"
+                Path.home(), f".seclea/{self._project_name}/{training_run_id}/model-{sequence_num}"
             ),
         )
 
@@ -156,7 +158,7 @@ class SecleaAI:
             query_params={
                 "sequence_num": sequence_num,
                 "training_run": training_run_id,
-                "project": self.project_name,
+                "project": self._project_name,
                 "final_state": final,
             },
         )
