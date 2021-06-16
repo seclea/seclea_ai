@@ -90,3 +90,45 @@ class TestAuthenticationService(unittest.TestCase):
         mock_input.assert_called_once()
         mock_getpass.assert_called_once()
         mock_file.assert_called_with(os.path.join(Path.home(), ".seclea/config"), "w+")
+
+    @responses.activate
+    @mock.patch("seclea_ai.authentication.getpass", return_value="test_pass")
+    @mock.patch("builtins.input", autospec=True, return_value="test_user")
+    @mock.patch("seclea_ai.authentication.os.path")
+    @mock.patch("seclea_ai.authentication.os")
+    def test_handle_auth_refresh_expire(self, mock_os, mock_path, mock_input, mock_getpass):
+        responses.add(
+            method=responses.POST,
+            url="http://localhost:8000/api/token/obtain/",
+            json={"access": "dummy_access_token", "refresh": "dummy_refresh_token"},
+            status=200,
+        )
+        responses.add(
+            method=responses.POST,
+            url="http://localhost:8000/api/token/refresh/",
+            body="Not Authorised",
+            status=403,
+        )
+        mock_path.isfile.return_value = False
+        mock_os.mkdir.return_value = None
+
+        auth_service = AuthenticationService(
+            transmission=RequestWrapper(server_root_url="http://localhost:8000")
+        )
+
+        with patch(
+            "builtins.open",
+            new=mock_open(
+                read_data='{"refresh": "dummy_refresh_token", "username": "test_user"}\n'
+            ),
+        ) as mock_file:
+            username, creds = auth_service.handle_auth()
+        self.assertEqual(username, "test_user", msg="Username doesn't match")
+        self.assertEqual(
+            creds, {"Authorization": "Bearer dummy_access_token"}, msg="Auth doesn't match"
+        )
+        mock_path.isfile.assert_called_once()
+        mock_os.mkdir.assert_called()
+        mock_input.assert_called_once()
+        mock_getpass.assert_called_once()
+        mock_file.assert_called()
