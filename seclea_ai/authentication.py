@@ -21,12 +21,12 @@ class AuthenticationService:
         self._access = None
         self._transmission = transmission
 
-    def handle_auth(self):
+    def handle_auth(self) -> Tuple[str, AuthenticationCredentials]:
         if os.path.isfile(os.path.join(Path.home(), ".seclea/config")):
             try:
-                self._refresh_token()
+                username, creds = self._refresh_token()
             except AuthenticationError:
-                self.login()
+                username, creds = self.login()
         else:
             try:
                 os.mkdir(
@@ -35,7 +35,8 @@ class AuthenticationService:
             except FileExistsError:
                 # do nothing.
                 pass
-            self.login()
+            username, creds = self.login()
+        return username, creds
 
     def login(self) -> Tuple[str, AuthenticationCredentials]:
         username = input("Username: ")
