@@ -1,16 +1,20 @@
 import inspect
-import json
 import os
-from getpass import getpass
 from pathlib import Path
 
+from requests import Response
 from seclea_utils.data.compression import Zstd
 from seclea_utils.data.manager import Manager
 from seclea_utils.data.transformations import decode_func, encode_func
 from seclea_utils.data.transmission import RequestWrapper
 from seclea_utils.models.model_management import SkLearnModelManager
 
-from seclea_ai.exceptions import AuthenticationError
+from seclea_ai.authentication import AuthenticationService
+
+
+def handle_response(res: Response, msg):
+    if not res.ok:
+        print(f"{msg}: {res.status_code} - {res.reason} - {res.text}")
 
 
 class SecleaAI:
@@ -23,22 +27,12 @@ class SecleaAI:
         self.s = SkLearnModelManager(
             Manager(compression=Zstd(), transmission=RequestWrapper(server_root_url=plat_url))
         )
-        self._trans_auth = RequestWrapper(auth_url)
-        self._username = None
-        self._access = None
+        self._auth_service = AuthenticationService(RequestWrapper(auth_url))
+        self._username, auth_creds = self._auth_service.handle_auth()
+        self.s.manager.trans.headers = auth_creds
         self.project_name = project_name
         self.project_exists = False
-        if not os.path.isfile(os.path.join(Path.home(), ".seclea/config")):
-            try:
-                os.mkdir(
-                    os.path.join(Path.home(), ".seclea"), mode=0o660
-                )  # set mode to allow user and group rw only
-            except FileExistsError:
-                # do nothing.
-                pass
-            self.login()
-        else:
-            self._refresh_token()
+
         # here check the project exists and call create if not.
         res = self.s.manager.trans.get(f"/collection/projects/{self.project_name}")
         if res.status_code == 200:
@@ -46,63 +40,17 @@ class SecleaAI:
         else:
             self._create_project()
 
-    def login(self):
-        self._username = input("Username: ")
-        password = getpass("Password: ")
-        credentials = {"username": self._username, "password": password}
-        response = self._trans_auth.send_json(url_path="/api/token/obtain/", obj=credentials)
-        try:
-            response_content = json.loads(response.content.decode("utf-8"))
-        except Exception as e:
-            print(e)
-            raise json.decoder.JSONDecodeError("INVALID CREDENTIALS: ", str(credentials), 1)
-        self._access = response_content.get("access")
-        if self._access is not None:
-            self.s.manager.trans.headers = {"Authorization": f"Bearer {self._access}"}
-            # note from this api access and refresh are returned together. Something to be aware of though.
-            # TODO refactor when adding more to config
-            with open(os.path.join(Path.home(), ".seclea/config"), "w+") as f:
-                f.write(
-                    json.dumps(
-                        {"refresh": response_content.get("refresh"), "username": self._username}
-                    )
-                )
-        else:
-            raise AuthenticationError(
-                f"There was some issue logging in: {response.status_code} {response.text}"
-            )
-
-    def _refresh_token(self):
-        with open(os.path.join(Path.home(), ".seclea/config"), "r") as f:
-            config = json.loads(f.read())
-        try:
-            refresh = config["refresh"]
-            self._username = config["username"]
-        except KeyError as e:
-            print(e)
-            # refresh token missing, prompt and login
-            return self.login()
-        response = self._trans_auth.send_json(
-            url_path="/api/token/refresh/", obj={"refresh": refresh}
-        )
-        if not response.ok:
-            self.handle_response(res=response, msg="There was an issue with the refresh token")
-            return self.login()
-        else:
-            try:
-                response_content = json.loads(response.content.decode("utf-8"))
-                self._access = response_content.get("access")
-                if self._access is not None:
-                    self.s.manager.trans.headers = {"Authorization": f"Bearer {self._access}"}
-                else:
-                    return self.login()
-            except Exception as e:
-                print(e)
-                self.login()
-
-    def _create_project(self):
+    def login(self) -> None:
         """
+        Override login, this also overwrites the stored credentials in ~/.seclea/config.
+        :return: None
+        """
+        self._username, auth_creds = self._auth_service.login()
+        self.s.manager.trans.headers = auth_creds
 
+    def _create_project(self) -> None:
+        """
+        Creates a new project
         :return:
         """
         res = self.s.manager.trans.send_json(
@@ -116,15 +64,10 @@ class SecleaAI:
         if res.status_code == 201:
             self.project_exists = True
         else:
-            self.handle_response(
+            handle_response(
                 res,
-                "There was an issue creating the project, this may be expected if the project already exists",
+                "There was an issue creating the project.",
             )
-
-    @staticmethod
-    def handle_response(res, msg):
-        if not res.ok:
-            print(f"{msg}: {res.status_code} - {res.reason} - {res.text}")
 
     def upload_transformations(self, transformations: list, training_run_pk: str):
         for idx, trans in enumerate(transformations):
@@ -138,7 +81,7 @@ class SecleaAI:
             res = self.s.manager.trans.send_json(
                 url_path="/collection/dataset-transformations", obj=data
             )
-            self.handle_response(res, f"upload transformation err: {data}")
+            handle_response(res, f"upload transformation err: {data}")
 
     def load_transformations(self, training_run_pk: str):
         """
@@ -171,7 +114,7 @@ class SecleaAI:
             file_path=dataset_path,
             query_params=dataset_queryparams,
         )
-        self.handle_response(res, "Error uploading dataset: ")
+        handle_response(res, "Error uploading dataset: ")
 
     def upload_training_run(self, training_run_id: str, dataset_id: str, metadata: dict):
         """
@@ -192,7 +135,7 @@ class SecleaAI:
                 "metadata": metadata,
             },
         )
-        self.handle_response(res, "There was an issue uploading the training run")
+        handle_response(res, "There was an issue uploading the training run")
 
     def upload_model_state(self, model, training_run_id, sequence_num, final=False):
         try:
@@ -217,6 +160,6 @@ class SecleaAI:
                 "final_state": final,
             },
         )
-        self.handle_response(res, "There was and issue uploading the model state")
+        handle_response(res, "There was and issue uploading the model state")
         if res.status_code == 201:
             os.remove(save_path)
