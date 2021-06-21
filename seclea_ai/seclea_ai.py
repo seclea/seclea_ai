@@ -1,171 +1,167 @@
-import base64
 import inspect
-import marshal
 import os
-import types
+from pathlib import Path
 
-from seclea_utils.auth.token_manager import update_token
-from seclea_utils.data.transmission.requests_wrapper import RequestWrapper
-from seclea_utils.models.sklearn.SkLearnModelManager import SkLearnModelManager
+from requests import Response
+from seclea_utils.data.compression import Zstd
+from seclea_utils.data.manager import Manager
+from seclea_utils.data.transformations import decode_func, encode_func
+from seclea_utils.data.transmission import RequestWrapper
+from seclea_utils.models.model_management import SkLearnModelManager
+
+from seclea_ai.authentication import AuthenticationService
+
+
+def handle_response(res: Response, msg):
+    if not res.ok:
+        print(f"{msg}: {res.status_code} - {res.reason} - {res.text}")
 
 
 class SecleaAI:
     def __init__(
         self,
+        project_name,
         plat_url="https://platform.seclea.com",
         auth_url="https://auth.seclea.com",
-        project_name=None,
     ):
-        self.s = SkLearnModelManager()
-        self.trans_auth = RequestWrapper()
-        self.s.manager.trans.server_root = plat_url
-        self.trans_auth.server_root = auth_url
-        self.username = None
-        self.password = None
-        self.project_name = project_name
-
-    def login(
-        self,
-        username,
-        password,
-    ):
-        print("LOGGIN IN: ")
-        self.username = username
-        self.password = password
-        credentials = {"username": self.username, "password": self.password}
-        update_token(
-            trans_plat=self.s.manager.trans, trans_auth=self.trans_auth, credentials=credentials
+        self.s = SkLearnModelManager(
+            Manager(compression=Zstd(), transmission=RequestWrapper(server_root_url=plat_url))
         )
-        print(self.s.manager.trans.headers)
-        print(self.trans_auth.headers)
+        self._auth_service = AuthenticationService(RequestWrapper(auth_url))
+        self._username, auth_creds = self._auth_service.handle_auth()
+        self.s.manager.trans.headers = auth_creds
+        self._project_name = project_name
+        self._project_exists = False
 
-    def create_project(self, description, project_name: str = None):
+        # here check the project exists and call create if not.
+        res = self.s.manager.trans.get(f"/collection/projects/{self._project_name}")
+        if res.status_code == 200:
+            self._project_exists = True
+        else:
+            self._create_project()
+
+    def login(self) -> None:
         """
+        Override login, this also overwrites the stored credentials in ~/.seclea/config.
+        :return: None
+        """
+        self._username, auth_creds = self._auth_service.login()
+        self.s.manager.trans.headers = auth_creds
 
-        :param project_name:
-        :param description:
+    def _create_project(self) -> None:
+        """
+        Creates a new project
         :return:
         """
-        # check for overwriting project name
-        if project_name is not None and self.project_name is not None:
-            print("Project name is specified twice, this is probably a bug")
-        # check for no project name at all
-        if project_name is None and self.project_name is None:
-            print("No project name specified, please provide one")
-        # check for just using initialised project name.
-        if project_name is None:
-            project_name = self.project_name
-
-        self.s.manager.trans.url_path = "/collection/projects"
         res = self.s.manager.trans.send_json(
-            {"name": project_name, "created_by": self.username, "description": description}
+            url_path="/collection/projects",
+            obj={
+                "name": self._project_name,
+                "created_by": self._username,
+                "description": "Please add a description..",
+            },
         )
-        # check for already created
-        self.handle_response(res, "Error creating project: ")
-        self.project_name = project_name
-
-    def handle_response(self, res, msg):
-        try:
-            if not res.ok:
-                print(f"{msg}")
-            print(res.status_code)
-            print(res.data)
-
-        except Exception as e:
-            print("error upload: ", e)
-
-    def encode_func(self, func):
-        return base64.b64encode(marshal.dumps(func.__code__)).decode("ascii")
-
-    def decode_func(self, func):
-        try:
-            code = marshal.loads(base64.b64decode(func))  # nosec
-            f = types.FunctionType(code, globals(), "transformation1")
-        except Exception as e:
-            f = e
-        return f
+        if res.status_code == 201:
+            self._project_exists = True
+        else:
+            handle_response(
+                res,
+                "There was an issue creating the project.",
+            )
 
     def upload_transformations(self, transformations: list, training_run_pk: str):
-        self.s.manager.trans.query_params = {}
-        self.s.manager.trans.url_path = "/collection/dataset-transformations"
         for idx, trans in enumerate(transformations):
             data = {
                 "name": trans.__name__,
                 "code_raw": inspect.getsource(trans),
-                "code_encoded": self.encode_func(trans),
+                "code_encoded": encode_func(trans),
                 "order": idx,
                 "training_run": training_run_pk,
             }
-            res = self.s.manager.trans.send_json(data)
-            self.handle_response(res, f"upload transformation err: {data}")
+            res = self.s.manager.trans.send_json(
+                url_path="/collection/dataset-transformations", obj=data
+            )
+            handle_response(res, f"upload transformation err: {data}")
 
     def load_transformations(self, training_run_pk: str):
         """
-        Exects a list of code_encoded as set by upload_transformations.
+        Expects a list of code_encoded as set by upload_transformations.
         """
-        self.s.manager.trans.url_path = "/collection/dataset-transformations"
-        self.s.manager.trans.query_params = {"training_run": training_run_pk}
-        res = self.s.manager.trans.get()
-        print(list(map(lambda x: x["code_encoded"], res.json())))
+        res = self.s.manager.trans.get(
+            url_path="/collection/dataset-transformations",
+            query_params={"training_run": training_run_pk},
+        )
         transformations = list(map(lambda x: x["code_encoded"], res.json()))
-        return list(map(self.decode_func, transformations))
+        return list(map(decode_func, transformations))
 
     def upload_dataset(self, dataset_path: str, dataset_id: str, metadata: dict):
         """
-
+        TODO add pii check to here before upload.
         :param dataset_path:
         :param dataset_id:
         :param metadata:
         :return:
         """
-        if self.project_name is None:
+        if not self._project_exists:
             raise Exception("You need to create a project before uploading a dataset")
-        self.s.manager.trans.url_path = "/collection/datasets"
         dataset_queryparams = {
-            "project": self.project_name,
+            "project": self._project_name,
             "identifier": dataset_id,
             "metadata": metadata,
         }
-        res = self.s.manager.send_file(path=dataset_path, server_query_params=dataset_queryparams)
-        self.handle_response(res, "Error uploading dataset: ")
+        res = self.s.manager.trans.send_file(
+            url_path="/collection/datasets",
+            file_path=dataset_path,
+            query_params=dataset_queryparams,
+        )
+        handle_response(res, "Error uploading dataset: ")
 
-    def upload_training_run(
-        self, model, dataset_id: str, training_run_id: str, metadata: dict, sequence_no=0
-    ):
+    def upload_training_run(self, training_run_id: str, dataset_id: str, metadata: dict):
         """
 
-        :param model:
         :param dataset_id: "test-dataset-0"
         :param training_run_id: "training-run-0"
         :param metadata:  {"type": "GradientBoostedClassifier"}
-        :param sequence_no: 0
         :return:
         """
-        if self.project_name is None:
+        if not self._project_exists:
             raise Exception("You need to create a project before uploading a training run")
-        self.s.manager.trans.url_path = "/collection/training-runs"
-        self.s.manager.trans.send_json(
-            {
-                "project": self.project_name,
+        res = self.s.manager.trans.send_json(
+            url_path="/collection/training-runs",
+            obj={
+                "project": self._project_name,
                 "dataset": dataset_id,
                 "identifier": training_run_id,
                 "metadata": metadata,
-            }
+            },
         )
-        print("Uploading model")
+        handle_response(res, "There was an issue uploading the training run")
 
+    def upload_model_state(self, model, training_run_id, sequence_num, final=False):
         try:
-            os.makedirs(f".seclea/{self.project_name}/{training_run_id}")
+            os.makedirs(
+                os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_id}")
+            )
         except FileExistsError:
             print("Folder already exists, continuing")
             pass
-        save_path = self.s.save_model(model, f".seclea/{self.project_name}/{training_run_id}/model")
+        save_path = self.s.save_model(
+            model,
+            os.path.join(
+                Path.home(), f".seclea/{self._project_name}/{training_run_id}/model-{sequence_num}"
+            ),
+        )
 
-        self.s.manager.trans.url_path = f"/collection/training-runs/{training_run_id}/states"
-        self.s.manager.send_file(
-            save_path,
-            {
-                "sequence_num": str(sequence_no),
+        res = self.s.manager.trans.send_file(
+            url_path="/collection/model-states",
+            file_path=save_path,
+            query_params={
+                "sequence_num": sequence_num,
                 "training_run": training_run_id,
+                "project": self._project_name,
+                "final_state": final,
             },
         )
+        handle_response(res, "There was and issue uploading the model state")
+        if res.status_code == 201:
+            os.remove(save_path)
