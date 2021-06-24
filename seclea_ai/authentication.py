@@ -1,5 +1,6 @@
 import json
 import os
+import stat
 from getpass import getpass
 from pathlib import Path
 from typing import Dict, Tuple
@@ -30,7 +31,8 @@ class AuthenticationService:
         else:
             try:
                 os.mkdir(
-                    os.path.join(Path.home(), ".seclea"), mode=0o660
+                    os.path.join(Path.home(), ".seclea"),
+                    stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_ISVTX,
                 )  # set mode to allow user and group rw only
             except FileExistsError:
                 # do nothing.
@@ -76,7 +78,10 @@ class AuthenticationService:
             url_path="/api/token/refresh/", obj={"refresh": refresh}
         )
         if not response.ok:
-            handle_response(res=response, msg="There was an issue with the refresh token")
+            if response.status_code == 401:
+                print("Token has expired, please login.")
+            else:
+                handle_response(res=response, msg="There was an issue with the refresh token")
             raise AuthenticationError
         else:
             try:
