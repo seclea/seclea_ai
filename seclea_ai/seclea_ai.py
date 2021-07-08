@@ -32,6 +32,7 @@ class SecleaAI:
         self.s.manager.trans.headers = auth_creds
         self._project_name = project_name
         self._project_exists = False
+        self._model = None
 
         # here check the project exists and call create if not.
         res = self.s.manager.trans.get(f"/collection/projects/{self._project_name}")
@@ -69,27 +70,27 @@ class SecleaAI:
                 "There was an issue creating the project.",
             )
 
-    def upload_transformations(self, transformations: list, training_run_pk: str):
+    def upload_transformations(self, transformations: list, training_run_id: str):
         for idx, trans in enumerate(transformations):
             data = {
                 "name": trans.__name__,
                 "code_raw": inspect.getsource(trans),
                 "code_encoded": encode_func(trans),
                 "order": idx,
-                "training_run": training_run_pk,
+                "training_run": training_run_id,
             }
             res = self.s.manager.trans.send_json(
                 url_path="/collection/dataset-transformations", obj=data
             )
             handle_response(res, f"upload transformation err: {data}")
 
-    def load_transformations(self, training_run_pk: str):
+    def load_transformations(self, training_run_id: str):
         """
         Expects a list of code_encoded as set by upload_transformations.
         """
         res = self.s.manager.trans.get(
             url_path="/collection/dataset-transformations",
-            query_params={"training_run": training_run_pk},
+            query_params={"training_run": training_run_id},
         )
         transformations = list(map(lambda x: x["code_encoded"], res.json()))
         return list(map(decode_func, transformations))
@@ -116,7 +117,27 @@ class SecleaAI:
         )
         handle_response(res, "Error uploading dataset: ")
 
-    def upload_training_run(self, training_run_id: str, dataset_id: str, metadata: dict):
+    def upload_model(self, model_name: str, framework: str):
+        res = self.s.manager.trans.send_json(
+            url_path="/collection/models",
+            obj={
+                "name": model_name,
+                "framework": framework,
+            },
+        )
+        try:
+            self._model = res.json()["id"]
+        except KeyError:
+            resp = self.s.manager.trans.get(
+                url_path="/collection/models",
+                query_params={
+                    "name": model_name,
+                    "framework": framework,
+                },
+            )
+            self._model = resp.json()[0]["id"]
+
+    def upload_training_run(self, training_run_id: str, dataset_id: str, params: dict):
         """
 
         :param dataset_id: "test-dataset-0"
@@ -131,8 +152,9 @@ class SecleaAI:
             obj={
                 "project": self._project_name,
                 "dataset": dataset_id,
+                "model": self._model,
                 "identifier": training_run_id,
-                "metadata": metadata,
+                "params": params,
             },
         )
         handle_response(res, "There was an issue uploading the training run")
