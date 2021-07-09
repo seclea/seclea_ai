@@ -1,6 +1,7 @@
 import inspect
 import os
 from pathlib import Path
+from typing import Callable, Dict, List
 
 from requests import Response
 from seclea_utils.data.compression import Zstd
@@ -33,11 +34,35 @@ class SecleaAI:
         self._project_name = project_name
         self._project_exists = False
         self._model = None
+        self._model_name = None
+        self._model_framework = None
+        self._dataset = None
+        self._setup_project()
 
+    def _setup_project(self):
+        """
+        Sets up a project.
+        Checks if it exists and if it does gets any datasets or models associated with it and the latest training_run id.
+        If it doesn't exist it creates it and uploads it.
+        :return:
+        """
         # here check the project exists and call create if not.
         res = self.s.manager.trans.get(f"/collection/projects/{self._project_name}")
         if res.status_code == 200:
             self._project_exists = True
+            # setup the models and datasets available.
+            model_res = self.s.manager.trans.get(
+                "/collection/models", query_params={"project": self._project_name}
+            )
+            self._models = model_res.json()
+            dataset_res = self.s.manager.trans.get(
+                "/collection/datasets", query_params={"project": self._project_name}
+            )
+            self._datasets = dataset_res.json()
+            training_runs_res = self.s.manager.trans.get(
+                "/collection/training_runs", query_params={"project": self._project_name}
+            )
+            self._training_runs = training_runs_res.json()
         else:
             self._create_project()
 
@@ -49,59 +74,38 @@ class SecleaAI:
         self._username, auth_creds = self._auth_service.login()
         self.s.manager.trans.headers = auth_creds
 
-    def _create_project(self) -> None:
+    def set_model(self, model_name: str, framework: str) -> None:
         """
-        Creates a new project
-        :return:
+        Set the model for this session.
+        Checks if it has already been uploaded. If not it will upload it.
+        :param model_name: The name for the architecture/algorithm. eg. "GradientBoostedMachine" or "3-layer CNN".
+        :param framework: The machine learning framework being used. eg. "sklearn" or "pytorch"
+        :return: None
         """
-        res = self.s.manager.trans.send_json(
-            url_path="/collection/projects",
-            obj={
-                "name": self._project_name,
-                "created_by": self._username,
-                "description": "Please add a description..",
-            },
-        )
-        if res.status_code == 201:
-            self._project_exists = True
-        else:
-            handle_response(
-                res,
-                "There was an issue creating the project.",
-            )
+        self._model_name = model_name
+        self._model_framework = framework
+        # TODO check if model already uploaded and upload if not.
+        pass
 
-    def upload_transformations(self, transformations: list, training_run_id: str):
-        for idx, trans in enumerate(transformations):
-            data = {
-                "name": trans.__name__,
-                "code_raw": inspect.getsource(trans),
-                "code_encoded": encode_func(trans),
-                "order": idx,
-                "training_run": training_run_id,
-            }
-            res = self.s.manager.trans.send_json(
-                url_path="/collection/dataset-transformations", obj=data
+    def set_dataset(self, dataset_id: str) -> None:
+        """
+        Set the dataset for the session.
+        Checks if it has been uploaded, if not throws an Exception
+        :param dataset_id: The id of the dataset.
+        :return: None
+        """
+        self._dataset = dataset_id
+        if self._dataset not in self._datasets:  # TODO need to check id field, not just in..
+            raise Exception(  # TODO replace with custom or more appropriate Exception.
+                "The dataset has not been uploaded yet, please use upload_dataset(path, id, metadata) to upload one."
             )
-            handle_response(res, f"upload transformation err: {data}")
-
-    def load_transformations(self, training_run_id: str):
-        """
-        Expects a list of code_encoded as set by upload_transformations.
-        """
-        res = self.s.manager.trans.get(
-            url_path="/collection/dataset-transformations",
-            query_params={"training_run": training_run_id},
-        )
-        transformations = list(map(lambda x: x["code_encoded"], res.json()))
-        return list(map(decode_func, transformations))
 
     def upload_dataset(self, dataset_path: str, dataset_id: str, metadata: dict):
         """
-        TODO add pii check to here before upload.
         :param dataset_path:
         :param dataset_id:
         :param metadata:
-        :return:
+        :return: None TODO return something meaningful about the status of the upload
         """
         if not self._project_exists:
             raise Exception("You need to create a project before uploading a dataset")
@@ -117,7 +121,73 @@ class SecleaAI:
         )
         handle_response(res, "Error uploading dataset: ")
 
-    def upload_model(self, model_name: str, framework: str):
+    def upload_training_run(self, model, transformations: List[Callable]):
+        """
+        Takes a model and extracts the necessary data for uploading the training run
+        :param model: An sklearn Estimator model.
+        :param transformations: A list of functions that preprocess the Dataset.
+        :return: None TODO return something meaningful about the upload.
+        """
+        # extract params from the model
+        # params = model.get_params()  # TODO make compatible with other frameworks.
+
+        # calculate what the training_run_id should be from synced data
+        # (ie. is it a new one for an existing model or is it a new model for this project)
+        # Also it needs to be globally unique.
+
+        # call self._upload_training_run with the id and params.
+
+        # upload transformations.
+
+        # upload model state. TODO figure out how this fits with multiple model states.
+        pass
+
+    def _create_project(self) -> None:
+        """
+        Creates a new project
+        :return:
+        """
+        res = self.s.manager.trans.send_json(
+            url_path="/collection/projects",
+            obj={
+                "name": self._project_name,
+                "description": "Please add a description..",
+            },
+        )
+        if res.status_code == 201:
+            self._project_exists = True
+        else:
+            handle_response(
+                res,
+                "There was an issue creating the project.",
+            )
+
+    def _upload_transformations(self, transformations: List[Callable], training_run_id: str):
+        for idx, trans in enumerate(transformations):
+            data = {
+                "name": trans.__name__,
+                "code_raw": inspect.getsource(trans),
+                "code_encoded": encode_func(trans),
+                "order": idx,
+                "training_run": training_run_id,
+            }
+            res = self.s.manager.trans.send_json(
+                url_path="/collection/dataset-transformations", obj=data
+            )
+            handle_response(res, f"upload transformation err: {data}")
+
+    def _load_transformations(self, training_run_id: str):
+        """
+        Expects a list of code_encoded as set by upload_transformations.
+        """
+        res = self.s.manager.trans.get(
+            url_path="/collection/dataset-transformations",
+            query_params={"training_run": training_run_id},
+        )
+        transformations = list(map(lambda x: x["code_encoded"], res.json()))
+        return list(map(decode_func, transformations))
+
+    def _upload_model(self, model_name: str, framework: str):
         res = self.s.manager.trans.send_json(
             url_path="/collection/models",
             obj={
@@ -137,12 +207,12 @@ class SecleaAI:
             )
             self._model = resp.json()[0]["id"]
 
-    def upload_training_run(self, training_run_id: str, dataset_id: str, params: dict):
+    def _upload_training_run(self, training_run_id: str, params: Dict):
         """
 
-        :param dataset_id: "test-dataset-0"
+        :param model: An sklearn Estimator model.
         :param training_run_id: "training-run-0"
-        :param metadata:  {"type": "GradientBoostedClassifier"}
+        :param params: Dict The hyper parameters of the model - can auto extract?
         :return:
         """
         if not self._project_exists:
@@ -151,7 +221,7 @@ class SecleaAI:
             url_path="/collection/training-runs",
             obj={
                 "project": self._project_name,
-                "dataset": dataset_id,
+                "dataset": self._dataset,
                 "model": self._model,
                 "identifier": training_run_id,
                 "params": params,
@@ -159,7 +229,9 @@ class SecleaAI:
         )
         handle_response(res, "There was an issue uploading the training run")
 
-    def upload_model_state(self, model, training_run_id, sequence_num, final=False):
+    def _upload_model_state(
+        self, model, training_run_id: str, sequence_num: int, final: bool = False
+    ):
         try:
             os.makedirs(
                 os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_id}")
