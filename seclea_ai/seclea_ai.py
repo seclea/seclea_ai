@@ -51,9 +51,7 @@ class SecleaAI:
         if res.status_code == 200:
             self._project_exists = True
             # setup the models and datasets available.
-            model_res = self.s.manager.trans.get(
-                "/collection/models", query_params={"project": self._project_name}
-            )
+            model_res = self.s.manager.trans.get("/collection/models")
             self._models = model_res.json()
             dataset_res = self.s.manager.trans.get(
                 "/collection/datasets", query_params={"project": self._project_name}
@@ -82,10 +80,13 @@ class SecleaAI:
         :param framework: The machine learning framework being used. eg. "sklearn" or "pytorch"
         :return: None
         """
-        self._model_name = model_name
-        self._model_framework = framework
-        # TODO check if model already uploaded and upload if not.
-        pass
+        # check if the model is in those already uploaded.
+        for model in self._models:
+            if model_name in model and framework in model:
+                self._model = model["id"]
+                return
+        # if we got here that means that the model has not been uploaded yet. So we upload it.
+        self._upload_model(model_name=model_name, framework=framework)
 
     def set_dataset(self, dataset_id: str) -> None:
         """
@@ -94,11 +95,14 @@ class SecleaAI:
         :param dataset_id: The id of the dataset.
         :return: None
         """
-        self._dataset = dataset_id
-        if self._dataset not in self._datasets:  # TODO need to check id field, not just in..
-            raise Exception(  # TODO replace with custom or more appropriate Exception.
-                "The dataset has not been uploaded yet, please use upload_dataset(path, id, metadata) to upload one."
-            )
+        for dataset in self._datasets:
+            if dataset_id == dataset["identifier"]:
+                self._dataset = dataset_id
+                return
+        # if we got here then the dataset has not been uploaded somehow so the user needs to do so.
+        raise Exception(  # TODO replace with custom or more appropriate Exception.
+            "The dataset has not been uploaded yet, please use upload_dataset(path, id, metadata) to upload one."
+        )
 
     def upload_dataset(self, dataset_path: str, dataset_id: str, metadata: dict):
         """
