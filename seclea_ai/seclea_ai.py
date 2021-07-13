@@ -52,7 +52,7 @@ class SecleaAI:
         # here check the project exists and call create if not.
         res = self.s.manager.trans.get("/collection/projects", query_params={"name": project_name})
         if res.status_code == 200 and len(res.json()) > 0:
-            self._project = res.json()["id"]
+            self._project = res.json()[0]["id"]
             # setup the models and datasets available.
             model_res = self.s.manager.trans.get("/collection/models")
             self._models = model_res.json()
@@ -177,7 +177,9 @@ class SecleaAI:
         )
 
         # upload model state. TODO figure out how this fits with multiple model states.
-        self._upload_model_state(model=model, training_run_id=training_run_name, sequence_num=0)
+        self._upload_model_state(
+            model=model, training_run_id=self._training_run, sequence_num=0, final=True
+        )
 
     def _create_project(self) -> None:
         """
@@ -201,7 +203,7 @@ class SecleaAI:
                         "name": self._project_name,
                     },
                 )
-                self._model = resp.json()[0]["id"]
+                self._project = resp.json()[0]["id"]
         else:
             handle_response(
                 res,
@@ -253,11 +255,22 @@ class SecleaAI:
                 "params": params,
             },
         )
+        if res.status_code == 200:
+            try:
+                self._training_run = res.json()["id"]
+            except KeyError:
+                resp = self.s.manager.trans.get(
+                    url_path="/collection/training-runs",
+                    query_params={
+                        "project": self._project,
+                        "model": self._model,
+                        "name": training_run_name,
+                    },
+                )
+                self._training_run = resp.json()[0]["id"]
         handle_response(res, "There was an issue uploading the training run")
 
-    def _upload_model_state(
-        self, model, training_run_id: str, sequence_num: int, final: bool = False
-    ):
+    def _upload_model_state(self, model, training_run_id: int, sequence_num: int, final: bool):
         try:
             os.makedirs(
                 os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_id}")
@@ -277,7 +290,6 @@ class SecleaAI:
             query_params={
                 "sequence_num": sequence_num,
                 "training_run": training_run_id,
-                "project": self._project,
                 "final_state": final,
             },
         )
