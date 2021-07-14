@@ -29,7 +29,7 @@ class SecleaAI:
             Manager(compression=Zstd(), transmission=RequestWrapper(server_root_url=plat_url))
         )
         self._auth_service = AuthenticationService(RequestWrapper(auth_url))
-        self._username, auth_creds = self._auth_service.handle_auth()
+        _, auth_creds = self._auth_service.handle_auth()
         self.s.manager.trans.headers = auth_creds
         self._project = None
         self._project_name = project_name
@@ -55,21 +55,35 @@ class SecleaAI:
         if res.status_code == 200 and len(res.json()) > 0:
             self._project = res.json()[0]["id"]
             # setup the models and datasets available.
-            model_res = self.s.manager.trans.get("/collection/models")
-            self._models = model_res.json()
             dataset_res = self.s.manager.trans.get(
                 "/collection/datasets", query_params={"project": self._project}
             )
             self._datasets = dataset_res.json()
         else:
-            self._create_project()
+            proj_res = self._create_project()
+            if proj_res.status_code == 201:
+                try:
+                    self._project = proj_res.json()["id"]
+                except KeyError:
+                    print(f"There was an issue: {proj_res.text}")
+                    resp = self.s.manager.trans.get(
+                        url_path="/collection/projects",
+                        query_params={
+                            "name": project_name,
+                        },
+                    )
+                    self._project = resp.json()[0]["id"]
+            self._datasets = list()
+            handle_response(res, "Some issue with creating the project")
+        model_res = self.s.manager.trans.get("/collection/models")
+        self._models = model_res.json()
 
     def login(self) -> None:
         """
         Override login, this also overwrites the stored credentials in ~/.seclea/config.
         :return: None
         """
-        self._username, auth_creds = self._auth_service.login()
+        _, auth_creds = self._auth_service.login()
         self.s.manager.trans.headers = auth_creds
 
     def init_project(self, model_name: str, framework: str, dataset_name: str) -> None:
@@ -199,7 +213,7 @@ class SecleaAI:
             model=model, training_run_id=self._training_run, sequence_num=0, final=True
         )
 
-    def _create_project(self) -> None:
+    def _create_project(self):
         """
         Creates a new project
         :return:
@@ -251,12 +265,11 @@ class SecleaAI:
         return res
 
     def _upload_model_state(self, model, training_run_id: int, sequence_num: int, final: bool):
-        try:
-            os.makedirs(
-                os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_id}")
-            )
-        except FileExistsError:
-            pass
+        os.makedirs(
+            os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_id}"),
+            exist_ok=True,
+        )
+
         save_path = self.s.save_model(
             model,
             os.path.join(
