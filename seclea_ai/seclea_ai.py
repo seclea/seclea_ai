@@ -125,10 +125,10 @@ class SecleaAI:
         :param metadata:
         :return: None TODO return something meaningful about the status of the upload
         """
-        if self._project is not None:
+        if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
         dataset_queryparams = {
-            "project": self._project_name,
+            "project": self._project,
             "name": dataset_name,
             "metadata": metadata,
         }
@@ -149,7 +149,7 @@ class SecleaAI:
         # if we haven't requested the training runs for this model do that.
         if self._training_runs is None:
             training_runs_res = self.s.manager.trans.get(
-                "/collection/training_runs",
+                "/collection/training-runs",
                 query_params={"project": self._project, "model": self._model},
             )
             self._training_runs = training_runs_res.json()
@@ -160,7 +160,7 @@ class SecleaAI:
             num = int(training_run["name"].split(" ")[2])
             if num > largest:
                 largest = num
-        training_run_name = f"Training Run {largest}"
+        training_run_name = f"Training Run {largest + 1}"
 
         # extract params from the model
         params = model.get_params()  # TODO make compatible with other frameworks.
@@ -255,20 +255,7 @@ class SecleaAI:
                 "params": params,
             },
         )
-        if res.status_code == 200:
-            try:
-                self._training_run = res.json()["id"]
-            except KeyError:
-                resp = self.s.manager.trans.get(
-                    url_path="/collection/training-runs",
-                    query_params={
-                        "project": self._project,
-                        "model": self._model,
-                        "name": training_run_name,
-                    },
-                )
-                self._training_run = resp.json()[0]["id"]
-        handle_response(res, "There was an issue uploading the training run")
+        return res
 
     def _upload_model_state(self, model, training_run_id: int, sequence_num: int, final: bool):
         try:
@@ -293,9 +280,9 @@ class SecleaAI:
                 "final_state": final,
             },
         )
-        handle_response(res, "There was and issue uploading the model state")
         if res.status_code == 201:
             os.remove(save_path)
+        return res
 
     def _upload_transformations(self, transformations: List[Callable], training_run_id: str):
         for idx, trans in enumerate(transformations):
