@@ -26,8 +26,26 @@ class TestSecleaAI(unittest.TestCase):
         )
         responses.add(
             method=responses.GET,
-            url="http://localhost:8000/collection/projects/test-project",
-            json={"access": "dummy_access_token", "refresh": "dummy_refresh_token"},
+            url="http://localhost:8000/collection/projects?name=test-project",
+            json=[{"id": 1, "name": "test-project"}],
+            status=200,
+        )
+        responses.add(
+            method=responses.GET,
+            url="http://localhost:8000/collection/models",
+            json=[{"id": 1, "name": "GBM-1"}],
+            status=200,
+        )
+        responses.add(
+            method=responses.GET,
+            url="http://localhost:8000/collection/datasets",
+            json=[{"id": 1, "name": "Fraud detection"}],
+            status=200,
+        )
+        responses.add(
+            method=responses.GET,
+            url="http://localhost:8000/collection/models?project=test-project",
+            json={"id": 1, "name": "test-project"},
             status=200,
         )
         with patch(
