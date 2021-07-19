@@ -1,4 +1,5 @@
 import inspect
+import json
 import os
 from pathlib import Path
 from typing import Callable, Dict, List
@@ -55,10 +56,6 @@ class SecleaAI:
         if res.status_code == 200 and len(res.json()) > 0:
             self._project = res.json()[0]["id"]
             # setup the models and datasets available.
-            dataset_res = self.s.manager.trans.get(
-                "/collection/datasets", query_params={"project": self._project}
-            )
-            self._datasets = dataset_res.json()
         else:
             proj_res = self._create_project()
             if proj_res.status_code == 201:
@@ -73,10 +70,13 @@ class SecleaAI:
                         },
                     )
                     self._project = resp.json()[0]["id"]
-            self._datasets = list()
             handle_response(res, "Some issue with creating the project")
         model_res = self.s.manager.trans.get("/collection/models")
         self._models = model_res.json()
+        dataset_res = self.s.manager.trans.get(
+            "/collection/datasets", query_params={"project": self._project}
+        )
+        self._datasets = dataset_res.json()
 
     def login(self) -> None:
         """
@@ -110,7 +110,7 @@ class SecleaAI:
             raise ValueError(f"Framework must be one of {self._frameworks}")
         # check if the model is in those already uploaded.
         for model in self._models:
-            if model_name in model and framework in model:
+            if model["name"] == model_name and model["framework"] == framework:
                 self._model = model["id"]
                 return
         # if we got here that means that the model has not been uploaded yet. So we upload it.
@@ -119,15 +119,17 @@ class SecleaAI:
             try:
                 self._model = res.json()["id"]
             except KeyError:
-                print(f"There was an issue: {res.text}")
-                resp = self.s.manager.trans.get(
-                    url_path="/collection/models",
-                    query_params={
-                        "name": model_name,
-                        "framework": framework,
-                    },
-                )
-                self._model = resp.json()[0]["id"]
+                pass
+        else:
+            print(f"There was an issue: {res.text}")
+            resp = self.s.manager.trans.get(
+                url_path="/collection/models",
+                query_params={
+                    "name": model_name,
+                    "framework": framework,
+                },
+            )
+            self._model = resp.json()[0]["id"]
         handle_response(res, "Some issue with setting the model")
 
     def set_dataset(self, dataset_name: str) -> None:
@@ -138,7 +140,7 @@ class SecleaAI:
         :return: None
         """
         for dataset in self._datasets:
-            if dataset_name == dataset["name"]:
+            if dataset["name"] == dataset_name:
                 self._dataset = dataset["id"]
                 return
         # if we got here then the dataset has not been uploaded somehow so the user needs to do so.
@@ -146,7 +148,7 @@ class SecleaAI:
             "The dataset has not been uploaded yet, please use upload_dataset(path, id, metadata) to upload one."
         )
 
-    def upload_dataset(self, dataset_path: str, dataset_name: str, metadata: dict):
+    def upload_dataset(self, dataset_path: str, dataset_name: str, metadata: Dict):
         """
         Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.
         :param dataset_path:
@@ -159,13 +161,15 @@ class SecleaAI:
         dataset_queryparams = {
             "project": self._project,
             "name": dataset_name,
-            "metadata": metadata,
+            "metadata": json.dumps(metadata),
         }
         res = self.s.manager.trans.send_file(
             url_path="/collection/datasets",
             file_path=dataset_path,
             query_params=dataset_queryparams,
         )
+        if res.status_code == 201:
+            self._datasets.append(res.json())
         handle_response(res, "Error uploading dataset: ")
 
     def upload_training_run(self, model, transformations: List[Callable]):
@@ -184,7 +188,7 @@ class SecleaAI:
             self._training_runs = training_runs_res.json()
 
         # Create the training run name
-        largest = 0
+        largest = -1
         for training_run in self._training_runs:
             num = int(training_run["name"].split(" ")[2])
             if num > largest:
@@ -202,11 +206,12 @@ class SecleaAI:
             self._training_runs.append(tr_res.json())
 
         # upload transformations.
-        trans_res = self._upload_transformations(
+        trans_resps = self._upload_transformations(
             transformations=transformations, training_run_id=self._training_run
         )
-        if trans_res.status_code != 201:
-            handle_response(trans_res, "There was an issue with uploading the transformations.")
+        for trans_res in trans_resps:
+            if trans_res.status_code != 201:
+                handle_response(trans_res, "There was an issue with uploading the transformations.")
 
         # upload model state. TODO figure out how this fits with multiple model states.
         self._upload_model_state(
@@ -291,6 +296,7 @@ class SecleaAI:
         return res
 
     def _upload_transformations(self, transformations: List[Callable], training_run_id: int):
+        responses = list()
         for idx, trans in enumerate(transformations):
             data = {
                 "name": trans.__name__,
@@ -299,10 +305,13 @@ class SecleaAI:
                 "order": idx,
                 "training_run": training_run_id,
             }
-            res = self.s.manager.trans.send_json(
-                url_path="/collection/dataset-transformations", obj=data
+            responses.append(
+                self.s.manager.trans.send_json(
+                    url_path="/collection/dataset-transformations", obj=data
+                )
             )
-            return res
+
+        return responses
 
     def _load_transformations(self, training_run_id: int):
         """
