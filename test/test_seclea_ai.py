@@ -42,12 +42,6 @@ class TestSecleaAI(unittest.TestCase):
             json=[{"id": 1, "name": "Fraud detection"}],
             status=200,
         )
-        responses.add(
-            method=responses.GET,
-            url="http://localhost:8000/collection/models?project=test-project",
-            json={"id": 1, "name": "test-project"},
-            status=200,
-        )
         with patch(
             "builtins.open",
             new=mock_open(
