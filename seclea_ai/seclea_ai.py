@@ -1,3 +1,6 @@
+"""
+Description for seclea_ai.py
+"""
 import inspect
 import json
 import os
@@ -81,7 +84,12 @@ class SecleaAI:
     def login(self) -> None:
         """
         Override login, this also overwrites the stored credentials in ~/.seclea/config.
+
         :return: None
+
+        Example::
+
+            >>>
         """
         _, auth_creds = self._auth_service.login()
         self.s.manager.trans.headers = auth_creds
@@ -90,10 +98,18 @@ class SecleaAI:
         """
         Wrapper or shortcut method that initializes the project. Sets model and dataset.
         Throws exception if dataset has not been uploaded.
+
         :param model_name: The name of the model.
+
         :param framework: The framework being used. Currently only "sklearn" is supported.
+
         :param dataset_name: The name of the dataset.
+
         :return: None
+
+        Example::
+
+            >>>
         """
         self.set_model(model_name, framework)
         self.set_dataset(dataset_name)
@@ -102,9 +118,16 @@ class SecleaAI:
         """
         Set the model for this session.
         Checks if it has already been uploaded. If not it will upload it.
+
         :param model_name: The name for the architecture/algorithm. eg. "GradientBoostedMachine" or "3-layer CNN".
+
         :param framework: The machine learning framework being used. eg. "sklearn" or "pytorch"
+
         :return: None
+
+        Example::
+
+            >>>
         """
         if framework not in self._frameworks:
             raise ValueError(f"Framework must be one of {self._frameworks}")
@@ -136,8 +159,14 @@ class SecleaAI:
         """
         Set the dataset for the session.
         Checks if it has been uploaded, if not throws an Exception
+
         :param dataset_name: The name of the dataset.
+
         :return: None
+
+        Example::
+
+            >>>
         """
         for dataset in self._datasets:
             if dataset["name"] == dataset_name:
@@ -151,10 +180,18 @@ class SecleaAI:
     def upload_dataset(self, dataset_path: str, dataset_name: str, metadata: Dict):
         """
         Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.
+
         :param dataset_path:
+
         :param dataset_name:
+
         :param metadata:
+
         :return: None TODO return something meaningful about the status of the upload
+
+        Example::
+
+            >>>
         """
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
@@ -174,10 +211,17 @@ class SecleaAI:
 
     def upload_training_run(self, model, transformations: List[Callable]):
         """
-        Takes a model and extracts the necessary data for uploading the training run
+        Takes a model and extracts the necessary data for uploading the training run.
+
         :param model: An sklearn Estimator model.
+
         :param transformations: A list of functions that preprocess the Dataset.
+
         :return: None TODO return something meaningful about the upload.
+
+        Example::
+
+            >>>
         """
         # if we haven't requested the training runs for this model do that.
         if self._training_runs is None:
@@ -220,7 +264,7 @@ class SecleaAI:
 
     def _create_project(self):
         """
-        Creates a new project
+        Creates a new project.
         :return:
         """
         res = self.s.manager.trans.send_json(
