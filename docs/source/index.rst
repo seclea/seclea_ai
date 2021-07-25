@@ -11,6 +11,7 @@ Welcome to Seclea AI's documentation!
    :maxdepth: 2
 
    readme.rst
+   tutorial.rst
    seclea_ai.rst
    changelog.rst
 
