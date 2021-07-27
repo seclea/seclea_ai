@@ -23,5 +23,5 @@ setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.6",
-    install_requires=["seclea_utils>=0.0.37"],
+    install_requires=["seclea_utils>=0.0.37", "pandas>=1.1.0"],
 )
