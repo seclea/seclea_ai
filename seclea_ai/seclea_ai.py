@@ -2,8 +2,9 @@ import inspect
 import json
 import os
 from pathlib import Path
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Union
 
+import pandas as pd
 from requests import Response
 from seclea_utils.data.compression import Zstd
 from seclea_utils.data.manager import Manager
@@ -42,6 +43,7 @@ class SecleaAI:
         self._dataset = None
         self._training_run = None
         self._training_runs = None
+        self._cache_dir = os.path.join(Path.home(), f".seclea/{self._project_name}")
         self._setup_project(project_name=project_name)
 
     def _setup_project(self, project_name):
@@ -148,16 +150,21 @@ class SecleaAI:
             "The dataset has not been uploaded yet, please use upload_dataset(path, id, metadata) to upload one."
         )
 
-    def upload_dataset(self, dataset_path: str, dataset_name: str, metadata: Dict):
+    def upload_dataset(self, dataset: Union[str, List[str]], dataset_name: str, metadata: Dict):
         """
         Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.
-        :param dataset_path:
-        :param dataset_name:
-        :param metadata:
-        :return: None TODO return something meaningful about the status of the upload
+        :param dataset: Path or list of paths to the dataset. If a list then they must be split by row only and all
+            files must contain column names as a header line.
+        :param dataset_name: The name of the dataset.
+        :param metadata: Any metadata about the dataset.
+        :return: None
         """
+        temp = False
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
+        if isinstance(dataset, List):
+            dataset = self._aggregate_dataset(dataset)
+            temp = True
         dataset_queryparams = {
             "project": self._project,
             "name": dataset_name,
@@ -165,11 +172,13 @@ class SecleaAI:
         }
         res = self.s.manager.trans.send_file(
             url_path="/collection/datasets",
-            file_path=dataset_path,
+            file_path=dataset,
             query_params=dataset_queryparams,
         )
         if res.status_code == 201:
             self._datasets.append(res.json())
+            if temp:
+                os.remove(dataset)
         handle_response(res, "Error uploading dataset: ")
 
     def upload_training_run(self, model, transformations: List[Callable]):
@@ -271,7 +280,7 @@ class SecleaAI:
 
     def _upload_model_state(self, model, training_run_id: int, sequence_num: int, final: bool):
         os.makedirs(
-            os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_id}"),
+            os.path.join(self._cache_dir, str(training_run_id)),
             exist_ok=True,
         )
 
@@ -323,3 +332,17 @@ class SecleaAI:
         )
         transformations = list(map(lambda x: x["code_encoded"], res.json()))
         return list(map(decode_func, transformations))
+
+    def _aggregate_dataset(self, datasets: List[str]) -> str:
+        """
+        Aggregates a list of dataset paths into a single file for upload.
+        NOTE the files must be split by row and have the same format otherwise this will fail or cause unexpected format
+        issues later.
+        :param datasets:
+        :return:
+        """
+        loaded_datasets = [pd.read_csv(dset) for dset in datasets]
+        aggregated = pd.concat(loaded_datasets, axis=0)
+        # save aggregated and return path as string
+        aggregated.to_csv(os.path.join(self._cache_dir, "temp_dataset.csv"), index=False)
+        return os.path.join(self._cache_dir, "temp_dataset.csv")
