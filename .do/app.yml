@@ -3,8 +3,8 @@ region: ams
 static_sites:
 - environment_slug: html
   github:
-    branch: feature/SPD-7-doc-hosting
-    deploy_on_push: true
+    branch: dev
+      : true
     repo: seclea/seclea_ai
   name: seclea-ai
   routes:
