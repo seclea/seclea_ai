@@ -4,7 +4,7 @@ static_sites:
 - environment_slug: html
   github:
     branch: dev
-      : true
+    deploy_on_push: true
     repo: seclea/seclea_ai
   name: seclea-ai
   routes:
