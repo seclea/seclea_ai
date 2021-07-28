@@ -1,348 +1,671 @@
-
-
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
-<head>
-  <meta charset="utf-8" />
-  
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  
-  <title>API Reference &mdash; Seclea AI 1.0.0 documentation</title>
-  
+<html class="writer-html5" lang="en">
+  <head>
+    <meta charset="utf-8" />
 
-  
-  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  
-  
+    <title>API Reference &mdash; Seclea AI 1.0.0 documentation</title>
 
-  
-  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
 
-  
+    <!--[if lt IE 9]>
+      <script src="_static/js/html5shiv.min.js"></script>
+    <![endif]-->
 
-  
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
-  
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/jquery.js"></script>
-        <script src="_static/underscore.js"></script>
-        <script src="_static/doctools.js"></script>
-    
+    <script
+      type="text/javascript"
+      id="documentation_options"
+      data-url_root="./"
+      src="_static/documentation_options.js"
+    ></script>
+    <script
+      data-url_root="./"
+      id="documentation_options"
+      src="_static/documentation_options.js"
+    ></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
-    
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Changelog" href="changelog.html" />
-    <link rel="prev" title="Tutorial" href="tutorial.html" /> 
-</head>
+    <link rel="prev" title="Tutorial" href="tutorial.html" />
+  </head>
 
-<body class="wy-body-for-nav">
+  <body class="wy-body-for-nav">
+    <div class="wy-grid-for-nav">
+      <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+        <div class="wy-side-scroll">
+          <div class="wy-side-nav-search">
+            <a href="index.html" class="icon icon-home"> Seclea AI </a>
 
-   
-  <div class="wy-grid-for-nav">
-    
-    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
-      <div class="wy-side-scroll">
-        <div class="wy-side-nav-search" >
-          
+            <div role="search">
+              <form
+                id="rtd-search-form"
+                class="wy-form"
+                action="search.html"
+                method="get"
+              >
+                <input type="text" name="q" placeholder="Search docs" />
+                <input type="hidden" name="check_keywords" value="yes" />
+                <input type="hidden" name="area" value="default" />
+              </form>
+            </div>
+          </div>
 
-          
-            <a href="index.html" class="icon icon-home"> Seclea AI
-          
-
-          
-          </a>
-
-          
-            
-            
-          
-
-          
-<div role="search">
-  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
-    <input type="hidden" name="check_keywords" value="yes" />
-    <input type="hidden" name="area" value="default" />
-  </form>
-</div>
-
-          
+          <div
+            class="wy-menu wy-menu-vertical"
+            data-spy="affix"
+            role="navigation"
+            aria-label="main navigation"
+          >
+            <ul class="current">
+              <li class="toctree-l1">
+                <a class="reference internal" href="readme.html">seclea-ai</a>
+              </li>
+              <li class="toctree-l1">
+                <a class="reference internal" href="tutorial.html">Tutorial</a>
+              </li>
+              <li class="toctree-l1 current">
+                <a class="current reference internal" href="#">API Reference</a>
+                <ul>
+                  <li class="toctree-l2">
+                    <a class="reference internal" href="#seclea-ai-seclea-ai-py"
+                      >seclea_ai.seclea_ai.py</a
+                    >
+                  </li>
+                </ul>
+              </li>
+              <li class="toctree-l1">
+                <a class="reference internal" href="changelog.html"
+                  >Changelog</a
+                >
+              </li>
+            </ul>
+          </div>
         </div>
-
-        
-        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-          
-            
-            
-              
-            
-            
-              <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="readme.html">seclea-ai</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorial.html">Tutorial</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">API Reference</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#seclea-ai-seclea-ai-py">seclea_ai.seclea_ai.py</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
-</ul>
-
-            
-          
-        </div>
-        
-      </div>
-    </nav>
-
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
-
-      
-      <nav class="wy-nav-top" aria-label="top navigation">
-        
-          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">Seclea AI</a>
-        
       </nav>
 
+      <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+        <nav class="wy-nav-top" aria-label="top navigation">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Seclea AI</a>
+        </nav>
 
-      <div class="wy-nav-content">
-        
-        <div class="rst-content">
-        
-          
+        <div class="wy-nav-content">
+          <div class="rst-content">
+            <div role="navigation" aria-label="breadcrumbs navigation">
+              <ul class="wy-breadcrumbs">
+                <li>
+                  <a href="index.html" class="icon icon-home"></a> &raquo;
+                </li>
 
+                <li>API Reference</li>
 
+                <li class="wy-breadcrumbs-aside">
+                  <a href="_sources/seclea_ai.rst.txt" rel="nofollow">
+                    View page source</a
+                  >
+                </li>
+              </ul>
 
+              <hr />
+            </div>
+            <div
+              role="main"
+              class="document"
+              itemscope="itemscope"
+              itemtype="http://schema.org/Article"
+            >
+              <div itemprop="articleBody">
+                <div class="section" id="api-reference">
+                  <h1>
+                    API Reference<a
+                      class="headerlink"
+                      href="#api-reference"
+                      title="Permalink to this headline"
+                      >¶</a
+                    >
+                  </h1>
+                  <div class="section" id="seclea-ai-seclea-ai-py">
+                    <h2>
+                      seclea_ai.seclea_ai.py<a
+                        class="headerlink"
+                        href="#seclea-ai-seclea-ai-py"
+                        title="Permalink to this headline"
+                        >¶</a
+                      >
+                    </h2>
+                    <dl class="py class">
+                      <dt
+                        class="sig sig-object py"
+                        id="seclea_ai.seclea_ai.SecleaAI"
+                      >
+                        <em class="property"><span class="pre">class</span> </em
+                        ><span class="sig-prename descclassname"
+                          ><span class="pre">seclea_ai.seclea_ai.</span></span
+                        ><span class="sig-name descname"
+                          ><span class="pre">SecleaAI</span></span
+                        ><span class="sig-paren">(</span
+                        ><em class="sig-param"
+                          ><span class="n"
+                            ><span class="pre">project_name</span></span
+                          ></em
+                        >,
+                        <em class="sig-param"
+                          ><span class="n"
+                            ><span class="pre">plat_url</span></span
+                          ><span class="o"><span class="pre">=</span></span
+                          ><span class="default_value"
+                            ><span class="pre"
+                              >'https://platform.seclea.com'</span
+                            ></span
+                          ></em
+                        >,
+                        <em class="sig-param"
+                          ><span class="n"
+                            ><span class="pre">auth_url</span></span
+                          ><span class="o"><span class="pre">=</span></span
+                          ><span class="default_value"
+                            ><span class="pre"
+                              >'https://auth.seclea.com'</span
+                            ></span
+                          ></em
+                        ><span class="sig-paren">)</span
+                        ><a
+                          class="headerlink"
+                          href="#seclea_ai.seclea_ai.SecleaAI"
+                          title="Permalink to this definition"
+                          >¶</a
+                        >
+                      </dt>
+                      <dd>
+                        <p>
+                          Bases:
+                          <code
+                            class="xref py py-class docutils literal notranslate"
+                            ><span class="pre">object</span></code
+                          >
+                        </p>
+                        <dl class="py method">
+                          <dt
+                            class="sig sig-object py"
+                            id="seclea_ai.seclea_ai.SecleaAI.init_project"
+                          >
+                            <span class="sig-name descname"
+                              ><span class="pre">init_project</span></span
+                            ><span class="sig-paren">(</span
+                            ><em class="sig-param"
+                              ><span class="n"
+                                ><span class="pre">model_name</span></span
+                              ><span class="p"><span class="pre">:</span></span>
+                              <span class="n"
+                                ><span class="pre">str</span></span
+                              ></em
+                            >,
+                            <em class="sig-param"
+                              ><span class="n"
+                                ><span class="pre">framework</span></span
+                              ><span class="p"><span class="pre">:</span></span>
+                              <span class="n"
+                                ><span class="pre">str</span></span
+                              ></em
+                            >,
+                            <em class="sig-param"
+                              ><span class="n"
+                                ><span class="pre">dataset_name</span></span
+                              ><span class="p"><span class="pre">:</span></span>
+                              <span class="n"
+                                ><span class="pre">str</span></span
+                              ></em
+                            ><span class="sig-paren">)</span>
+                            <span class="sig-return"
+                              ><span class="sig-return-icon">&#x2192;</span>
+                              <span class="sig-return-typehint"
+                                ><span class="pre">None</span></span
+                              ></span
+                            ><a
+                              class="headerlink"
+                              href="#seclea_ai.seclea_ai.SecleaAI.init_project"
+                              title="Permalink to this definition"
+                              >¶</a
+                            >
+                          </dt>
+                          <dd>
+                            <p>
+                              Wrapper or shortcut method that initializes the
+                              project. Sets model and dataset. Throws exception
+                              if dataset has not been uploaded.
+                            </p>
+                            <dl class="field-list simple">
+                              <dt class="field-odd">Parameters</dt>
+                              <dd class="field-odd">
+                                <ul class="simple">
+                                  <li>
+                                    <p>
+                                      <strong>model_name</strong> – The name of
+                                      the model.
+                                    </p>
+                                  </li>
+                                  <li>
+                                    <p>
+                                      <strong>framework</strong> – The framework
+                                      being used. Currently only “sklearn” is
+                                      supported.
+                                    </p>
+                                  </li>
+                                  <li>
+                                    <p>
+                                      <strong>dataset_name</strong> – The name
+                                      of the dataset.
+                                    </p>
+                                  </li>
+                                </ul>
+                              </dd>
+                              <dt class="field-even">Returns</dt>
+                              <dd class="field-even"><p>None</p></dd>
+                            </dl>
+                            <p>Example:</p>
+                            <div class="highlight-default notranslate">
+                              <div class="highlight">
+                                <pre><span></span><span class="go">&gt;&gt;&gt;</span>
+</pre>
+                              </div>
+                            </div>
+                          </dd>
+                        </dl>
 
+                        <dl class="py method">
+                          <dt
+                            class="sig sig-object py"
+                            id="seclea_ai.seclea_ai.SecleaAI.login"
+                          >
+                            <span class="sig-name descname"
+                              ><span class="pre">login</span></span
+                            ><span class="sig-paren">(</span
+                            ><span class="sig-paren">)</span>
+                            <span class="sig-return"
+                              ><span class="sig-return-icon">&#x2192;</span>
+                              <span class="sig-return-typehint"
+                                ><span class="pre">None</span></span
+                              ></span
+                            ><a
+                              class="headerlink"
+                              href="#seclea_ai.seclea_ai.SecleaAI.login"
+                              title="Permalink to this definition"
+                              >¶</a
+                            >
+                          </dt>
+                          <dd>
+                            <p>
+                              Override login, this also overwrites the stored
+                              credentials in ~/.seclea/config.
+                            </p>
+                            <dl class="field-list simple">
+                              <dt class="field-odd">Returns</dt>
+                              <dd class="field-odd"><p>None</p></dd>
+                            </dl>
+                            <p>Example:</p>
+                            <div class="highlight-default notranslate">
+                              <div class="highlight">
+                                <pre><span></span><span class="go">&gt;&gt;&gt;</span>
+</pre>
+                              </div>
+                            </div>
+                          </dd>
+                        </dl>
 
+                        <dl class="py method">
+                          <dt
+                            class="sig sig-object py"
+                            id="seclea_ai.seclea_ai.SecleaAI.set_dataset"
+                          >
+                            <span class="sig-name descname"
+                              ><span class="pre">set_dataset</span></span
+                            ><span class="sig-paren">(</span
+                            ><em class="sig-param"
+                              ><span class="n"
+                                ><span class="pre">dataset_name</span></span
+                              ><span class="p"><span class="pre">:</span></span>
+                              <span class="n"
+                                ><span class="pre">str</span></span
+                              ></em
+                            ><span class="sig-paren">)</span>
+                            <span class="sig-return"
+                              ><span class="sig-return-icon">&#x2192;</span>
+                              <span class="sig-return-typehint"
+                                ><span class="pre">None</span></span
+                              ></span
+                            ><a
+                              class="headerlink"
+                              href="#seclea_ai.seclea_ai.SecleaAI.set_dataset"
+                              title="Permalink to this definition"
+                              >¶</a
+                            >
+                          </dt>
+                          <dd>
+                            <p>
+                              Set the dataset for the session. Checks if it has
+                              been uploaded, if not throws an Exception
+                            </p>
+                            <dl class="field-list simple">
+                              <dt class="field-odd">Parameters</dt>
+                              <dd class="field-odd">
+                                <p>
+                                  <strong>dataset_name</strong> – The name of
+                                  the dataset.
+                                </p>
+                              </dd>
+                              <dt class="field-even">Returns</dt>
+                              <dd class="field-even"><p>None</p></dd>
+                            </dl>
+                            <p>Example:</p>
+                            <div class="highlight-default notranslate">
+                              <div class="highlight">
+                                <pre><span></span><span class="go">&gt;&gt;&gt;</span>
+</pre>
+                              </div>
+                            </div>
+                          </dd>
+                        </dl>
 
+                        <dl class="py method">
+                          <dt
+                            class="sig sig-object py"
+                            id="seclea_ai.seclea_ai.SecleaAI.set_model"
+                          >
+                            <span class="sig-name descname"
+                              ><span class="pre">set_model</span></span
+                            ><span class="sig-paren">(</span
+                            ><em class="sig-param"
+                              ><span class="n"
+                                ><span class="pre">model_name</span></span
+                              ><span class="p"><span class="pre">:</span></span>
+                              <span class="n"
+                                ><span class="pre">str</span></span
+                              ></em
+                            >,
+                            <em class="sig-param"
+                              ><span class="n"
+                                ><span class="pre">framework</span></span
+                              ><span class="p"><span class="pre">:</span></span>
+                              <span class="n"
+                                ><span class="pre">str</span></span
+                              ></em
+                            ><span class="sig-paren">)</span>
+                            <span class="sig-return"
+                              ><span class="sig-return-icon">&#x2192;</span>
+                              <span class="sig-return-typehint"
+                                ><span class="pre">None</span></span
+                              ></span
+                            ><a
+                              class="headerlink"
+                              href="#seclea_ai.seclea_ai.SecleaAI.set_model"
+                              title="Permalink to this definition"
+                              >¶</a
+                            >
+                          </dt>
+                          <dd>
+                            <p>
+                              Set the model for this session. Checks if it has
+                              already been uploaded. If not it will upload it.
+                            </p>
+                            <dl class="field-list simple">
+                              <dt class="field-odd">Parameters</dt>
+                              <dd class="field-odd">
+                                <ul class="simple">
+                                  <li>
+                                    <p>
+                                      <strong>model_name</strong> – The name for
+                                      the architecture/algorithm. eg.
+                                      “GradientBoostedMachine” or “3-layer CNN”.
+                                    </p>
+                                  </li>
+                                  <li>
+                                    <p>
+                                      <strong>framework</strong> – The machine
+                                      learning framework being used. eg.
+                                      “sklearn” or “pytorch”
+                                    </p>
+                                  </li>
+                                </ul>
+                              </dd>
+                              <dt class="field-even">Returns</dt>
+                              <dd class="field-even"><p>None</p></dd>
+                            </dl>
+                            <p>Example:</p>
+                            <div class="highlight-default notranslate">
+                              <div class="highlight">
+                                <pre><span></span><span class="go">&gt;&gt;&gt;</span>
+</pre>
+                              </div>
+                            </div>
+                          </dd>
+                        </dl>
 
+                        <dl class="py method">
+                          <dt
+                            class="sig sig-object py"
+                            id="seclea_ai.seclea_ai.SecleaAI.upload_dataset"
+                          >
+                            <span class="sig-name descname"
+                              ><span class="pre">upload_dataset</span></span
+                            ><span class="sig-paren">(</span
+                            ><em class="sig-param"
+                              ><span class="n"
+                                ><span class="pre">dataset_path</span></span
+                              ><span class="p"><span class="pre">:</span></span>
+                              <span class="n"
+                                ><span class="pre">str</span></span
+                              ></em
+                            >,
+                            <em class="sig-param"
+                              ><span class="n"
+                                ><span class="pre">dataset_name</span></span
+                              ><span class="p"><span class="pre">:</span></span>
+                              <span class="n"
+                                ><span class="pre">str</span></span
+                              ></em
+                            >,
+                            <em class="sig-param"
+                              ><span class="n"
+                                ><span class="pre">metadata</span></span
+                              ><span class="p"><span class="pre">:</span></span>
+                              <span class="n"
+                                ><span class="pre">Dict</span></span
+                              ></em
+                            ><span class="sig-paren">)</span
+                            ><a
+                              class="headerlink"
+                              href="#seclea_ai.seclea_ai.SecleaAI.upload_dataset"
+                              title="Permalink to this definition"
+                              >¶</a
+                            >
+                          </dt>
+                          <dd>
+                            <p>
+                              Uploads a dataset. Does not set the dataset for
+                              the session. Should be carried out before setting
+                              the dataset.
+                            </p>
+                            <dl class="field-list simple">
+                              <dt class="field-odd">Parameters</dt>
+                              <dd class="field-odd">
+                                <ul class="simple">
+                                  <li>
+                                    <p><strong>dataset_path</strong> –</p>
+                                  </li>
+                                  <li>
+                                    <p><strong>dataset_name</strong> –</p>
+                                  </li>
+                                  <li>
+                                    <p><strong>metadata</strong> –</p>
+                                  </li>
+                                </ul>
+                              </dd>
+                              <dt class="field-even">Returns</dt>
+                              <dd class="field-even">
+                                <p>
+                                  None TODO return something meaningful about
+                                  the status of the upload
+                                </p>
+                              </dd>
+                            </dl>
+                            <p>Example:</p>
+                            <div class="highlight-default notranslate">
+                              <div class="highlight">
+                                <pre><span></span><span class="go">&gt;&gt;&gt;</span>
+</pre>
+                              </div>
+                            </div>
+                          </dd>
+                        </dl>
 
+                        <dl class="py method">
+                          <dt
+                            class="sig sig-object py"
+                            id="seclea_ai.seclea_ai.SecleaAI.upload_training_run"
+                          >
+                            <span class="sig-name descname"
+                              ><span class="pre"
+                                >upload_training_run</span
+                              ></span
+                            ><span class="sig-paren">(</span
+                            ><em class="sig-param"
+                              ><span class="n"
+                                ><span class="pre">model</span></span
+                              ></em
+                            >,
+                            <em class="sig-param"
+                              ><span class="n"
+                                ><span class="pre">transformations</span></span
+                              ><span class="p"><span class="pre">:</span></span>
+                              <span class="n"
+                                ><span class="pre">List</span
+                                ><span class="p"
+                                  ><span class="pre">[</span></span
+                                ><span class="pre">Callable</span
+                                ><span class="p"
+                                  ><span class="pre">]</span></span
+                                ></span
+                              ></em
+                            ><span class="sig-paren">)</span
+                            ><a
+                              class="headerlink"
+                              href="#seclea_ai.seclea_ai.SecleaAI.upload_training_run"
+                              title="Permalink to this definition"
+                              >¶</a
+                            >
+                          </dt>
+                          <dd>
+                            <p>
+                              Takes a model and extracts the necessary data for
+                              uploading the training run.
+                            </p>
+                            <dl class="field-list simple">
+                              <dt class="field-odd">Parameters</dt>
+                              <dd class="field-odd">
+                                <ul class="simple">
+                                  <li>
+                                    <p>
+                                      <strong>model</strong> – An sklearn
+                                      Estimator model.
+                                    </p>
+                                  </li>
+                                  <li>
+                                    <p>
+                                      <strong>transformations</strong> – A list
+                                      of functions that preprocess the Dataset.
+                                    </p>
+                                  </li>
+                                </ul>
+                              </dd>
+                              <dt class="field-even">Returns</dt>
+                              <dd class="field-even">
+                                <p>
+                                  None TODO return something meaningful about
+                                  the upload.
+                                </p>
+                              </dd>
+                            </dl>
+                            <p>Example:</p>
+                            <div class="highlight-default notranslate">
+                              <div class="highlight">
+                                <pre><span></span><span class="go">&gt;&gt;&gt;</span>
+</pre>
+                              </div>
+                            </div>
+                          </dd>
+                        </dl>
+                      </dd>
+                    </dl>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <footer>
+              <div
+                class="rst-footer-buttons"
+                role="navigation"
+                aria-label="footer navigation"
+              >
+                <a
+                  href="changelog.html"
+                  class="btn btn-neutral float-right"
+                  title="Changelog"
+                  accesskey="n"
+                  rel="next"
+                  >Next
+                  <span
+                    class="fa fa-arrow-circle-right"
+                    aria-hidden="true"
+                  ></span
+                ></a>
+                <a
+                  href="tutorial.html"
+                  class="btn btn-neutral float-left"
+                  title="Tutorial"
+                  accesskey="p"
+                  rel="prev"
+                  ><span
+                    class="fa fa-arrow-circle-left"
+                    aria-hidden="true"
+                  ></span>
+                  Previous</a
+                >
+              </div>
 
+              <hr />
 
+              <div role="contentinfo">
+                <p>&#169; Copyright 2021, Seclea.</p>
+              </div>
 
+              Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using
+              a
 
+              <a href="https://github.com/readthedocs/sphinx_rtd_theme"
+                >theme</a
+              >
 
-
-
-
-
-<div role="navigation" aria-label="breadcrumbs navigation">
-
-  <ul class="wy-breadcrumbs">
-    
-      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
-        
-      <li>API Reference</li>
-    
-    
-      <li class="wy-breadcrumbs-aside">
-        
-          
-            <a href="_sources/seclea_ai.rst.txt" rel="nofollow"> View page source</a>
-          
-        
-      </li>
-    
-  </ul>
-
-  
-  <hr/>
-</div>
-          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
-           <div itemprop="articleBody">
-            
-  <div class="section" id="api-reference">
-<h1>API Reference<a class="headerlink" href="#api-reference" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="seclea-ai-seclea-ai-py">
-<h2>seclea_ai.seclea_ai.py<a class="headerlink" href="#seclea-ai-seclea-ai-py" title="Permalink to this headline">¶</a></h2>
-<dl class="py class">
-<dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">seclea_ai.seclea_ai.</span></span><span class="sig-name descname"><span class="pre">SecleaAI</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">project_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plat_url</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'https://platform.seclea.com'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">auth_url</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'https://auth.seclea.com'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI.init_project">
-<span class="sig-name descname"><span class="pre">init_project</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">framework</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataset_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.init_project" title="Permalink to this definition">¶</a></dt>
-<dd><p>Wrapper or shortcut method that initializes the project. Sets model and dataset.
-Throws exception if dataset has not been uploaded.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>model_name</strong> – The name of the model.</p></li>
-<li><p><strong>framework</strong> – The framework being used. Currently only “sklearn” is supported.</p></li>
-<li><p><strong>dataset_name</strong> – The name of the dataset.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>None</p>
-</dd>
-</dl>
-<p>Example:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="go">&gt;&gt;&gt;</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI.login">
-<span class="sig-name descname"><span class="pre">login</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.login" title="Permalink to this definition">¶</a></dt>
-<dd><p>Override login, this also overwrites the stored credentials in ~/.seclea/config.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>None</p>
-</dd>
-</dl>
-<p>Example:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="go">&gt;&gt;&gt;</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI.set_dataset">
-<span class="sig-name descname"><span class="pre">set_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.set_dataset" title="Permalink to this definition">¶</a></dt>
-<dd><p>Set the dataset for the session.
-Checks if it has been uploaded, if not throws an Exception</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>dataset_name</strong> – The name of the dataset.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>None</p>
-</dd>
-</dl>
-<p>Example:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="go">&gt;&gt;&gt;</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI.set_model">
-<span class="sig-name descname"><span class="pre">set_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">framework</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.set_model" title="Permalink to this definition">¶</a></dt>
-<dd><p>Set the model for this session.
-Checks if it has already been uploaded. If not it will upload it.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>model_name</strong> – The name for the architecture/algorithm. eg. “GradientBoostedMachine” or “3-layer CNN”.</p></li>
-<li><p><strong>framework</strong> – The machine learning framework being used. eg. “sklearn” or “pytorch”</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>None</p>
-</dd>
-</dl>
-<p>Example:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="go">&gt;&gt;&gt;</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI.upload_dataset">
-<span class="sig-name descname"><span class="pre">upload_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset_path</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataset_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">Dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.upload_dataset" title="Permalink to this definition">¶</a></dt>
-<dd><p>Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>dataset_path</strong> – </p></li>
-<li><p><strong>dataset_name</strong> – </p></li>
-<li><p><strong>metadata</strong> – </p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>None TODO return something meaningful about the status of the upload</p>
-</dd>
-</dl>
-<p>Example:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="go">&gt;&gt;&gt;</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI.upload_training_run">
-<span class="sig-name descname"><span class="pre">upload_training_run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transformations</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Callable</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.upload_training_run" title="Permalink to this definition">¶</a></dt>
-<dd><p>Takes a model and extracts the necessary data for uploading the training run.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>model</strong> – An sklearn Estimator model.</p></li>
-<li><p><strong>transformations</strong> – A list of functions that preprocess the Dataset.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>None TODO return something meaningful about the upload.</p>
-</dd>
-</dl>
-<p>Example:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="go">&gt;&gt;&gt;</span>
-</pre></div>
-</div>
-</dd></dl>
-
-</dd></dl>
-
-</div>
-</div>
-
-
-           </div>
-           
+              provided by <a href="https://readthedocs.org">Read the Docs</a>.
+            </footer>
           </div>
-          <footer>
-    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
-        <a href="changelog.html" class="btn btn-neutral float-right" title="Changelog" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
-        <a href="tutorial.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        </div>
+      </section>
     </div>
 
-  <hr/>
-
-  <div role="contentinfo">
-    <p>
-        &#169; Copyright 2021, Seclea.
-
-    </p>
-  </div>
-    
-    
-    
-    Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
-    
-    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
-    
-    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
-
-</footer>
-        </div>
-      </div>
-
-    </section>
-
-  </div>
-  
-
-  <script type="text/javascript">
+    <script type="text/javascript">
       jQuery(function () {
-          SphinxRtdTheme.Navigation.enable(true);
+        SphinxRtdTheme.Navigation.enable(true);
       });
-  </script>
-
-  
-  
-    
-   
-
-</body>
+    </script>
+  </body>
 </html>
