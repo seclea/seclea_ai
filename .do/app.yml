@@ -1,12 +1,12 @@
 name: seclea-ai
 region: ams
 static_sites:
-- environment_slug: html
-  github:
-    branch: dev
-    deploy_on_push: true
-    repo: seclea/seclea_ai
-  name: seclea-ai
-  routes:
-  - path: /
-  source_dir: /docs/build/html/
+  - environment_slug: html
+    github:
+      branch: dev
+      deploy_on_push: true
+      repo: seclea/seclea_ai
+    name: seclea-ai
+    routes:
+      - path: /
+    source_dir: /docs/build/html/
