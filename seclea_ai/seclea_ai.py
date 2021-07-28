@@ -188,7 +188,7 @@ class SecleaAI:
 
         :param dataset_name: The name of the dataset.
 
-        :param metadata:Any metadata about the dataset.
+        :param metadata: Any metadata about the dataset.
 
         :return: None
 
