@@ -38,5 +38,3 @@ This is a simple example::
 +------------+ span rows. | - contain |
 | body row 4 |            | - blocks. |
 +------------+------------+-----------+
-
-New Line 1 in Tutorial
