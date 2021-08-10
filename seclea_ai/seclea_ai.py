@@ -66,7 +66,7 @@ class SecleaAI:
                     self._project = proj_res.json()["id"]
                 except KeyError:
                     print(f"There was an issue: {proj_res.text}")
-                    resp = self._model_manager.manager.trans.get(
+                    resp = self._transmission.get(
                         url_path="/collection/projects",
                         query_params={
                             "name": project_name,
@@ -289,7 +289,7 @@ class SecleaAI:
         :param framework:
         :return:
         """
-        res = self._model_manager.manager.trans.send_json(
+        res = self._transmission.send_json(
             url_path="/collection/models",
             obj={
                 "name": model_name,
@@ -307,7 +307,7 @@ class SecleaAI:
         """
         if self._project is None:
             raise Exception("You need to create a project before uploading a training run")
-        res = self._model_manager.manager.trans.send_json(
+        res = self._transmission.send_json(
             url_path="/collection/training-runs",
             obj={
                 "project": self._project,
