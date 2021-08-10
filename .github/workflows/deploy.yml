@@ -21,6 +21,10 @@ jobs:
         run: |
           pip3 install bump2version==1.0.1
           ./scripts/increment-version.sh patch
+      - name: Build Sphinx Documentation
+        run: |
+          pip3 install -r requirements.txt
+          ./scripts/run_make_doc.sh
       - uses: EndBug/add-and-commit@v7 # You can change this to use a specific version
         with:
           add: "."
