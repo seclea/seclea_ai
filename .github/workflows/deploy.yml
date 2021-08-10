@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          token: ${{ secrets.TOKEN_ROGER }}
+          token: ${{ secrets.TOKEN_AUTOMATION }}
       - name: Increment version in setup.py
         run: |
           pip3 install bump2version==1.0.1
