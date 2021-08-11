@@ -20,6 +20,9 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Check for macos and install libomp for Boosting libraries to work
+        if: startsWith(matrix.os, 'macOS')
+        run: brew install libomp
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
