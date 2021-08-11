@@ -52,7 +52,7 @@ class SecleaAI:
         Sets up a project.
         Checks if it exists and if it does gets any datasets or models associated with it and the latest training_run id.
         If it doesn't exist it creates it and uploads it.
-        :return:
+        :return: None
         """
         # here check the project exists and call create if not.
         res = self._transmission.get("/collection/projects", query_params={"name": project_name})
@@ -84,12 +84,15 @@ class SecleaAI:
     def login(self) -> None:
         """
         Override login, this also overwrites the stored credentials in ~/.seclea/config.
+        Note. In some circumstances the password will be echoed to stdin. This is not a problem in Jupyter Notebooks
+        but may appear in scripting usage.
 
         :return: None
 
         Example::
 
-            >>>
+            >>> seclea = SecleaAI(project_name="Test Project")
+            >>> seclea.login()
         """
         self._transmission.headers = self._auth_service.login()
 
