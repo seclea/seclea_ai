@@ -3,13 +3,12 @@ import os
 import stat
 from getpass import getpass
 from pathlib import Path
-from typing import Dict
 
 from requests import Response
+from seclea_utils.core import Transmission
 
 from seclea_ai.exceptions import AuthenticationError
-
-AuthenticationCredentials = Dict[str, str]
+from seclea_ai.typing import AuthenticationCredentials
 
 
 def handle_response(res: Response, msg):
@@ -18,7 +17,7 @@ def handle_response(res: Response, msg):
 
 
 class AuthenticationService:
-    def __init__(self, transmission):
+    def __init__(self, transmission: Transmission):
         self._access = None
         self._transmission = transmission
 

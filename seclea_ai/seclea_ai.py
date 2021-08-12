@@ -9,11 +9,8 @@ from typing import Callable, Dict, List, Union
 
 import pandas as pd
 from requests import Response
-from seclea_utils.data.compression import Zstd
-from seclea_utils.data.data_management import CompressedFileManager
-from seclea_utils.data.transformations import decode_func, encode_func
-from seclea_utils.data.transmission import RequestWrapper
-from seclea_utils.models.model_management import SKLearnModelManager
+from seclea_utils.core import CompressedFileManager, RequestWrapper, Zstd, decode_func, encode_func
+from seclea_utils.frameworks import SKLearnModelManager
 
 from seclea_ai.authentication import AuthenticationService
 
