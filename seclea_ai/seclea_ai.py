@@ -24,11 +24,13 @@ class SecleaAI:
     def __init__(
         self,
         project_name,
-        platform,
+        framework,
         plat_url="https://platform.seclea.com",
         auth_url="https://auth.seclea.com",
     ):
-        self._model_manager = get_model_manager(platform, CompressedFileManager(compression=Zstd()))
+        self._model_manager = get_model_manager(
+            framework, CompressedFileManager(compression=Zstd())
+        )
         self._auth_service = AuthenticationService(RequestWrapper(auth_url))
         self._transmission = RequestWrapper(server_root_url=plat_url)
         self._transmission.headers = self._auth_service.handle_auth()
