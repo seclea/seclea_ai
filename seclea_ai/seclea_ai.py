@@ -10,9 +10,9 @@ from typing import Callable, Dict, List, Union
 import pandas as pd
 from requests import Response
 from seclea_utils.core import CompressedFileManager, RequestWrapper, Zstd, decode_func, encode_func
-from seclea_utils.frameworks import SKLearnModelManager
 
 from seclea_ai.authentication import AuthenticationService
+from seclea_ai.model_management import get_model_manager
 
 
 def handle_response(res: Response, msg):
@@ -24,10 +24,11 @@ class SecleaAI:
     def __init__(
         self,
         project_name,
+        platform,
         plat_url="https://platform.seclea.com",
         auth_url="https://auth.seclea.com",
     ):
-        self._model_manager = SKLearnModelManager(CompressedFileManager(compression=Zstd()))
+        self._model_manager = get_model_manager(platform, CompressedFileManager(compression=Zstd()))
         self._auth_service = AuthenticationService(RequestWrapper(auth_url))
         self._transmission = RequestWrapper(server_root_url=plat_url)
         self._transmission.headers = self._auth_service.handle_auth()

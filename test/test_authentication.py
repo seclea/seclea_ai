@@ -5,7 +5,7 @@ from unittest import mock
 from unittest.mock import mock_open, patch
 
 import responses
-from seclea_utils.data.transmission import RequestWrapper
+from seclea_utils.core import RequestWrapper
 
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
