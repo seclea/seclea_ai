@@ -9,13 +9,10 @@ from typing import Callable, Dict, List, Union
 
 import pandas as pd
 from requests import Response
-from seclea_utils.data.compression import Zstd
-from seclea_utils.data.manager import Manager
-from seclea_utils.data.transformations import decode_func, encode_func
-from seclea_utils.data.transmission import RequestWrapper
-from seclea_utils.models.model_management import SkLearnModelManager
+from seclea_utils.core import CompressedFileManager, RequestWrapper, Zstd, decode_func, encode_func
 
 from seclea_ai.authentication import AuthenticationService
+from seclea_ai.model_management import get_model_manager
 
 
 def handle_response(res: Response, msg):
@@ -27,15 +24,16 @@ class SecleaAI:
     def __init__(
         self,
         project_name,
+        framework,
         plat_url="https://platform.seclea.com",
         auth_url="https://auth.seclea.com",
     ):
-        self.s = SkLearnModelManager(
-            Manager(compression=Zstd(), transmission=RequestWrapper(server_root_url=plat_url))
+        self._model_manager = get_model_manager(
+            framework, CompressedFileManager(compression=Zstd())
         )
         self._auth_service = AuthenticationService(RequestWrapper(auth_url))
-        _, auth_creds = self._auth_service.handle_auth()
-        self.s.manager.trans.headers = auth_creds
+        self._transmission = RequestWrapper(server_root_url=plat_url)
+        self._transmission.headers = self._auth_service.handle_auth()
         self._project = None
         self._project_name = project_name
         self._models = None
@@ -54,10 +52,10 @@ class SecleaAI:
         Sets up a project.
         Checks if it exists and if it does gets any datasets or models associated with it and the latest training_run id.
         If it doesn't exist it creates it and uploads it.
-        :return:
+        :return: None
         """
         # here check the project exists and call create if not.
-        res = self.s.manager.trans.get("/collection/projects", query_params={"name": project_name})
+        res = self._transmission.get("/collection/projects", query_params={"name": project_name})
         if res.status_code == 200 and len(res.json()) > 0:
             self._project = res.json()[0]["id"]
             # setup the models and datasets available.
@@ -68,7 +66,7 @@ class SecleaAI:
                     self._project = proj_res.json()["id"]
                 except KeyError:
                     print(f"There was an issue: {proj_res.text}")
-                    resp = self.s.manager.trans.get(
+                    resp = self._transmission.get(
                         url_path="/collection/projects",
                         query_params={
                             "name": project_name,
@@ -76,9 +74,9 @@ class SecleaAI:
                     )
                     self._project = resp.json()[0]["id"]
             handle_response(res, "Some issue with creating the project")
-        model_res = self.s.manager.trans.get("/collection/models")
+        model_res = self._transmission.get("/collection/models")
         self._models = model_res.json()
-        dataset_res = self.s.manager.trans.get(
+        dataset_res = self._transmission.get(
             "/collection/datasets", query_params={"project": self._project}
         )
         self._datasets = dataset_res.json()
@@ -86,15 +84,17 @@ class SecleaAI:
     def login(self) -> None:
         """
         Override login, this also overwrites the stored credentials in ~/.seclea/config.
+        Note. In some circumstances the password will be echoed to stdin. This is not a problem in Jupyter Notebooks
+        but may appear in scripting usage.
 
         :return: None
 
         Example::
 
-            >>>
+            >>> seclea = SecleaAI(project_name="Test Project")
+            >>> seclea.login()
         """
-        _, auth_creds = self._auth_service.login()
-        self.s.manager.trans.headers = auth_creds
+        self._transmission.headers = self._auth_service.login()
 
     def init_project(self, model_name: str, framework: str, dataset_name: str) -> None:
         """
@@ -147,7 +147,7 @@ class SecleaAI:
                 pass
         else:
             print(f"There was an issue: {res.text}")
-            resp = self.s.manager.trans.get(
+            resp = self._transmission.get(
                 url_path="/collection/models",
                 query_params={
                     "name": model_name,
@@ -207,7 +207,7 @@ class SecleaAI:
             "name": dataset_name,
             "metadata": json.dumps(metadata),
         }
-        res = self.s.manager.trans.send_file(
+        res = self._transmission.send_file(
             url_path="/collection/datasets",
             file_path=dataset,
             query_params=dataset_queryparams,
@@ -234,7 +234,7 @@ class SecleaAI:
         """
         # if we haven't requested the training runs for this model do that.
         if self._training_runs is None:
-            training_runs_res = self.s.manager.trans.get(
+            training_runs_res = self._transmission.get(
                 "/collection/training-runs",
                 query_params={"project": self._project, "model": self._model},
             )
@@ -276,7 +276,7 @@ class SecleaAI:
         Creates a new project.
         :return:
         """
-        res = self.s.manager.trans.send_json(
+        res = self._transmission.send_json(
             url_path="/collection/projects",
             obj={
                 "name": self._project_name,
@@ -292,7 +292,7 @@ class SecleaAI:
         :param framework:
         :return:
         """
-        res = self.s.manager.trans.send_json(
+        res = self._transmission.send_json(
             url_path="/collection/models",
             obj={
                 "name": model_name,
@@ -310,7 +310,7 @@ class SecleaAI:
         """
         if self._project is None:
             raise Exception("You need to create a project before uploading a training run")
-        res = self.s.manager.trans.send_json(
+        res = self._transmission.send_json(
             url_path="/collection/training-runs",
             obj={
                 "project": self._project,
@@ -328,14 +328,14 @@ class SecleaAI:
             exist_ok=True,
         )
 
-        save_path = self.s.save_model(
+        save_path = self._model_manager.save_model(
             model,
             os.path.join(
                 Path.home(), f".seclea/{self._project_name}/{training_run_id}/model-{sequence_num}"
             ),
         )
 
-        res = self.s.manager.trans.send_file(
+        res = self._transmission.send_file(
             url_path="/collection/model-states",
             file_path=save_path,
             query_params={
@@ -359,7 +359,7 @@ class SecleaAI:
                 "training_run": training_run_id,
             }
             responses.append(
-                self.s.manager.trans.send_json(
+                self._transmission.send_json(
                     url_path="/collection/dataset-transformations", obj=data
                 )
             )
@@ -370,7 +370,7 @@ class SecleaAI:
         """
         Expects a list of code_encoded as set by upload_transformations.
         """
-        res = self.s.manager.trans.get(
+        res = self._transmission.get(
             url_path="/collection/dataset-transformations",
             query_params={"training_run": training_run_id},
         )

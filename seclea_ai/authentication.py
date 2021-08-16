@@ -3,13 +3,12 @@ import os
 import stat
 from getpass import getpass
 from pathlib import Path
-from typing import Dict, Tuple
 
 from requests import Response
+from seclea_utils.core import Transmission
 
 from seclea_ai.exceptions import AuthenticationError
-
-AuthenticationCredentials = Dict[str, str]
+from seclea_ai.typing import AuthenticationCredentials
 
 
 def handle_response(res: Response, msg):
@@ -18,16 +17,16 @@ def handle_response(res: Response, msg):
 
 
 class AuthenticationService:
-    def __init__(self, transmission):
+    def __init__(self, transmission: Transmission):
         self._access = None
         self._transmission = transmission
 
-    def handle_auth(self) -> Tuple[str, AuthenticationCredentials]:
+    def handle_auth(self) -> AuthenticationCredentials:
         if os.path.isfile(os.path.join(Path.home(), ".seclea/config")):
             try:
-                username, creds = self._refresh_token()
+                creds = self._refresh_token()
             except AuthenticationError:
-                username, creds = self.login()
+                creds = self.login()
         else:
             try:
                 os.mkdir(
@@ -37,10 +36,10 @@ class AuthenticationService:
             except FileExistsError:
                 # do nothing.
                 pass
-            username, creds = self.login()
-        return username, creds
+            creds = self.login()
+        return creds
 
-    def login(self) -> Tuple[str, AuthenticationCredentials]:
+    def login(self) -> AuthenticationCredentials:
         username = input("Username: ")
         password = getpass("Password: ")
         credentials = {"username": username, "password": password}
@@ -58,18 +57,17 @@ class AuthenticationService:
                 f.write(
                     json.dumps({"refresh": response_content.get("refresh"), "username": username})
                 )
-            return username, {"Authorization": f"Bearer {self._access}"}
+            return {"Authorization": f"Bearer {self._access}"}
         else:
             raise AuthenticationError(
                 f"There was some issue logging in: {response.status_code} {response.text}"
             )
 
-    def _refresh_token(self) -> Tuple[str, AuthenticationCredentials]:
+    def _refresh_token(self) -> AuthenticationCredentials:
         with open(os.path.join(Path.home(), ".seclea/config"), "r") as f:
             config = json.loads(f.read())
         try:
             refresh = config["refresh"]
-            username = config["username"]
         except KeyError as e:
             print(e)
             # refresh token missing, prompt and login
@@ -88,7 +86,7 @@ class AuthenticationService:
                 response_content = json.loads(response.content.decode("utf-8"))
                 self._access = response_content.get("access")
                 if self._access is not None:
-                    return username, {"Authorization": f"Bearer {self._access}"}
+                    return {"Authorization": f"Bearer {self._access}"}
                 else:
                     raise AuthenticationError
             except Exception as e:

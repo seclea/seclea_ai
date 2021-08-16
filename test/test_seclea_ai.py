@@ -50,6 +50,7 @@ class TestSecleaAI(unittest.TestCase):
         ) as mock_file:
             SecleaAI(
                 project_name="test-project",
+                framework="sklearn",
                 plat_url="http://localhost:8000",
                 auth_url="http://localhost:8010",
             )
