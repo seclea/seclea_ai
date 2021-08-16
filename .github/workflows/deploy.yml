@@ -16,11 +16,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          token: ${{ secrets.TOKEN_ROGER }}
+          token: ${{ secrets.TOKEN_AUTOMATION }}
       - name: Increment version in setup.py
         run: |
           pip3 install bump2version==1.0.1
-          ./increment-version.sh patch
+          ./scripts/increment-version.sh patch
       - name: Build Sphinx Documentation
         run: |
           pip3 install -r requirements.txt

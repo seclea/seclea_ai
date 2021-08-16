@@ -5,7 +5,7 @@ from unittest import mock
 from unittest.mock import mock_open, patch
 
 import responses
-from seclea_utils.data.transmission import RequestWrapper
+from seclea_utils.core import RequestWrapper
 
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
@@ -29,13 +29,10 @@ class TestAuthenticationService(unittest.TestCase):
         )
         with patch(
             "builtins.open",
-            new=mock_open(
-                read_data='{"refresh": "dummy_refresh_token", "username": "test_user"}\n'
-            ),
+            new=mock_open(read_data='{"refresh": "dummy_refresh_token"}\n'),
         ) as mock_file:
-            username, creds = auth_service._refresh_token()
+            creds = auth_service._refresh_token()
         mock_file.assert_called()
-        self.assertEqual(username, "test_user", msg="Username not the same as that in config file")
         self.assertEqual(
             creds, {"Authorization": "Bearer dummy_access_token"}, msg="Auth doesn't match"
         )
@@ -55,9 +52,7 @@ class TestAuthenticationService(unittest.TestCase):
             )
             with patch(
                 "builtins.open",
-                new=mock_open(
-                    read_data='{"refresh": "dummy_refresh_token", "username": "test_user"}\n'
-                ),
+                new=mock_open(read_data='{"refresh": "dummy_refresh_token"}\n'),
             ):
                 auth_service._refresh_token()
 
@@ -78,12 +73,9 @@ class TestAuthenticationService(unittest.TestCase):
 
         with patch(
             "builtins.open",
-            new=mock_open(
-                read_data='{"refresh": "dummy_refresh_token", "username": "test_user"}\n'
-            ),
+            new=mock_open(read_data='{"refresh": "dummy_refresh_token"}\n'),
         ) as mock_file:
-            username, creds = auth_service.login()
-        self.assertEqual(username, "test_user", msg="Username doesn't match")
+            creds = auth_service.login()
         self.assertEqual(
             creds, {"Authorization": "Bearer dummy_access_token"}, msg="Auth doesn't match"
         )
@@ -122,8 +114,7 @@ class TestAuthenticationService(unittest.TestCase):
                 read_data='{"refresh": "dummy_refresh_token", "username": "test_user"}\n'
             ),
         ) as mock_file:
-            username, creds = auth_service.handle_auth()
-        self.assertEqual(username, "test_user", msg="Username doesn't match")
+            creds = auth_service.handle_auth()
         self.assertEqual(
             creds, {"Authorization": "Bearer dummy_access_token"}, msg="Auth doesn't match"
         )
