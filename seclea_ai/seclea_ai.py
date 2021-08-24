@@ -256,6 +256,10 @@ class SecleaAI:
         Example::
 
             >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
+            ... define transformation functions
+            >>> transformations = [<function names>]
+            >>> model = <training code here>
+            >>> seclea.upload_training_run(model, transformations=transformations)
         """
         # if we haven't requested the training runs for this model do that.
         if self._training_runs is None:
