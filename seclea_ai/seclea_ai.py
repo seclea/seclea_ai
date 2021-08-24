@@ -51,8 +51,10 @@ class SecleaAI:
         self._models = None
         self._model = None
         self._model_name = None
-        self._model_framework = None
-        self._frameworks = {"sklearn"}
+        _frameworks = {"sklearn", "xgboost", "lightgbm"}
+        if framework not in _frameworks:
+            raise ValueError(f"Framework must be one of {_frameworks}")
+        self._model_framework = framework
         self._dataset = None
         self._training_run = None
         self._training_runs = None
@@ -107,7 +109,7 @@ class SecleaAI:
 
         Example::
 
-            >>> seclea = SecleaAI(project_name="Test Project")
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
             >>> seclea.login()
         """
         self._transmission.headers = self._auth_service.login()
@@ -127,13 +129,13 @@ class SecleaAI:
 
         Example::
 
-            >>> seclea = SecleaAI(project_name="Test Project")
-            >>> seclea.init_project(model_name="GradientBoostingMachine", framework="sklearn", dataset_name="Test Dataset")
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
+            >>> seclea.init_project(model_name="GradientBoostingMachine", dataset_name="Test Dataset")
         """
-        self.set_model(model_name, framework)
+        self.set_model(model_name)
         self.set_dataset(dataset_name)
 
-    def set_model(self, model_name: str, framework: str) -> None:
+    def set_model(self, model_name: str) -> None:
         """
         Set the model for this session.
         Checks if it has already been uploaded. If not it will upload it.
@@ -149,18 +151,16 @@ class SecleaAI:
 
         Example::
 
-            >>> seclea = SecleaAI(project_name="Test Project")
-            >>> seclea.set_model(model_name="GradientBoostingMachine", framework="sklearn")
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
+            >>> seclea.set_model(model_name="GradientBoostingMachine")
         """
-        if framework not in self._frameworks:
-            raise ValueError(f"Framework must be one of {self._frameworks}")
         # check if the model is in those already uploaded.
         for model in self._models:
-            if model["name"] == model_name and model["framework"] == framework:
+            if model["name"] == model_name and model["framework"] == self._model_framework:
                 self._model = model["id"]
                 return
         # if we got here that means that the model has not been uploaded yet. So we upload it.
-        res = self._upload_model(model_name=model_name, framework=framework)
+        res = self._upload_model(model_name=model_name, framework=self._model_framework)
         try:
             self._model = res.json()["id"]
         except KeyError:
@@ -169,7 +169,7 @@ class SecleaAI:
                     url_path="/collection/models",
                     query_params={
                         "name": model_name,
-                        "framework": framework,
+                        "framework": self._model_framework,
                     },
                 ),
                 expected=200,
@@ -191,7 +191,7 @@ class SecleaAI:
 
         Example::
 
-            >>> seclea = SecleaAI(project_name="Test Project")
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
             >>> seclea.set_dataset(dataset_name="Test Dataset")
         """
         for dataset in self._datasets:
@@ -218,7 +218,8 @@ class SecleaAI:
 
         Example::
 
-            >>>
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
+            >>> seclea.upload_dataset(dataset="/test_folder/dataset_file.csv", dataset_name="Test Dataset", metadata={})
         """
         temp = False
         if self._project is None:
@@ -254,7 +255,7 @@ class SecleaAI:
 
         Example::
 
-            >>>
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
         """
         # if we haven't requested the training runs for this model do that.
         if self._training_runs is None:
