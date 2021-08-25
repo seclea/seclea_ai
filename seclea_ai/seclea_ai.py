@@ -203,6 +203,14 @@ class SecleaAI:
 
             >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
             >>> seclea.upload_dataset(dataset="/test_folder/dataset_file.csv", dataset_name="Test Dataset", metadata={})
+
+        Assuming the files are all in the /test_folder/dataset directory.
+        Example with multiple files::
+
+            >>> files = os.listdir("/test_folder/dataset")
+            >>> seclea = SecleaAI(project_name="Test Project", framework="lightgbm")
+            >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
+            >>> seclea.upload_dataset(dataset=files, dataset_name="multifile dataset", metadata=dataset_metadata)
         """
         temp = False
         if self._project is None:
