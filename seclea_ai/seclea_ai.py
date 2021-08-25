@@ -18,12 +18,18 @@ from seclea_ai.model_management import get_model_manager
 def handle_response(res: Response, expected: int, msg: str) -> Response:
     """
     Handle responses from the server
+
     :param res: Response The response from the server.
+
     :param expected: int The expected HTTP status code (ie. 200, 201 etc.)
-    :param msg: str The message to include in the Exception that is raised if the response doesn't have the expected s
-        tatus code
+
+    :param msg: str The message to include in the Exception that is raised if the response doesn't have the expected
+        status code
+
     :return: Response
+
     :raises: ValueError - if the response code doesn't match the expected code.
+
     """
     if not res.status_code == expected:
         raise ValueError(
@@ -35,11 +41,30 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
 class SecleaAI:
     def __init__(
         self,
-        project_name,
-        framework,
-        plat_url="https://platform.seclea.com",
-        auth_url="https://auth.seclea.com",
+        project_name: str,
+        framework: str,
+        plat_url: str = "https://platform.seclea.com",
+        auth_url: str = "https://auth.seclea.com",
     ):
+        """
+        Create a SecleaAI object to manage a session. Requires a project name and framework.
+
+        :param project_name: The name of the project
+
+        :param framework: The machine learning framework being used. Currently sklearn, xgboost and lightgbm are supported.
+
+        :param plat_url: The url of the platform server. Default: "https://platform.seclea.com"
+
+        :param auth_url: The url of the auth server. Default: "https://auth.seclea.com"
+
+        :return: SecleaAI object
+
+        :raises: ValueError - if the framework is not supported.
+
+        Example::
+
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
+        """
         self._model_manager = get_model_manager(
             framework, CompressedFileManager(compression=Zstd())
         )
@@ -61,44 +86,6 @@ class SecleaAI:
         self._cache_dir = os.path.join(Path.home(), f".seclea/{self._project_name}")
         self._setup_project(project_name=project_name)
 
-    def _setup_project(self, project_name):
-        """
-        Sets up a project.
-        Checks if it exists and if it does gets any datasets or models associated with it and the latest training_run id.
-        If it doesn't exist it creates it and uploads it.
-        :return: None
-        """
-        # here check the project exists and call create if not.
-        res = self._transmission.get("/collection/projects", query_params={"name": project_name})
-        if res.status_code == 200 and len(res.json()) > 0:
-            self._project = res.json()[0]["id"]
-            # setup the models and datasets available.
-        else:
-            proj_res = self._create_project()
-            try:
-                self._project = proj_res.json()["id"]
-            except KeyError:
-                print(f"There was an issue: {proj_res.text}")
-                resp = self._transmission.get(
-                    url_path="/collection/projects",
-                    query_params={
-                        "name": project_name,
-                    },
-                )
-                self._project = resp.json()[0]["id"]
-        model_res = handle_response(
-            self._transmission.get("/collection/models"),
-            expected=200,
-            msg="There was an issue getting the models",
-        )
-        self._models = model_res.json()
-        dataset_res = handle_response(
-            self._transmission.get("/collection/datasets", query_params={"project": self._project}),
-            expected=200,
-            msg="There was an issue getting the datasets",
-        )
-        self._datasets = dataset_res.json()
-
     def login(self) -> None:
         """
         Override login, this also overwrites the stored credentials in ~/.seclea/config.
@@ -114,14 +101,12 @@ class SecleaAI:
         """
         self._transmission.headers = self._auth_service.login()
 
-    def init_project(self, model_name: str, framework: str, dataset_name: str) -> None:
+    def init_project(self, model_name: str, dataset_name: str) -> None:
         """
         Shortcut method that initializes the project. Sets model and dataset.
         Throws exception if dataset has not been uploaded.
 
         :param model_name: The name of the model.
-
-        :param framework: The framework being used. Currently only "sklearn" is supported.
 
         :param dataset_name: The name of the dataset.
 
@@ -141,8 +126,6 @@ class SecleaAI:
         Checks if it has already been uploaded. If not it will upload it.
 
         :param model_name: The name for the architecture/algorithm. eg. "GradientBoostedMachine" or "3-layer CNN".
-
-        :param framework: The machine learning framework being used. eg. "sklearn". One of {"sklearn", "xgboost", "lightgbm"}
 
         :return: None
 
@@ -187,7 +170,7 @@ class SecleaAI:
 
         :return: None
 
-        :raises:
+        :raises: Exception - if the dataset has not already been uploaded.
 
         Example::
 
@@ -295,6 +278,45 @@ class SecleaAI:
         self._upload_model_state(
             model=model, training_run_id=self._training_run, sequence_num=0, final=True
         )
+
+    def _setup_project(self, project_name: str):
+        """
+        Sets up a project.
+        Checks if it exists and if it does gets any datasets or models associated with it and the latest training_run id.
+        If it doesn't exist it creates it and uploads it.
+
+        :return: None
+        """
+        # here check the project exists and call create if not.
+        res = self._transmission.get("/collection/projects", query_params={"name": project_name})
+        if res.status_code == 200 and len(res.json()) > 0:
+            self._project = res.json()[0]["id"]
+            # setup the models and datasets available.
+        else:
+            proj_res = self._create_project()
+            try:
+                self._project = proj_res.json()["id"]
+            except KeyError:
+                print(f"There was an issue: {proj_res.text}")
+                resp = self._transmission.get(
+                    url_path="/collection/projects",
+                    query_params={
+                        "name": project_name,
+                    },
+                )
+                self._project = resp.json()[0]["id"]
+        model_res = handle_response(
+            self._transmission.get("/collection/models"),
+            expected=200,
+            msg="There was an issue getting the models",
+        )
+        self._models = model_res.json()
+        dataset_res = handle_response(
+            self._transmission.get("/collection/datasets", query_params={"project": self._project}),
+            expected=200,
+            msg="There was an issue getting the datasets",
+        )
+        self._datasets = dataset_res.json()
 
     def _create_project(self):
         """
