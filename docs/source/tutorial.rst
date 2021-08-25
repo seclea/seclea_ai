@@ -2,41 +2,78 @@
 Tutorial
 ********
 
-subtitle
+Example Usage
 ########
 
-subsubtitle
-**********************
-and so on
+Example Jupyter Notebook for a project using seclea_ai::
+
+    from seclea_ai import SecleaAI,
+    import pandas as pd
+
+    seclea = SecleaAI(project_name="Test Project", framework="xgboost")
+
+    dataset = pd.read_csv("/content/dataset.csv")
+
+    seclea.upload_dataset("/content/dataset.csv", dataset_name="Dest Dataset")
+
+::
+
+    def remove_correlated_features(dataframe: DataFrame, keep: List[str], threshold: float) -> DataFrame:
+    # remove strongly correlated features
+    #############
+
+    # Absolute value correlation matrix
+    corr_matrix = dataframe[dataframe["isFraud"].notnull()].corr().abs()
+
+    # Getting the upper triangle of correlations
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+
+    # Select columns with correlations above threshold
+    to_drop = [column for column in upper.columns if any(upper[column] > threshold) and column not in keep]
+
+    return dataframe.drop(columns=to_drop)
 
 
-* This is a bulleted list.
-* It has two items, the second
-  item uses two lines. (note the indentation)
+    def encode_categorical(dataframe: DataFrame) -> DataFrame:
+        # encode all the categorical features into numerical (ie. [1, 4, 6] -> [0, 1, 2] or ["lights", "signs", ""]
+        for col in dataframe.columns:
+            if dataframe[col].dtype == "object" or dataframe[col].dtype == "object":
+                lbl = LabelEncoder()
+                lbl.fit(list(dataframe[col].values))
+                dataframe[col] = lbl.transform(list(dataframe[col].values))
+        return dataframe
 
-1. This is a numbered list.
-2. It has two items too.
+::
 
-#. This is a numbered list.
-#. It has two items too.
+    import xgboost as xgb
 
+    seclea.init_project(model_name="GradientBoostingMachineXGBoost", dataset_name="Test Dataset")
 
-This is a simple example::
+    label = dataset["isFraud"].copy(deep=True)
+    dataset = dataset.drop("isFraud", axis=1)
 
-    import math
-    print 'import done'
+    threshold = 0.98
 
+    keep = [
+        "TransactionAmt_to_mean_card4",
+        "TransactionAmt_to_std_card4",
+        "D15_to_mean_card4",
+        "D15_to_std_card4",
+        "Hours",
+    ]
 
-+------------+------------+-----------+
-| Header 1   | Header 2   | Header 3  |
-+============+============+===========+
-| body row 1 | column 2   | column 3  |
-+------------+------------+-----------+
-| body row 2 | Cells may span columns.|
-+------------+------------+-----------+
-| body row 3 | Cells may  | - Cells   |
-+------------+ span rows. | - contain |
-| body row 4 |            | - blocks. |
-+------------+------------+-----------+
+    dataset = remove_correlated_features(dataset, keep, threshold)
 
-New Line in Tutorial
+    dataset = encode_categorical(dataset)
+
+    # load to XGBoost format
+    dtrain = xgb.DMatrix(data=data, label=label)
+    # setup training params
+    params = dict(max_depth=2, eta=1, objective="binary:logistic", nthread=4, eval_metric="auc")
+    num_rounds = 5
+
+    # train model
+    booster = xgb.train(params=params, dtrain=dtrain, num_boost_round=num_rounds)
+    # upload model state and data
+    seclea.upload_training_run(booster, transformations=[remove_correlated_features, encode_categorical])
+
