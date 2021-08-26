@@ -9,10 +9,10 @@ from typing import Callable, Dict, List, Union
 
 import pandas as pd
 from requests import Response
+from seclea_utils import get_model_manager
 from seclea_utils.core import CompressedFileManager, RequestWrapper, Zstd, decode_func, encode_func
 
 from seclea_ai.authentication import AuthenticationService
-from seclea_ai.model_management import get_model_manager
 
 
 def handle_response(res: Response, expected: int, msg: str) -> Response:
