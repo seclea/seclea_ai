@@ -9,25 +9,62 @@ from typing import Callable, Dict, List, Union
 
 import pandas as pd
 from requests import Response
+from seclea_utils import get_model_manager
 from seclea_utils.core import CompressedFileManager, RequestWrapper, Zstd, decode_func, encode_func
 
 from seclea_ai.authentication import AuthenticationService
-from seclea_ai.model_management import get_model_manager
 
 
-def handle_response(res: Response, msg):
-    if not res.ok:
-        print(f"{msg}: {res.status_code} - {res.reason} - {res.text}")
+def handle_response(res: Response, expected: int, msg: str) -> Response:
+    """
+    Handle responses from the server
+
+    :param res: Response The response from the server.
+
+    :param expected: int The expected HTTP status code (ie. 200, 201 etc.)
+
+    :param msg: str The message to include in the Exception that is raised if the response doesn't have the expected
+        status code
+
+    :return: Response
+
+    :raises: ValueError - if the response code doesn't match the expected code.
+
+    """
+    if not res.status_code == expected:
+        raise ValueError(
+            f"Response Status code {res.status_code}, expected:{expected}. \n{msg} - {res.reason} - {res.text}"
+        )
+    return res
 
 
 class SecleaAI:
     def __init__(
         self,
-        project_name,
-        framework,
-        plat_url="https://platform.seclea.com",
-        auth_url="https://auth.seclea.com",
+        project_name: str,
+        framework: str,
+        plat_url: str = "https://platform.seclea.com",
+        auth_url: str = "https://auth.seclea.com",
     ):
+        """
+        Create a SecleaAI object to manage a session. Requires a project name and framework.
+
+        :param project_name: The name of the project
+
+        :param framework: The machine learning framework being used. Currently sklearn, xgboost and lightgbm are supported.
+
+        :param plat_url: The url of the platform server. Default: "https://platform.seclea.com"
+
+        :param auth_url: The url of the auth server. Default: "https://auth.seclea.com"
+
+        :return: SecleaAI object
+
+        :raises: ValueError - if the framework is not supported.
+
+        Example::
+
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
+        """
         self._model_manager = get_model_manager(
             framework, CompressedFileManager(compression=Zstd())
         )
@@ -39,47 +76,15 @@ class SecleaAI:
         self._models = None
         self._model = None
         self._model_name = None
-        self._model_framework = None
-        self._frameworks = {"sklearn"}
+        _frameworks = {"sklearn", "xgboost", "lightgbm"}
+        if framework not in _frameworks:
+            raise ValueError(f"Framework must be one of {_frameworks}")
+        self._model_framework = framework
         self._dataset = None
         self._training_run = None
         self._training_runs = None
         self._cache_dir = os.path.join(Path.home(), f".seclea/{self._project_name}")
         self._setup_project(project_name=project_name)
-
-    def _setup_project(self, project_name):
-        """
-        Sets up a project.
-        Checks if it exists and if it does gets any datasets or models associated with it and the latest training_run id.
-        If it doesn't exist it creates it and uploads it.
-        :return: None
-        """
-        # here check the project exists and call create if not.
-        res = self._transmission.get("/collection/projects", query_params={"name": project_name})
-        if res.status_code == 200 and len(res.json()) > 0:
-            self._project = res.json()[0]["id"]
-            # setup the models and datasets available.
-        else:
-            proj_res = self._create_project()
-            if proj_res.status_code == 201:
-                try:
-                    self._project = proj_res.json()["id"]
-                except KeyError:
-                    print(f"There was an issue: {proj_res.text}")
-                    resp = self._transmission.get(
-                        url_path="/collection/projects",
-                        query_params={
-                            "name": project_name,
-                        },
-                    )
-                    self._project = resp.json()[0]["id"]
-            handle_response(res, "Some issue with creating the project")
-        model_res = self._transmission.get("/collection/models")
-        self._models = model_res.json()
-        dataset_res = self._transmission.get(
-            "/collection/datasets", query_params={"project": self._project}
-        )
-        self._datasets = dataset_res.json()
 
     def login(self) -> None:
         """
@@ -91,19 +96,17 @@ class SecleaAI:
 
         Example::
 
-            >>> seclea = SecleaAI(project_name="Test Project")
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
             >>> seclea.login()
         """
         self._transmission.headers = self._auth_service.login()
 
-    def init_project(self, model_name: str, framework: str, dataset_name: str) -> None:
+    def init_project(self, model_name: str, dataset_name: str) -> None:
         """
-        Wrapper or shortcut method that initializes the project. Sets model and dataset.
+        Shortcut method that initializes the project. Sets model and dataset.
         Throws exception if dataset has not been uploaded.
 
         :param model_name: The name of the model.
-
-        :param framework: The framework being used. Currently only "sklearn" is supported.
 
         :param dataset_name: The name of the dataset.
 
@@ -111,64 +114,68 @@ class SecleaAI:
 
         Example::
 
-            >>>
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
+            >>> seclea.init_project(model_name="GradientBoostingMachine", dataset_name="Test Dataset")
         """
-        self.set_model(model_name, framework)
+        self.set_model(model_name)
         self.set_dataset(dataset_name)
 
-    def set_model(self, model_name: str, framework: str) -> None:
+    def set_model(self, model_name: str) -> None:
         """
         Set the model for this session.
         Checks if it has already been uploaded. If not it will upload it.
 
         :param model_name: The name for the architecture/algorithm. eg. "GradientBoostedMachine" or "3-layer CNN".
 
-        :param framework: The machine learning framework being used. eg. "sklearn" or "pytorch"
-
         :return: None
+
+        :raises: ValueError - if the framework is not one of the supported frameworks or if there is an issue uploading
+         the model.
 
         Example::
 
-            >>>
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
+            >>> seclea.set_model(model_name="GradientBoostingMachine")
         """
-        if framework not in self._frameworks:
-            raise ValueError(f"Framework must be one of {self._frameworks}")
         # check if the model is in those already uploaded.
         for model in self._models:
-            if model["name"] == model_name and model["framework"] == framework:
+            if model["name"] == model_name and model["framework"] == self._model_framework:
                 self._model = model["id"]
                 return
         # if we got here that means that the model has not been uploaded yet. So we upload it.
-        res = self._upload_model(model_name=model_name, framework=framework)
-        if res.status_code == 201:
-            try:
-                self._model = res.json()["id"]
-            except KeyError:
-                pass
-        else:
-            print(f"There was an issue: {res.text}")
-            resp = self._transmission.get(
-                url_path="/collection/models",
-                query_params={
-                    "name": model_name,
-                    "framework": framework,
-                },
+        res = self._upload_model(model_name=model_name, framework=self._model_framework)
+        try:
+            self._model = res.json()["id"]
+        except KeyError:
+            resp = handle_response(
+                self._transmission.get(
+                    url_path="/collection/models",
+                    query_params={
+                        "name": model_name,
+                        "framework": self._model_framework,
+                    },
+                ),
+                expected=200,
+                msg="There was an issue getting the model list",
             )
             self._model = resp.json()[0]["id"]
-        handle_response(res, "Some issue with setting the model")
 
     def set_dataset(self, dataset_name: str) -> None:
         """
         Set the dataset for the session.
-        Checks if it has been uploaded, if not throws an Exception
+        Checks if it has been uploaded, if not throws an Exception.
+        Note that this may fail if the Dataset is uploaded immediately before
 
         :param dataset_name: The name of the dataset.
 
         :return: None
 
+        :raises: Exception - if the dataset has not already been uploaded.
+
         Example::
 
-            >>>
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
+            >>> seclea.set_dataset(dataset_name="Test Dataset")
         """
         for dataset in self._datasets:
             if dataset["name"] == dataset_name:
@@ -194,7 +201,16 @@ class SecleaAI:
 
         Example::
 
-            >>>
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
+            >>> seclea.upload_dataset(dataset="/test_folder/dataset_file.csv", dataset_name="Test Dataset", metadata={})
+
+        Assuming the files are all in the /test_folder/dataset directory.
+        Example with multiple files::
+
+            >>> files = os.listdir("/test_folder/dataset")
+            >>> seclea = SecleaAI(project_name="Test Project", framework="lightgbm")
+            >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
+            >>> seclea.upload_dataset(dataset=files, dataset_name="multifile dataset", metadata=dataset_metadata)
         """
         temp = False
         if self._project is None:
@@ -207,16 +223,16 @@ class SecleaAI:
             "name": dataset_name,
             "metadata": json.dumps(metadata),
         }
-        res = self._transmission.send_file(
-            url_path="/collection/datasets",
-            file_path=dataset,
-            query_params=dataset_queryparams,
-        )
-        if res.status_code == 201:
+        try:
+            res = self._transmission.send_file(
+                url_path="/collection/datasets",
+                file_path=dataset,
+                query_params=dataset_queryparams,
+            )
             self._datasets.append(res.json())
+        finally:
             if temp:
                 os.remove(dataset)
-        handle_response(res, "Error uploading dataset: ")
 
     def upload_training_run(self, model, transformations: List[Callable]):
         """
@@ -230,7 +246,11 @@ class SecleaAI:
 
         Example::
 
-            >>>
+            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
+            ... define transformation functions
+            >>> transformations = [<function names>]
+            >>> model = <training code here>
+            >>> seclea.upload_training_run(model, transformations=transformations)
         """
         # if we haven't requested the training runs for this model do that.
         if self._training_runs is None:
@@ -254,22 +274,57 @@ class SecleaAI:
         # upload training run
         tr_res = self._upload_training_run(training_run_name=training_run_name, params=params)
         # if the upload was successful, add the new training_run to the list to keep the names updated.
-        if tr_res.status_code == 201:
-            self._training_run = tr_res.json()["id"]
-            self._training_runs.append(tr_res.json())
+        self._training_run = tr_res.json()["id"]
+        self._training_runs.append(tr_res.json())
 
         # upload transformations.
-        trans_resps = self._upload_transformations(
+        self._upload_transformations(
             transformations=transformations, training_run_id=self._training_run
         )
-        for trans_res in trans_resps:
-            if trans_res.status_code != 201:
-                handle_response(trans_res, "There was an issue with uploading the transformations.")
 
         # upload model state. TODO figure out how this fits with multiple model states.
         self._upload_model_state(
             model=model, training_run_id=self._training_run, sequence_num=0, final=True
         )
+
+    def _setup_project(self, project_name: str):
+        """
+        Sets up a project.
+        Checks if it exists and if it does gets any datasets or models associated with it and the latest training_run id.
+        If it doesn't exist it creates it and uploads it.
+
+        :return: None
+        """
+        # here check the project exists and call create if not.
+        res = self._transmission.get("/collection/projects", query_params={"name": project_name})
+        if res.status_code == 200 and len(res.json()) > 0:
+            self._project = res.json()[0]["id"]
+            # setup the models and datasets available.
+        else:
+            proj_res = self._create_project()
+            try:
+                self._project = proj_res.json()["id"]
+            except KeyError:
+                print(f"There was an issue: {proj_res.text}")
+                resp = self._transmission.get(
+                    url_path="/collection/projects",
+                    query_params={
+                        "name": project_name,
+                    },
+                )
+                self._project = resp.json()[0]["id"]
+        model_res = handle_response(
+            self._transmission.get("/collection/models"),
+            expected=200,
+            msg="There was an issue getting the models",
+        )
+        self._models = model_res.json()
+        dataset_res = handle_response(
+            self._transmission.get("/collection/datasets", query_params={"project": self._project}),
+            expected=200,
+            msg="There was an issue getting the datasets",
+        )
+        self._datasets = dataset_res.json()
 
     def _create_project(self):
         """
@@ -283,7 +338,9 @@ class SecleaAI:
                 "description": "Please add a description..",
             },
         )
-        return res
+        return handle_response(
+            res, expected=201, msg=f"There was an issue creating the project: {res.text}"
+        )
 
     def _upload_model(self, model_name: str, framework: str):
         """
@@ -299,7 +356,9 @@ class SecleaAI:
                 "framework": framework,
             },
         )
-        return res
+        return handle_response(
+            res, expected=201, msg=f"There was an issue uploading the model: {res.text}"
+        )
 
     def _upload_training_run(self, training_run_name: str, params: Dict):
         """
@@ -320,7 +379,9 @@ class SecleaAI:
                 "params": params,
             },
         )
-        return res
+        return handle_response(
+            res, expected=201, msg=f"There was an issue uploading the training run: {res.text}"
+        )
 
     def _upload_model_state(self, model, training_run_id: int, sequence_num: int, final: bool):
         os.makedirs(
@@ -344,7 +405,11 @@ class SecleaAI:
                 "final_state": final,
             },
         )
-        if res.status_code == 201:
+        try:
+            res = handle_response(
+                res, expected=201, msg=f"There was an issue uploading a model state: {res.text}"
+            )
+        finally:
             os.remove(save_path)
         return res
 
@@ -358,12 +423,15 @@ class SecleaAI:
                 "order": idx,
                 "training_run": training_run_id,
             }
-            responses.append(
-                self._transmission.send_json(
-                    url_path="/collection/dataset-transformations", obj=data
-                )
+            res = self._transmission.send_json(
+                url_path="/collection/dataset-transformations", obj=data
             )
-
+            res = handle_response(
+                res,
+                expected=201,
+                msg=f"There was an issue uploading the transformations on transformation {idx} with name {trans.__name__}: {res.text}",
+            )
+            responses.append(res)
         return responses
 
     def _load_transformations(self, training_run_id: int):
@@ -373,6 +441,9 @@ class SecleaAI:
         res = self._transmission.get(
             url_path="/collection/dataset-transformations",
             query_params={"training_run": training_run_id},
+        )
+        res = handle_response(
+            res, expected=200, msg=f"There was an issue loading the transformations: {res.text}"
         )
         transformations = list(map(lambda x: x["code_encoded"], res.json()))
         return list(map(decode_func, transformations))
