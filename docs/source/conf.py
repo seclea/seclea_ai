@@ -66,5 +66,10 @@ html_theme_path = [
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 
+html_js_files = [
+    '../static/js/favicon.js',
+    '../../../static/js/favicon.js',
+]
+
 
 # -- Extension configuration -------------------------------------------------

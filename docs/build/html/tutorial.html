@@ -4,8 +4,7 @@
 <html class="writer-html5" lang="en" >
 <head>
   <meta charset="utf-8" />
-  <meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
-
+  
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   
   <title>Tutorial &mdash; Seclea AI 1.0.0 documentation</title>
@@ -36,6 +35,8 @@
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
         <script src="_static/doctools.js"></script>
+        <script src="_static/../static/js/favicon.js"></script>
+        <script src="_static/../../../static/js/favicon.js"></script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -163,12 +164,12 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="tutorial">
+  <div class="section" id="tutorial">
 <h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
-<section id="example-usage">
+<div class="section" id="example-usage">
 <h2>Example Usage<a class="headerlink" href="#example-usage" title="Permalink to this headline">¶</a></h2>
 <p>Example Jupyter Notebook for a project using seclea_ai:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">seclea_ai</span> <span class="k">import</span> <span class="n">SecleaAI</span><span class="p">,</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">seclea_ai</span> <span class="kn">import</span> <span class="n">SecleaAI</span><span class="p">,</span>
 <span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
 
 <span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">,</span> <span class="n">framework</span><span class="o">=</span><span class="s2">&quot;xgboost&quot;</span><span class="p">)</span>
@@ -237,8 +238,8 @@
 <span class="n">seclea</span><span class="o">.</span><span class="n">upload_training_run</span><span class="p">(</span><span class="n">booster</span><span class="p">,</span> <span class="n">transformations</span><span class="o">=</span><span class="p">[</span><span class="n">remove_correlated_features</span><span class="p">,</span> <span class="n">encode_categorical</span><span class="p">])</span>
 </pre></div>
 </div>
-</section>
-</section>
+</div>
+</div>
 
 
            </div>
