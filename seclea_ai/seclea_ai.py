@@ -168,11 +168,11 @@ class SecleaAI:
             >>> model = LogisticRegressionClassifier()
             >>> model.fit(X, y)
             >>> seclea.upload_training_run(
-                                           model,
-                                           model_type="GradientBoostingMachine",
-                                           framework="sklearn",
-                                           dataset_name="Test Dataset",
-                                           transformations=transformations,
+                    model,
+                    model_type="GradientBoostingMachine",
+                    framework="sklearn",
+                    dataset_name="Test Dataset",
+                    transformations=transformations,
                 )
         """
         # check the dataset exists prompt if not
