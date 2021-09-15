@@ -112,6 +112,7 @@ class SecleaAI:
             >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
             >>> seclea.upload_dataset(dataset=files, dataset_name="Multifile Dataset", metadata=dataset_metadata)
         """
+        self._transmission.headers = self._auth_service.verify_token()
         temp = False
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
@@ -175,6 +176,7 @@ class SecleaAI:
                     transformations=transformations,
                 )
         """
+        self._transmission.headers = self._auth_service.verify_token()
         # check the dataset exists prompt if not
         dataset_id = self._set_dataset(dataset_name=dataset_name)
 
