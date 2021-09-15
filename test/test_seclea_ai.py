@@ -50,27 +50,16 @@ class TestSecleaAI(unittest.TestCase):
         ) as mock_file:
             SecleaAI(
                 project_name="test-project",
-                framework="sklearn",
                 plat_url="http://localhost:8000",
                 auth_url="http://localhost:8010",
             )
         mock_file.assert_called()
 
-    def test_init_seclea_object_bad_framework(self) -> None:
-        """Test using an incorrect framework raises a ValueError"""
-        with self.assertRaises(ValueError):
-            SecleaAI(
-                project_name="test-project",
-                framework="something incorrect",
-                plat_url="http://localhost:8000",
-                auth_url="http://localhost:8010",
-            )
-
     @responses.activate
     @mock.patch("seclea_ai.authentication.getpass", return_value="test_pass")
     @mock.patch("builtins.input", autospec=True, return_value="test_user")
-    def test_init_project_fail(self, mock_input, mock_getpass) -> None:
-        """Test using an incorrect framework raises a ValueError"""
+    def test_getting_project_fail(self, mock_input, mock_getpass) -> None:
+        """Test using an Project name that does not exist and sending new project fails raises a ValueError"""
         responses.add(
             method=responses.POST,
             url="http://localhost:8010/api/token/refresh/",
@@ -87,6 +76,36 @@ class TestSecleaAI(unittest.TestCase):
             method=responses.GET,
             url="http://localhost:8000/collection/projects?name=New Project",
             status=400,
+        )
+        with self.assertRaises(ValueError):
+            SecleaAI(
+                project_name="New Project",
+                plat_url="http://localhost:8000",
+                auth_url="http://localhost:8010",
+            )
+
+    @responses.activate
+    @mock.patch("seclea_ai.authentication.getpass", return_value="test_pass")
+    @mock.patch("builtins.input", autospec=True, return_value="test_user")
+    def test_upload_project_fail(self, mock_input, mock_getpass) -> None:
+        """Test using an Project name that does not exist and sending new project fails raises a ValueError"""
+        responses.add(
+            method=responses.POST,
+            url="http://localhost:8010/api/token/refresh/",
+            json={"access": "dummy_access_token"},
+            status=200,
+        )
+        responses.add(
+            method=responses.POST,
+            url="http://localhost:8010/api/token/obtain/",
+            json={"access": "dummy_access_token", "refresh": "dummy_refresh_token"},
+            status=200,
+        )
+        responses.add(
+            method=responses.GET,
+            url="http://localhost:8000/collection/projects?name=New Project",
+            status=200,
+            json=[],
         )
         responses.add(
             method=responses.GET,
@@ -108,7 +127,6 @@ class TestSecleaAI(unittest.TestCase):
         with self.assertRaises(ValueError):
             SecleaAI(
                 project_name="New Project",
-                framework="sklearn",
                 plat_url="http://localhost:8000",
                 auth_url="http://localhost:8010",
             )
