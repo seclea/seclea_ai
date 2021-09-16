@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Union
 
 import pandas as pd
+from pandas import DataFrame
 from requests import Response
 from seclea_utils.core import RequestWrapper, decode_func, encode_func
 
@@ -86,11 +87,13 @@ class SecleaAI:
         """
         self._transmission.headers = self._auth_service.login()
 
-    def upload_dataset(self, dataset: Union[str, List[str]], dataset_name: str, metadata: Dict):
+    def upload_dataset(
+        self, dataset: Union[str, List[str], DataFrame], dataset_name: str, metadata: Dict
+    ):
         """
         Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.
 
-        :param dataset: Path or list of paths to the dataset. If a list then they must be split by row only and all
+        :param dataset: Path or list of paths to the dataset or DataFrame containing the dataset. If a list then they must be split by row only and all
             files must contain column names as a header line.
 
         :param dataset_name: The name of the dataset.
@@ -111,6 +114,13 @@ class SecleaAI:
             >>> seclea = SecleaAI(project_name="Test Project")
             >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
             >>> seclea.upload_dataset(dataset=files, dataset_name="Multifile Dataset", metadata=dataset_metadata)
+
+        Example with DataFrame::
+
+            >>> seclea = SecleaAI(project_name="Test Project")
+            >>> dataset = pd.read_csv("/test_folder/dataset_file.csv")
+            >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
+            >>> seclea.upload_dataset(dataset=dataset, dataset_name="Multifile Dataset", metadata=dataset_metadata)
         """
         self._transmission.headers = self._auth_service.verify_token()
         temp = False
@@ -119,6 +129,12 @@ class SecleaAI:
         if isinstance(dataset, List):
             dataset = self._aggregate_dataset(dataset)
             temp = True
+        elif isinstance(dataset, DataFrame):
+            if not os.path.exists(self._cache_dir):
+                os.makedirs(self._cache_dir)
+            dataset = pd.to_csv(os.path.join(self._cache_dir, "temp_dataset.csv"), index=False)
+            temp = True
+
         # TODO check for already uploaded - show a warning but don't throw an exception
 
         dataset_queryparams = {
