@@ -71,9 +71,10 @@ class AuthenticationService:
             return {"Authorization": f"Bearer {self._access}"}
         # if not try refresh_token
         try:
-            self._refresh_token()
+            creds = self._refresh_token()
         except AuthenticationError:
-            self.login()
+            creds = self.login()
+        return creds
 
     def _refresh_token(self) -> AuthenticationCredentials:
         with open(os.path.join(Path.home(), ".seclea/config"), "r") as f:
