@@ -132,7 +132,9 @@ class SecleaAI:
         elif isinstance(dataset, DataFrame):
             if not os.path.exists(self._cache_dir):
                 os.makedirs(self._cache_dir)
-            dataset = pd.to_csv(os.path.join(self._cache_dir, "temp_dataset.csv"), index=False)
+            temp_path = os.path.join(self._cache_dir, "temp_dataset.csv")
+            dataset.to_csv(temp_path, index=False)
+            dataset = temp_path
             temp = True
 
         # TODO check for already uploaded - show a warning but don't throw an exception
