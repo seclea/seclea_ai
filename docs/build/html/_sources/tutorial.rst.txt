@@ -10,28 +10,27 @@ Example Jupyter Notebook for a project using seclea_ai::
     from seclea_ai import SecleaAI,
     import pandas as pd
 
-    seclea = SecleaAI(project_name="Test Project", framework="xgboost")
+    seclea = SecleaAI(project_name="Test Project")
 
     dataset = pd.read_csv("/content/dataset.csv")
 
-    seclea.upload_dataset("/content/dataset.csv", dataset_name="Dest Dataset")
+    seclea.upload_dataset("/content/dataset.csv", dataset_name="Test Dataset")
 
 ::
 
     def remove_correlated_features(dataframe: DataFrame, keep: List[str], threshold: float) -> DataFrame:
-    # remove strongly correlated features
-    #############
+        """ Remove strongly correlated features """
 
-    # Absolute value correlation matrix
-    corr_matrix = dataframe[dataframe["isFraud"].notnull()].corr().abs()
+        # Absolute value correlation matrix
+        corr_matrix = dataframe[dataframe["isFraud"].notnull()].corr().abs()
 
-    # Getting the upper triangle of correlations
-    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+        # Getting the upper triangle of correlations
+        upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
 
-    # Select columns with correlations above threshold
-    to_drop = [column for column in upper.columns if any(upper[column] > threshold) and column not in keep]
+        # Select columns with correlations above threshold
+        to_drop = [column for column in upper.columns if any(upper[column] > threshold) and column not in keep]
 
-    return dataframe.drop(columns=to_drop)
+        return dataframe.drop(columns=to_drop)
 
 
     def encode_categorical(dataframe: DataFrame) -> DataFrame:
@@ -46,8 +45,6 @@ Example Jupyter Notebook for a project using seclea_ai::
 ::
 
     import xgboost as xgb
-
-    seclea.init_project(model_name="GradientBoostingMachineXGBoost", dataset_name="Test Dataset")
 
     label = dataset["isFraud"].copy(deep=True)
     dataset = dataset.drop("isFraud", axis=1)
@@ -74,6 +71,13 @@ Example Jupyter Notebook for a project using seclea_ai::
 
     # train model
     booster = xgb.train(params=params, dtrain=dtrain, num_boost_round=num_rounds)
+
     # upload model state and data
-    seclea.upload_training_run(booster, transformations=[remove_correlated_features, encode_categorical])
+    seclea.upload_training_run(
+        booster,
+        model_type="GradientBoostingMachine",
+        framework="xgboost",
+        dataset_name="Test Dataset",
+        transformations=[remove_correlated_features, encode_categorical]
+    )
 

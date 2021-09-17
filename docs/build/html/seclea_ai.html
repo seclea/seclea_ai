@@ -171,31 +171,8 @@
 <h2>seclea_ai.seclea_ai.py<a class="headerlink" href="#seclea-ai-seclea-ai-py" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">seclea_ai.seclea_ai.</span></span><span class="sig-name descname"><span class="pre">SecleaAI</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">project_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">framework</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plat_url</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'https://platform.seclea.com'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">auth_url</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'https://auth.seclea.com'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">seclea_ai.seclea_ai.</span></span><span class="sig-name descname"><span class="pre">SecleaAI</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">project_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plat_url</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'https://platform.seclea.com'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">auth_url</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'https://auth.seclea.com'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI.init_project">
-<span class="sig-name descname"><span class="pre">init_project</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataset_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.init_project" title="Permalink to this definition">¶</a></dt>
-<dd><p>Shortcut method that initializes the project. Sets model and dataset.
-Throws exception if dataset has not been uploaded.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>model_name</strong> – The name of the model.</p></li>
-<li><p><strong>dataset_name</strong> – The name of the dataset.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>None</p>
-</dd>
-</dl>
-<p>Example:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">,</span> <span class="n">framework</span><span class="o">=</span><span class="s2">&quot;sklearn&quot;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">init_project</span><span class="p">(</span><span class="n">model_name</span><span class="o">=</span><span class="s2">&quot;GradientBoostingMachine&quot;</span><span class="p">,</span> <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Test Dataset&quot;</span><span class="p">)</span>
-</pre></div>
-</div>
-</dd></dl>
-
 <dl class="py method">
 <dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI.login">
 <span class="sig-name descname"><span class="pre">login</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.login" title="Permalink to this definition">¶</a></dt>
@@ -208,68 +185,20 @@ but may appear in scripting usage.</p>
 </dd>
 </dl>
 <p>Example:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">,</span> <span class="n">framework</span><span class="o">=</span><span class="s2">&quot;sklearn&quot;</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">login</span><span class="p">()</span>
 </pre></div>
 </div>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI.set_dataset">
-<span class="sig-name descname"><span class="pre">set_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.set_dataset" title="Permalink to this definition">¶</a></dt>
-<dd><p>Set the dataset for the session.
-Checks if it has been uploaded, if not throws an Exception.
-Note that this may fail if the Dataset is uploaded immediately before</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>dataset_name</strong> – The name of the dataset.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>None</p>
-</dd>
-<dt class="field-odd">Raises</dt>
-<dd class="field-odd"><p>Exception - if the dataset has not already been uploaded.</p>
-</dd>
-</dl>
-<p>Example:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">,</span> <span class="n">framework</span><span class="o">=</span><span class="s2">&quot;sklearn&quot;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">set_dataset</span><span class="p">(</span><span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Test Dataset&quot;</span><span class="p">)</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI.set_model">
-<span class="sig-name descname"><span class="pre">set_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.set_model" title="Permalink to this definition">¶</a></dt>
-<dd><p>Set the model for this session.
-Checks if it has already been uploaded. If not it will upload it.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>model_name</strong> – The name for the architecture/algorithm. eg. “GradientBoostedMachine” or “3-layer CNN”.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>None</p>
-</dd>
-<dt class="field-odd">Raises</dt>
-<dd class="field-odd"><p>ValueError - if the framework is not one of the supported frameworks or if there is an issue uploading
-the model.</p>
-</dd>
-</dl>
-<p>Example:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">,</span> <span class="n">framework</span><span class="o">=</span><span class="s2">&quot;sklearn&quot;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">set_model</span><span class="p">(</span><span class="n">model_name</span><span class="o">=</span><span class="s2">&quot;GradientBoostingMachine&quot;</span><span class="p">)</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py method">
 <dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI.upload_dataset">
-<span class="sig-name descname"><span class="pre">upload_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataset_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">Dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.upload_dataset" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">upload_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span> </span><span class="pre">pandas.core.frame.DataFrame</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataset_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">Dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.upload_dataset" title="Permalink to this definition">¶</a></dt>
 <dd><p>Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>dataset</strong> – Path or list of paths to the dataset. If a list then they must be split by row only and all
+<li><p><strong>dataset</strong> – Path or list of paths to the dataset or DataFrame containing the dataset. If a list then they must be split by row only and all
 files must contain column names as a header line.</p></li>
 <li><p><strong>dataset_name</strong> – The name of the dataset.</p></li>
 <li><p><strong>metadata</strong> – Any metadata about the dataset.</p></li>
@@ -280,28 +209,38 @@ files must contain column names as a header line.</p></li>
 </dd>
 </dl>
 <p>Example:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">,</span> <span class="n">framework</span><span class="o">=</span><span class="s2">&quot;sklearn&quot;</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="s2">&quot;/test_folder/dataset_file.csv&quot;</span><span class="p">,</span> <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Test Dataset&quot;</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="p">{})</span>
 </pre></div>
 </div>
 <p>Assuming the files are all in the /test_folder/dataset directory.
 Example with multiple files:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">files</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="s2">&quot;/test_folder/dataset&quot;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">,</span> <span class="n">framework</span><span class="o">=</span><span class="s2">&quot;lightgbm&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">dataset_metadata</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;index&quot;</span><span class="p">:</span> <span class="s2">&quot;TransactionID&quot;</span><span class="p">,</span> <span class="s2">&quot;outcome_name&quot;</span><span class="p">:</span> <span class="s2">&quot;isFraud&quot;</span><span class="p">,</span> <span class="s2">&quot;continuous_features&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;TransactionDT&quot;</span><span class="p">,</span> <span class="s2">&quot;TransactionAmt&quot;</span><span class="p">]}</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">files</span><span class="p">,</span> <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;multifile dataset&quot;</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">dataset_metadata</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">files</span><span class="p">,</span> <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Multifile Dataset&quot;</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">dataset_metadata</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Example with DataFrame:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;/test_folder/dataset_file.csv&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset_metadata</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;index&quot;</span><span class="p">:</span> <span class="s2">&quot;TransactionID&quot;</span><span class="p">,</span> <span class="s2">&quot;outcome_name&quot;</span><span class="p">:</span> <span class="s2">&quot;isFraud&quot;</span><span class="p">,</span> <span class="s2">&quot;continuous_features&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;TransactionDT&quot;</span><span class="p">,</span> <span class="s2">&quot;TransactionAmt&quot;</span><span class="p">]}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">dataset</span><span class="p">,</span> <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Multifile Dataset&quot;</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">dataset_metadata</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI.upload_training_run">
-<span class="sig-name descname"><span class="pre">upload_training_run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transformations</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Callable</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.upload_training_run" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">upload_training_run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_type</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">framework</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataset_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transformations</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Callable</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.upload_training_run" title="Permalink to this definition">¶</a></dt>
 <dd><p>Takes a model and extracts the necessary data for uploading the training run.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>model</strong> – An sklearn Estimator model.</p></li>
+<li><p><strong>model</strong> – An ML Model should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.</p></li>
+<li><p><strong>model_type</strong> – The class of the algorithm. eg. GradientBoostingMachine</p></li>
+<li><p><strong>framework</strong> – The framework being used. One of {“sklearn”, “xgboost”, “lgbm”}.</p></li>
+<li><p><strong>dataset_name</strong> – The name of the Dataset, this is set upon Dataset upload.</p></li>
 <li><p><strong>transformations</strong> – A list of functions that preprocess the Dataset.</p></li>
 </ul>
 </dd>
@@ -310,11 +249,19 @@ Example with multiple files:</p>
 </dd>
 </dl>
 <p>Example:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">,</span> <span class="n">framework</span><span class="o">=</span><span class="s2">&quot;sklearn&quot;</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="o">&lt;</span><span class="n">dataset_path</span><span class="o">&gt;</span><span class="p">)</span>
 <span class="gp">... </span><span class="n">define</span> <span class="n">transformation</span> <span class="n">functions</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">transformations</span> <span class="o">=</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">function</span> <span class="n">names</span><span class="o">&gt;</span><span class="p">]</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">model</span> <span class="o">=</span> <span class="o">&lt;</span><span class="n">training</span> <span class="n">code</span> <span class="n">here</span><span class="o">&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">upload_training_run</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">transformations</span><span class="o">=</span><span class="n">transformations</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">model</span> <span class="o">=</span> <span class="n">LogisticRegressionClassifier</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">upload_training_run</span><span class="p">(</span>
+<span class="go">        model,</span>
+<span class="go">        model_type=&quot;GradientBoostingMachine&quot;,</span>
+<span class="go">        framework=&quot;sklearn&quot;,</span>
+<span class="go">        dataset_name=&quot;Test Dataset&quot;,</span>
+<span class="go">        transformations=transformations,</span>
+<span class="go">    )</span>
 </pre></div>
 </div>
 </dd></dl>
