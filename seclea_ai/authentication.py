@@ -54,14 +54,27 @@ class AuthenticationService:
             # note from this api access and refresh are returned together. Something to be aware of though.
             # TODO refactor when adding more to config
             with open(os.path.join(Path.home(), ".seclea/config"), "w+") as f:
-                f.write(
-                    json.dumps({"refresh": response_content.get("refresh"), "username": username})
-                )
+                f.write(json.dumps({"refresh": response_content.get("refresh")}))
             return {"Authorization": f"Bearer {self._access}"}
         else:
             raise AuthenticationError(
                 f"There was some issue logging in: {response.status_code} {response.text}"
             )
+
+    def verify_token(self) -> AuthenticationCredentials:
+        # send the access token to the verify endpoint
+        response = self._transmission.send_json(
+            url_path="/api/token/refresh/", obj={"token": self._access}
+        )
+        # if good return Credentials
+        if response.status_code == 200:
+            return {"Authorization": f"Bearer {self._access}"}
+        # if not try refresh_token
+        try:
+            creds = self._refresh_token()
+        except AuthenticationError:
+            creds = self.login()
+        return creds
 
     def _refresh_token(self) -> AuthenticationCredentials:
         with open(os.path.join(Path.home(), ".seclea/config"), "r") as f:
