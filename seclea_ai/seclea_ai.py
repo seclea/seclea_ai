@@ -10,7 +10,15 @@ from typing import Any, Callable, Dict, List, Union
 import pandas as pd
 from pandas import DataFrame
 from requests import Response
-from seclea_utils.core import RequestWrapper, decode_func, encode_func
+from seclea_utils import get_model_manager
+from seclea_utils.core import (
+    CompressedFileManager,
+    ModelManager,
+    RequestWrapper,
+    Zstd,
+    decode_func,
+    encode_func,
+)
 
 from seclea_ai.authentication import AuthenticationService
 
@@ -236,7 +244,13 @@ class SecleaAI:
 
         # upload model state. TODO figure out how this fits with multiple model states.
         self._upload_model_state(
-            model=model, training_run_id=self._training_run, sequence_num=0, final=True
+            model=model,
+            training_run_id=self._training_run,
+            sequence_num=0,
+            final=True,
+            model_manager=get_model_manager(
+                framework=framework, manager=CompressedFileManager(compression=Zstd())
+            ),
         )
 
     def _init_project(self, project_name) -> None:
@@ -437,13 +451,20 @@ class SecleaAI:
             res, expected=201, msg=f"There was an issue uploading the training run: {res.text}"
         )
 
-    def _upload_model_state(self, model, training_run_id: int, sequence_num: int, final: bool):
+    def _upload_model_state(
+        self,
+        model,
+        training_run_id: int,
+        sequence_num: int,
+        final: bool,
+        model_manager: ModelManager,
+    ):
         os.makedirs(
             os.path.join(self._cache_dir, str(training_run_id)),
             exist_ok=True,
         )
 
-        save_path = self._model_manager.save_model(
+        save_path = model_manager.save_model(
             model,
             os.path.join(
                 Path.home(), f".seclea/{self._project_name}/{training_run_id}/model-{sequence_num}"
