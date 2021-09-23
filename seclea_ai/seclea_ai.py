@@ -1,6 +1,7 @@
 """
 Description for seclea_ai.py
 """
+import copy
 import inspect
 import json
 import os
@@ -174,9 +175,11 @@ class SecleaAI:
         """
         Takes a model and extracts the necessary data for uploading the training run.
 
-        :param model: An ML Model should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
+        :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
 
-        :param model_type: The class of the algorithm. eg. GradientBoostingMachine
+        :param model_type: The type of the algorithm. eg. GradientBoostingMachine, DecisionTree, LinearRegression.
+            This is used for grouping training runs of the same class but different hyper-parameters or data inputs such
+            as with K-fold validation or grid search.
 
         :param framework: The framework being used. One of {"sklearn", "xgboost", "lgbm"}.
 
@@ -225,7 +228,7 @@ class SecleaAI:
         training_run_name = f"Training Run {largest + 1}"
 
         # extract params from the model
-        params = model.get_params()  # TODO make compatible with other frameworks.
+        params = self._get_params(model=model, framework=framework)
 
         # upload training run
         tr_res = self._upload_training_run(
@@ -252,6 +255,22 @@ class SecleaAI:
                 framework=framework, manager=CompressedFileManager(compression=Zstd())
             ),
         )
+
+    def _get_params(self, model, framework) -> Dict:
+        """
+        Extracts the parameters of the model.
+        :param model: The model
+        :param framework: The framework of the model.
+        :return: Dict The parameters in a dictionary.
+        """
+        if framework == "sklearn":
+            return model.get_params()
+        elif framework == "xgboost":
+            return model.save_config()
+        elif framework == "lgbm":
+            return copy.deepcopy(model.params)
+        else:
+            raise ValueError(f"Framework must be one of {self._available_frameworks}")
 
     def _init_project(self, project_name) -> None:
         """
@@ -400,7 +419,7 @@ class SecleaAI:
             msg="There was an issue getting the model list",
         )
         datasets = res.json()
-        if len(datasets) == 1:
+        if len(datasets) >= 1:  # TODO reset to be only one.
             return datasets[0]["id"]
 
         # if we got here then the dataset has not been uploaded somehow so the user needs to do so.
