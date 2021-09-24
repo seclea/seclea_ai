@@ -93,6 +93,8 @@
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="readme.html">seclea-ai</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Tutorial</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#usage-guide">Usage Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#example-usage">Example Usage</a></li>
 </ul>
 </li>
@@ -167,6 +169,19 @@
             
   <section id="tutorial">
 <h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+<section id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>The seclea-ai package is used for tracking ML model development. This means that most of the
+functions are designed to record and upload activities or data associated with your modelling.</p>
+</section>
+<section id="usage-guide">
+<h2>Usage Guide<a class="headerlink" href="#usage-guide" title="Permalink to this headline">¶</a></h2>
+<p>There are two main steps to using the package:</p>
+<ul class="simple">
+<li><p>Before you begin modelling you will need to upload the dataset that you are working with. This will currently need to be a csv, a Pandas DataFrame or a list of csv’s.</p></li>
+<li><p>After each time you train a new model you will upload it using <code class="docutils literal notranslate"><span class="pre">SecleaAI.upload_training_run()</span></code>.</p></li>
+</ul>
+</section>
 <section id="example-usage">
 <h2>Example Usage<a class="headerlink" href="#example-usage" title="Permalink to this headline">¶</a></h2>
 <p>Example Jupyter Notebook for a project using seclea_ai:</p>
