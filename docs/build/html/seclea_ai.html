@@ -237,8 +237,10 @@ Example with multiple files:</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>model</strong> – An ML Model should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.</p></li>
-<li><p><strong>model_type</strong> – The class of the algorithm. eg. GradientBoostingMachine</p></li>
+<li><p><strong>model</strong> – An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.</p></li>
+<li><p><strong>model_type</strong> – The type of the algorithm. eg. GradientBoostingMachine, DecisionTree, LinearRegression.
+This is used for grouping training runs of the same class but different hyper-parameters or data inputs such
+as with K-fold validation or grid search.</p></li>
 <li><p><strong>framework</strong> – The framework being used. One of {“sklearn”, “xgboost”, “lgbm”}.</p></li>
 <li><p><strong>dataset_name</strong> – The name of the Dataset, this is set upon Dataset upload.</p></li>
 <li><p><strong>transformations</strong> – A list of functions that preprocess the Dataset.</p></li>
