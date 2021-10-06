@@ -21,7 +21,7 @@ There are two main steps to using the package:
 Example Usage
 ########
 
-Example Jupyter Notebook for a project using seclea_ai::
+Example of a simple Jupyter Notebook for a project using seclea_ai::
 
     from seclea_ai import SecleaAI,
     import pandas as pd
@@ -94,6 +94,6 @@ Example Jupyter Notebook for a project using seclea_ai::
         model_type="GradientBoostingMachine",
         framework="xgboost",
         dataset_name="Test Dataset",
-        transformations=[remove_correlated_features, encode_categorical]
+        transformations=[(remove_correlated_features, {"keep": keep, "threshold": threshold}), encode_categorical]
     )
 
