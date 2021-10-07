@@ -131,6 +131,18 @@ class TestSecleaAI(unittest.TestCase):
                 auth_url="http://localhost:8010",
             )
 
+    def test_process_transformations(self):
+        def test(a, b):
+            return 3 + a - b
+
+        pre = [(test, [2], {"b": 3}), (test, [2, 4]), (test, {"a": 2, "b": 5}), test]
+
+        post = SecleaAI._process_transformations(pre)
+
+        self.assertEqual(
+            post, [(test, [2], {"b": 3}), (test, [2, 4], {}), (test, [], {}), (test, [], {})]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
