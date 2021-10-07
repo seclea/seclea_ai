@@ -184,7 +184,7 @@ functions are designed to record and upload activities or data associated with y
 </section>
 <section id="example-usage">
 <h2>Example Usage<a class="headerlink" href="#example-usage" title="Permalink to this headline">¶</a></h2>
-<p>Example Jupyter Notebook for a project using seclea_ai:</p>
+<p>Example of a simple Jupyter Notebook for a project using seclea_ai:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">seclea_ai</span> <span class="k">import</span> <span class="n">SecleaAI</span><span class="p">,</span>
 <span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
 
@@ -254,7 +254,7 @@ functions are designed to record and upload activities or data associated with y
     <span class="n">model_type</span><span class="o">=</span><span class="s2">&quot;GradientBoostingMachine&quot;</span><span class="p">,</span>
     <span class="n">framework</span><span class="o">=</span><span class="s2">&quot;xgboost&quot;</span><span class="p">,</span>
     <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Test Dataset&quot;</span><span class="p">,</span>
-    <span class="n">transformations</span><span class="o">=</span><span class="p">[</span><span class="n">remove_correlated_features</span><span class="p">,</span> <span class="n">encode_categorical</span><span class="p">]</span>
+    <span class="n">transformations</span><span class="o">=</span><span class="p">[(</span><span class="n">remove_correlated_features</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;keep&quot;</span><span class="p">:</span> <span class="n">keep</span><span class="p">,</span> <span class="s2">&quot;threshold&quot;</span><span class="p">:</span> <span class="n">threshold</span><span class="p">}),</span> <span class="n">encode_categorical</span><span class="p">]</span>
 <span class="p">)</span>
 </pre></div>
 </div>
