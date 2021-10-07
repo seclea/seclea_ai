@@ -232,7 +232,7 @@ Example with multiple files:</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="seclea_ai.seclea_ai.SecleaAI.upload_training_run">
-<span class="sig-name descname"><span class="pre">upload_training_run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_type</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">framework</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataset_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transformations</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Callable</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.upload_training_run" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">upload_training_run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_type</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">framework</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataset_name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transformations</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">List</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#seclea_ai.seclea_ai.SecleaAI.upload_training_run" title="Permalink to this definition">¶</a></dt>
 <dd><p>Takes a model and extracts the necessary data for uploading the training run.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -243,7 +243,15 @@ This is used for grouping training runs of the same class but different hyper-pa
 as with K-fold validation or grid search.</p></li>
 <li><p><strong>framework</strong> – The framework being used. One of {“sklearn”, “xgboost”, “lgbm”}.</p></li>
 <li><p><strong>dataset_name</strong> – The name of the Dataset, this is set upon Dataset upload.</p></li>
-<li><p><strong>transformations</strong> – A list of functions that preprocess the Dataset.</p></li>
+<li><p><strong>transformations</strong> – <p>A list of functions that preprocess the Dataset.
+These need to be structured in a particular way:</p>
+<blockquote>
+<div><p>[(&lt;function name&gt;, [&lt;list of args&gt;], {&lt;dict of keyword arguments&gt;}), …] eg.
+[(test_function, [12, “testing”], {“test_argument”: 23})] If there are no arguments or keyword arguments
+these may be omitted. Don’t include the original Dataframe input as an argument. See the tutorial for more
+detailed information and examples.</p>
+</div></blockquote>
+</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -254,7 +262,7 @@ as with K-fold validation or grid search.</p></li>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="o">&lt;</span><span class="n">dataset_path</span><span class="o">&gt;</span><span class="p">)</span>
 <span class="gp">... </span><span class="n">define</span> <span class="n">transformation</span> <span class="n">functions</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">transformations</span> <span class="o">=</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">function</span> <span class="n">names</span><span class="o">&gt;</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transformations</span> <span class="o">=</span> <span class="p">[(</span><span class="o">&lt;</span><span class="n">function</span> <span class="n">names</span><span class="o">&gt;</span><span class="p">,</span> <span class="p">[</span><span class="o">&lt;</span><span class="nb">list</span> <span class="n">of</span> <span class="n">args</span><span class="o">&gt;</span><span class="p">],</span> <span class="p">{</span><span class="o">&lt;</span><span class="nb">dict</span> <span class="n">of</span> <span class="n">keyword</span> <span class="n">args</span><span class="o">&gt;</span><span class="p">}),</span> <span class="p">(</span><span class="o">&lt;</span><span class="n">fn</span><span class="o">&gt;</span><span class="p">,</span> <span class="p">[],{})]</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">model</span> <span class="o">=</span> <span class="n">LogisticRegressionClassifier</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">upload_training_run</span><span class="p">(</span>
