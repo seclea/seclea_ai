@@ -5,8 +5,9 @@ import copy
 import inspect
 import json
 import os
+from itertools import zip_longest
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 import pandas as pd
 from pandas import DataFrame
@@ -170,7 +171,7 @@ class SecleaAI:
         model_type: str,
         framework: str,
         dataset_name: str,
-        transformations: List[Callable],
+        transformations: List,
     ):
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -186,6 +187,11 @@ class SecleaAI:
         :param dataset_name: The name of the Dataset, this is set upon Dataset upload.
 
         :param transformations: A list of functions that preprocess the Dataset.
+            These need to be structured in a particular way:
+                [(<function name>, [<list of args>], {<dict of keyword arguments>}), ...] eg.
+                [(test_function, [12, "testing"], {"test_argument": 23})] If there are no arguments or keyword arguments
+                these may be omitted. Don't include the original Dataframe input as an argument. See the tutorial for more
+                detailed information and examples.
 
         :return: None
 
@@ -194,7 +200,7 @@ class SecleaAI:
             >>> seclea = SecleaAI(project_name="Test Project")
             >>> dataset = pd.read_csv(<dataset_path>)
             ... define transformation functions
-            >>> transformations = [<function names>]
+            >>> transformations = [(<function names>, [<list of args>], {<dict of keyword args>}), (<fn>, [],{})]
             >>> model = LogisticRegressionClassifier()
             >>> model.fit(X, y)
             >>> seclea.upload_training_run(
@@ -242,7 +248,8 @@ class SecleaAI:
 
         # upload transformations.
         self._upload_transformations(
-            transformations=transformations, training_run_id=self._training_run
+            transformations=self._process_transformations(transformations),
+            training_run_id=self._training_run,
         )
 
         # upload model state. TODO figure out how this fits with multiple model states.
@@ -507,13 +514,17 @@ class SecleaAI:
             os.remove(save_path)
         return res
 
-    def _upload_transformations(self, transformations: List[Callable], training_run_id: int):
+    def _upload_transformations(
+        self, transformations: List[Tuple[Callable, List, Dict]], training_run_id: int
+    ):
         responses = list()
-        for idx, trans in enumerate(transformations):
+        self._process_transformations(transformations)
+        for idx, (trans, args, kwargs) in enumerate(transformations):
+            # unpack transformations list
             data = {
                 "name": trans.__name__,
                 "code_raw": inspect.getsource(trans),
-                "code_encoded": encode_func(trans),
+                "code_encoded": encode_func(trans, args, kwargs),
                 "order": idx,
                 "training_run": training_run_id,
             }
@@ -557,3 +568,24 @@ class SecleaAI:
         # save aggregated and return path as string
         aggregated.to_csv(os.path.join(self._cache_dir, "temp_dataset.csv"), index=False)
         return os.path.join(self._cache_dir, "temp_dataset.csv")
+
+    @staticmethod
+    def _process_transformations(transformations: List) -> List[Tuple[Callable, List, Dict]]:
+        types = [Callable, list, dict]
+        processed = list()
+        for element in transformations:
+            if isinstance(element, Callable):
+                processed.append((element, list(), dict()))
+            elif isinstance(element, Tuple):
+                processed_el = list()
+                for num, (t, el) in enumerate(zip_longest(types, element)):
+                    if not isinstance(el, t):
+                        if num == 0:
+                            raise ValueError(
+                                "First element must be a function, did you add brackets after the function name"
+                            )
+                        processed_el.append(t())
+                    else:
+                        processed_el.append(el)
+                processed.append(tuple(processed_el))
+        return processed
