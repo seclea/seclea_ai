@@ -3,12 +3,12 @@ const head = document.getElementsByTagName('head')[0]
 const link = document.createElement('link')
 
 link.rel = 'icon'
-link.href = './favicon.ico';
+link.href = '_static/favicon.ico';
 
 head.append(link)
 
 if (darkTheme) {
-    link.href = './favicon-dark-theme.ico';
+    link.href = '_static/favicon-dark-theme.ico';
 }
 
 
