@@ -38,6 +38,30 @@ class AuthenticationService:
             self._obtain_initial_tokens(username=username, password=password)
         transmission.cookies = self._transmission.cookies
 
+    def verify_token(self) -> bool:
+        """
+        Verifies if access token in database is valid
+        :return: bool valid
+        """
+        self._transmission.cookies = {self._key_token_access: self._db.get(self._key_token_access)}
+
+        response = self._transmission.send_json(
+            url_path=self._path_token_verify, obj={}
+        )
+        return response.status_code == 200
+
+    def refresh_token(self) -> bool:
+        """
+        Refreshes the access token by posting the refresh token.
+        :return: bool success
+        """
+        self._transmission.cookies = {self._key_token_refresh: self._db.get(self._key_token_refresh)}
+        response = self._transmission.send_json(
+            url_path=self._path_token_refresh, obj={}
+        )
+        self._save_response_tokens()
+        return response.status_code == 200
+
     def _request_user_credentials(self) -> dict:
         """
         Gets user credentials manually
@@ -68,28 +92,3 @@ class AuthenticationService:
         if response.status_code != 200:
             raise AuthenticationError(f'status:{response.status_code}, content:{response.content}')
         self._save_response_tokens(response)
-
-    def verify_token(self) -> bool:
-        """
-        Verifies if access token in database is valid
-        :return: bool valid
-        """
-        self._transmission.cookies = {self._key_token_access: self._db.get(self._key_token_access)}
-
-        response = self._transmission.send_json(
-            url_path=self._path_token_verify, obj={}
-        )
-        return response.status_code == 200
-
-    def refresh_token(self) -> bool:
-        """
-        Refreshes the access token by posting the refresh token.
-        :return: bool success
-        """
-        self._transmission.cookies = {self._key_token_refresh: self._db.get(self._key_token_refresh)}
-        response = self._transmission.send_json(
-            url_path=self._path_token_refresh, obj={}
-        )
-        self._save_response_tokens()
-        return response.status_code == 200
-
