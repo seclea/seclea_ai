@@ -47,6 +47,7 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
         )
     return res
 
+
 # defining a decorator
 
 class SecleaAI:
@@ -83,7 +84,7 @@ class SecleaAI:
         self._transmission = RequestWrapper(server_root_url=plat_url)
         if username is not None and password is not None:
             print("Unsecure login")
-            self.login(username=username,password=password)
+            self.login(username=username, password=password)
         self._auth_service.authenticate(self._transmission)
         self._project = None
         self._project_name = project_name
@@ -91,8 +92,7 @@ class SecleaAI:
         self._training_run = None
         self._cache_dir = os.path.join(Path.home(), f".seclea/{self._project_name}")
         self._init_project(project_name=project_name)
-
-
+        print("success")
 
     def login(self, username=None, password=None) -> None:
         """
@@ -110,14 +110,13 @@ class SecleaAI:
         success = False
         for i in range(3):
             try:
-                self._transmission.headers = self._auth_service.login(username=username, password=password)
+                self._auth_service.authenticate(self._transmission, username=username, password=password)
                 success = True
                 break
             except AuthenticationError as e:
                 print(e)
         if not success:
             raise AuthenticationError("Failed to login.")
-
 
     def upload_dataset(
             self, dataset: Union[str, List[str], DataFrame], dataset_name: str, metadata: Dict
@@ -232,17 +231,17 @@ class SecleaAI:
                     transformations=transformations,
                 )
         """
-        self._transmission.headers = self._auth_service.verify_token()
+        self._auth_service.authenticate(self._transmission)
         # check the dataset exists prompt if not
-        dataset_id = self._set_dataset(dataset_name=dataset_name)
+        dataset_pk = self._set_dataset(dataset_name=dataset_name)
 
         # check the model exists upload if not
-        model_type_id = self._set_model(model_name=model_type, framework=framework)
+        model_type_pk = self._set_model(model_name=model_type, framework=framework)
 
         # check the latest training run
         training_runs_res = self._transmission.get(
             "/collection/training-runs",
-            query_params={"project": self._project, "model": model_type_id},
+            query_params={"project": self._project, "model": model_type_pk},
         )
         training_runs = training_runs_res.json()
 
@@ -260,8 +259,8 @@ class SecleaAI:
         # upload training run
         tr_res = self._upload_training_run(
             training_run_name=training_run_name,
-            model_id=model_type_id,
-            dataset_id=dataset_id,
+            model_pk=model_type_pk,
+            dataset_pk=dataset_pk,
             params=params,
         )
         # if the upload was successful, add the new training_run to the list to keep the names updated.
@@ -270,13 +269,14 @@ class SecleaAI:
         # upload transformations.
         self._upload_transformations(
             transformations=self._process_transformations(transformations),
-            training_run_id=self._training_run,
+            training_run_pk=self._training_run,
+            dataset_pk=dataset_pk
         )
 
         # upload model state. TODO figure out how this fits with multiple model states.
         self._upload_model_state(
             model=model,
-            training_run_id=self._training_run,
+            training_run_pk=self._training_run,
             sequence_num=0,
             final=True,
             model_manager=get_model_manager(
@@ -402,7 +402,7 @@ class SecleaAI:
         # if we got here that means that the model has not been uploaded yet. So we upload it.
         res = self._upload_model(model_name=model_name, framework=framework)
         try:
-            model_id = res.json()["id"]
+            model_pk = res.json()["id"]
         except KeyError:
             resp = handle_response(
                 self._transmission.get(
@@ -415,8 +415,8 @@ class SecleaAI:
                 expected=200,
                 msg="There was an issue getting the model list",
             )
-            model_id = resp.json()[0]["id"]
-        return model_id
+            model_pk = resp.json()[0]["id"]
+        return model_pk
 
     def _set_dataset(self, dataset_name: str) -> int:
         """
@@ -474,7 +474,7 @@ class SecleaAI:
         )
 
     def _upload_training_run(
-            self, training_run_name: str, model_id: int, dataset_id: int, params: Dict
+            self, training_run_name: str, model_pk: int, dataset_pk: int, params: Dict
     ):
         """
 
@@ -488,8 +488,8 @@ class SecleaAI:
             url_path="/collection/training-runs",
             obj={
                 "project": self._project,
-                "dataset": dataset_id,
-                "model": model_id,
+                "dataset": dataset_pk,
+                "model": model_pk,
                 "name": training_run_name,
                 "params": params,
             },
@@ -501,20 +501,20 @@ class SecleaAI:
     def _upload_model_state(
             self,
             model,
-            training_run_id: int,
+            training_run_pk: int,
             sequence_num: int,
             final: bool,
             model_manager: ModelManager,
     ):
         os.makedirs(
-            os.path.join(self._cache_dir, str(training_run_id)),
+            os.path.join(self._cache_dir, str(training_run_pk)),
             exist_ok=True,
         )
 
         save_path = model_manager.save_model(
             model,
             os.path.join(
-                Path.home(), f".seclea/{self._project_name}/{training_run_id}/model-{sequence_num}"
+                Path.home(), f".seclea/{self._project_name}/{training_run_pk}/model-{sequence_num}"
             ),
         )
 
@@ -523,7 +523,7 @@ class SecleaAI:
             file_path=save_path,
             query_params={
                 "sequence_num": sequence_num,
-                "training_run": training_run_id,
+                "training_run": training_run_pk,
                 "final_state": final,
             },
         )
@@ -536,7 +536,7 @@ class SecleaAI:
         return res
 
     def _upload_transformations(
-            self, transformations: List[Tuple[Callable, List, Dict]], training_run_id: int
+            self, transformations: List[Tuple[Callable, List, Dict]], training_run_pk: int, dataset_pk
     ):
         responses = list()
         self._process_transformations(transformations)
@@ -547,7 +547,8 @@ class SecleaAI:
                 "code_raw": inspect.getsource(trans),
                 "code_encoded": encode_func(trans, args, kwargs),
                 "order": idx,
-                "training_run": training_run_id,
+                # "training_run": training_run_pk,
+                "dataset": dataset_pk
             }
             res = self._transmission.send_json(
                 url_path="/collection/dataset-transformations", obj=data
@@ -560,13 +561,13 @@ class SecleaAI:
             responses.append(res)
         return responses
 
-    def _load_transformations(self, training_run_id: int):
+    def _load_transformations(self, training_run_pk: int):
         """
         Expects a list of code_encoded as set by upload_transformations.
         """
         res = self._transmission.get(
             url_path="/collection/dataset-transformations",
-            query_params={"training_run": training_run_id},
+            query_params={"training_run": training_run_pk},
         )
         res = handle_response(
             res, expected=200, msg=f"There was an issue loading the transformations: {res.text}"
