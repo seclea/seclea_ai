@@ -39,7 +39,7 @@ jobs:
           message: "Update version number in setup.py on merge."
           # The flag used on the pull strategy. Use NO-PULL to avoid the action pulling at all.
           # Default: '--no-rebase'
-          pull_strategy: "NO-PULL"
+          pull: "NO-PULL"
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
