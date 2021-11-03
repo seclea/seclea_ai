@@ -9,7 +9,7 @@ from seclea_utils.core import Transmission
 
 from seclea_ai.exceptions import AuthenticationError
 from seclea_ai.typing import AuthenticationCredentials
-from storage import Storage
+from .storage import Storage
 
 
 def handle_response(res: Response, msg):
@@ -21,9 +21,9 @@ class AuthenticationService:
     def __init__(self, transmission: Transmission):
         self._transmission = transmission
         self._db = Storage(db_name='auth_service')
-        self._path_token_obtain = '/api/token/obtain'
-        self._path_token_refresh = '/api/token/refresh'
-        self._path_token_verify = '/api/token/verify'
+        self._path_token_obtain = '/api/token/obtain/'
+        self._path_token_refresh = '/api/token/refresh/'
+        self._path_token_verify = '/api/token/verify/'
         self._key_token_access = 'access_token'
         self._key_token_refresh = 'refresh_token'
 
@@ -36,6 +36,8 @@ class AuthenticationService:
         """
         if not self.refresh_token():
             self._obtain_initial_tokens(username=username, password=password)
+        if not self.verify_token():
+            raise AuthenticationError('Failed to verify token')
         transmission.cookies = self._transmission.cookies
 
     def verify_token(self) -> bool:
@@ -55,11 +57,13 @@ class AuthenticationService:
         Refreshes the access token by posting the refresh token.
         :return: bool success
         """
+        if not self._db.get(self._key_token_refresh):
+            return False
         self._transmission.cookies = {self._key_token_refresh: self._db.get(self._key_token_refresh)}
         response = self._transmission.send_json(
             url_path=self._path_token_refresh, obj={}
         )
-        self._save_response_tokens()
+        self._save_response_tokens(response)
         return response.status_code == 200
 
     def _request_user_credentials(self) -> dict:

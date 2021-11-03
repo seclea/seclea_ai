@@ -2,21 +2,30 @@ from seclea_ai import SecleaAI
 from unittest import TestCase
 import pandas as pd
 import numpy as np
+import uuid
 
 
 class TestIntegrationSecleaAIPortal(TestCase):
     """
     Monolithic testing of the Seclea AI file
     order of functions is preserved.
+
+    NOTE: a random project is named on each tests this is to
+    pseudo reset the database.
+
+    Please reset database upon completing work
+
+    Workflow to reset db on each test run to be investigated.
     """
 
     def step_0_project_setup(self):
         self.password = 'asdf'
-        self.username= 'onespanadmin'
-        self.project_name = 'test-project'
+        self.username = 'onespanadmin'
+        self.project_name = f'test-project{uuid.uuid4()}'
         self.portal_url = 'http://localhost:8000'
         self.auth_url = 'http://localhost:8010'
-        self.controller = SecleaAI(self.project_name, self.portal_url, self.auth_url,username=self.username,password=self.password)
+        self.controller = SecleaAI(self.project_name, self.portal_url, self.auth_url, username=self.username,
+                                   password=self.password)
 
     def step_1_upload_dataset(self):
         self.sample_df_1 = pd.read_csv('insurance_claims.csv')
@@ -120,5 +129,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
         for name, step in self._steps():
             try:
                 step()
+                print('STEP COMPLETE')
             except Exception as e:
-                self.fail("{} failed ({}: {})".format(step, type(e), e))
+                self.fail(F"{step} failed ({type(e)}: {e})")

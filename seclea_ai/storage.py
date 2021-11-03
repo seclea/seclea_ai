@@ -29,7 +29,6 @@ class Storage:
         Path(path).mkdir(parents=True, exist_ok=True)
         self._path = path
         self.db = db.load(self._path, True)
-
     def write(self, key, val):
         self.db.set(key, val)
 
