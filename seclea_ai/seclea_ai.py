@@ -8,7 +8,7 @@ import os
 from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple, Union
-
+from seclea_ai.exceptions import AuthenticationError
 import pandas as pd
 from pandas import DataFrame
 from requests import Response
@@ -47,13 +47,16 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
         )
     return res
 
+# defining a decorator
 
 class SecleaAI:
     def __init__(
-        self,
-        project_name: str,
-        plat_url: str = "https://platform.seclea.com",
-        auth_url: str = "https://auth.seclea.com",
+            self,
+            project_name: str,
+            plat_url: str = "https://platform.seclea.com",
+            auth_url: str = "https://auth.seclea.com",
+            username: str = None,
+            password: str = None
     ):
         """
         Create a SecleaAI object to manage a session. Requires a project name and framework.
@@ -63,6 +66,10 @@ class SecleaAI:
         :param plat_url: The url of the platform server. Default: "https://platform.seclea.com"
 
         :param auth_url: The url of the auth server. Default: "https://auth.seclea.com"
+
+        :param username: seclea username
+
+        :param password: seclea password
 
         :return: SecleaAI object
 
@@ -74,7 +81,10 @@ class SecleaAI:
         """
         self._auth_service = AuthenticationService(RequestWrapper(auth_url))
         self._transmission = RequestWrapper(server_root_url=plat_url)
-        self._transmission.headers = self._auth_service.handle_auth()
+        if username is not None and password is not None:
+            print("Unsecure login")
+            self.login(username=username,password=password)
+        self._auth_service.authenticate(self._transmission)
         self._project = None
         self._project_name = project_name
         self._available_frameworks = {"sklearn", "xgboost", "lightgbm"}
@@ -82,7 +92,9 @@ class SecleaAI:
         self._cache_dir = os.path.join(Path.home(), f".seclea/{self._project_name}")
         self._init_project(project_name=project_name)
 
-    def login(self) -> None:
+
+
+    def login(self, username=None, password=None) -> None:
         """
         Override login, this also overwrites the stored credentials in ~/.seclea/config.
         Note. In some circumstances the password will be echoed to stdin. This is not a problem in Jupyter Notebooks
@@ -95,10 +107,20 @@ class SecleaAI:
             >>> seclea = SecleaAI(project_name="Test Project")
             >>> seclea.login()
         """
-        self._transmission.headers = self._auth_service.login()
+        success = False
+        for i in range(3):
+            try:
+                self._transmission.headers = self._auth_service.login(username=username, password=password)
+                success = True
+                break
+            except AuthenticationError as e:
+                print(e)
+        if not success:
+            raise AuthenticationError("Failed to login.")
+
 
     def upload_dataset(
-        self, dataset: Union[str, List[str], DataFrame], dataset_name: str, metadata: Dict
+            self, dataset: Union[str, List[str], DataFrame], dataset_name: str, metadata: Dict
     ):
         """
         Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.
@@ -132,7 +154,6 @@ class SecleaAI:
             >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
             >>> seclea.upload_dataset(dataset=dataset, dataset_name="Multifile Dataset", metadata=dataset_metadata)
         """
-        self._transmission.headers = self._auth_service.verify_token()
         temp = False
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
@@ -166,12 +187,12 @@ class SecleaAI:
                 os.remove(dataset)
 
     def upload_training_run(
-        self,
-        model,
-        model_type: str,
-        framework: str,
-        dataset_name: str,
-        transformations: List,
+            self,
+            model,
+            model_type: str,
+            framework: str,
+            dataset_name: str,
+            transformations: List,
     ):
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -453,7 +474,7 @@ class SecleaAI:
         )
 
     def _upload_training_run(
-        self, training_run_name: str, model_id: int, dataset_id: int, params: Dict
+            self, training_run_name: str, model_id: int, dataset_id: int, params: Dict
     ):
         """
 
@@ -478,12 +499,12 @@ class SecleaAI:
         )
 
     def _upload_model_state(
-        self,
-        model,
-        training_run_id: int,
-        sequence_num: int,
-        final: bool,
-        model_manager: ModelManager,
+            self,
+            model,
+            training_run_id: int,
+            sequence_num: int,
+            final: bool,
+            model_manager: ModelManager,
     ):
         os.makedirs(
             os.path.join(self._cache_dir, str(training_run_id)),
@@ -515,7 +536,7 @@ class SecleaAI:
         return res
 
     def _upload_transformations(
-        self, transformations: List[Tuple[Callable, List, Dict]], training_run_id: int
+            self, transformations: List[Tuple[Callable, List, Dict]], training_run_id: int
     ):
         responses = list()
         self._process_transformations(transformations)
