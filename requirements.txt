@@ -6,7 +6,7 @@ pre-commit>=2.12.1
 requests>=2.22.0
 responses>=0.13.0
 scikit-learn>=0.24.0
-seclea-utils==0.0.46
+seclea-utils==0.0.52
 setuptools>=49.2.1
 Sphinx==4.1.1
 sphinx-rtd-theme==0.5.2
