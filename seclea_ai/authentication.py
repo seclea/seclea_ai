@@ -9,6 +9,7 @@ from seclea_utils.core import Transmission
 
 from seclea_ai.exceptions import AuthenticationError
 from seclea_ai.typing import AuthenticationCredentials
+from .storage import Storage
 
 
 def handle_response(res: Response, msg):
@@ -18,90 +19,80 @@ def handle_response(res: Response, msg):
 
 class AuthenticationService:
     def __init__(self, transmission: Transmission):
-        self._access = None
         self._transmission = transmission
+        self._db = Storage(db_name='auth_service')
+        self._path_token_obtain = '/api/token/obtain/'
+        self._path_token_refresh = '/api/token/refresh/'
+        self._path_token_verify = '/api/token/verify/'
+        self._key_token_access = 'access_token'
+        self._key_token_refresh = 'refresh_token'
 
-    def handle_auth(self) -> AuthenticationCredentials:
-        if os.path.isfile(os.path.join(Path.home(), ".seclea/config")):
-            try:
-                creds = self._refresh_token()
-            except AuthenticationError:
-                creds = self.login()
-        else:
-            try:
-                os.mkdir(
-                    os.path.join(Path.home(), ".seclea"),
-                    stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_ISVTX,
-                )  # set mode to allow user and group rw only
-            except FileExistsError:
-                # do nothing.
-                pass
-            creds = self.login()
-        return creds
+    def authenticate(self, transmission: Transmission = None, username=None, password=None):
+        """
+        Attempts to authenticate with server and then passes credential to specified transmission
 
-    def login(self) -> AuthenticationCredentials:
-        username = input("Username: ")
-        password = getpass("Password: ")
-        credentials = {"username": username, "password": password}
-        response = self._transmission.send_json(url_path="/api/token/obtain/", obj=credentials)
-        try:
-            response_content = json.loads(response.content.decode("utf-8"))
-        except Exception as e:
-            print(e)
-            raise json.decoder.JSONDecodeError("INVALID CREDENTIALS: ", str(credentials), 1)
-        self._access = response_content.get("access")
-        if self._access is not None:
-            # note from this api access and refresh are returned together. Something to be aware of though.
-            # TODO refactor when adding more to config
-            with open(os.path.join(Path.home(), ".seclea/config"), "w+") as f:
-                f.write(json.dumps({"refresh": response_content.get("refresh")}))
-            return {"Authorization": f"Bearer {self._access}"}
-        else:
-            raise AuthenticationError(
-                f"There was some issue logging in: {response.status_code} {response.text}"
-            )
+        :param transmission: transmission service we wish to authenticate
+        :return:
+        """
+        if not self.refresh_token():
+            self._obtain_initial_tokens(username=username, password=password)
+        if not self.verify_token():
+            raise AuthenticationError('Failed to verify token')
+        transmission.cookies = self._transmission.cookies
 
-    def verify_token(self) -> AuthenticationCredentials:
-        # send the access token to the verify endpoint
+    def verify_token(self) -> bool:
+        """
+        Verifies if access token in database is valid
+        :return: bool valid
+        """
+        self._transmission.cookies = {self._key_token_access: self._db.get(self._key_token_access)}
+
         response = self._transmission.send_json(
-            url_path="/api/token/refresh/", obj={"token": self._access}
+            url_path=self._path_token_verify, obj={}
         )
-        # if good return Credentials
-        if response.status_code == 200:
-            return {"Authorization": f"Bearer {self._access}"}
-        # if not try refresh_token
-        try:
-            creds = self._refresh_token()
-        except AuthenticationError:
-            creds = self.login()
-        return creds
+        return response.status_code == 200
 
-    def _refresh_token(self) -> AuthenticationCredentials:
-        with open(os.path.join(Path.home(), ".seclea/config"), "r") as f:
-            config = json.loads(f.read())
-        try:
-            refresh = config["refresh"]
-        except KeyError as e:
-            print(e)
-            # refresh token missing, prompt and login
-            raise AuthenticationError
+    def refresh_token(self) -> bool:
+        """
+        Refreshes the access token by posting the refresh token.
+        :return: bool success
+        """
+        if not self._db.get(self._key_token_refresh):
+            return False
+        self._transmission.cookies = {self._key_token_refresh: self._db.get(self._key_token_refresh)}
         response = self._transmission.send_json(
-            url_path="/api/token/refresh/", obj={"refresh": refresh}
+            url_path=self._path_token_refresh, obj={}
         )
-        if not response.ok:
-            if response.status_code == 401:
-                print("Token has expired, please login.")
-            else:
-                handle_response(res=response, msg="There was an issue with the refresh token")
-            raise AuthenticationError
+        self._save_response_tokens(response)
+        return response.status_code == 200
+
+    def _request_user_credentials(self) -> dict:
+        """
+        Gets user credentials manually
+        :return:
+        """
+        return {
+            'username': input("Username: "),
+            'password': getpass("Password: ")
+        }
+
+    def _save_response_tokens(self, response) -> None:
+        """
+        Saves refresh and access tokens into db
+        :param response:
+        :return:
+        """
+        if self._key_token_refresh in response.cookies:
+            self._db.write(self._key_token_refresh, response.cookies[self._key_token_refresh])
+        if self._key_token_access in response.cookies:
+            self._db.write(self._key_token_access, response.cookies[self._key_token_access])
+
+    def _obtain_initial_tokens(self, username=None, password=None):
+        if username is None or password is None:
+            credentials = self._request_user_credentials()
         else:
-            try:
-                response_content = json.loads(response.content.decode("utf-8"))
-                self._access = response_content.get("access")
-                if self._access is not None:
-                    return {"Authorization": f"Bearer {self._access}"}
-                else:
-                    raise AuthenticationError
-            except Exception as e:
-                print(e)
-                raise AuthenticationError
+            credentials = {"username": username, "password": password}
+        response = self._transmission.send_json(url_path=self._path_token_obtain, obj=credentials)
+        if response.status_code != 200:
+            raise AuthenticationError(f'status:{response.status_code}, content:{response.content}')
+        self._save_response_tokens(response)
