@@ -7,11 +7,10 @@ import os
 from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple, Union
-from seclea_ai.exceptions import AuthenticationError
+
 import pandas as pd
 from pandas import DataFrame
 from requests import Response
-from seclea_utils.get_model_manager import get_model_manager, Frameworks
 from seclea_utils.core import (
     CompressedFileManager,
     ModelManager,
@@ -20,8 +19,10 @@ from seclea_utils.core import (
     decode_func,
     encode_func,
 )
+from seclea_utils.get_model_manager import Frameworks, get_model_manager
 
 from seclea_ai.authentication import AuthenticationService
+from seclea_ai.exceptions import AuthenticationError
 
 
 def handle_response(res: Response, expected: int, msg: str) -> Response:
@@ -49,14 +50,15 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
 
 # defining a decorator
 
+
 class SecleaAI:
     def __init__(
-            self,
-            project_name: str,
-            plat_url: str = "https://platform.seclea.com",
-            auth_url: str = "https://auth.seclea.com",
-            username: str = None,
-            password: str = None
+        self,
+        project_name: str,
+        plat_url: str = "https://platform.seclea.com",
+        auth_url: str = "https://auth.seclea.com",
+        username: str = None,
+        password: str = None,
     ):
         """
         Create a SecleaAI object to manage a session. Requires a project name and framework.
@@ -109,7 +111,9 @@ class SecleaAI:
         success = False
         for i in range(3):
             try:
-                self._auth_service.authenticate(self._transmission, username=username, password=password)
+                self._auth_service.authenticate(
+                    self._transmission, username=username, password=password
+                )
                 success = True
                 break
             except AuthenticationError as e:
@@ -118,7 +122,7 @@ class SecleaAI:
             raise AuthenticationError("Failed to login.")
 
     def upload_dataset(
-            self, dataset: Union[str, List[str], DataFrame], dataset_name: str, metadata: Dict
+        self, dataset: Union[str, List[str], DataFrame], dataset_name: str, metadata: Dict
     ):
         """
         Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.
@@ -185,12 +189,12 @@ class SecleaAI:
                 os.remove(dataset)
 
     def upload_training_run(
-            self,
-            model,
-            model_type: str,
-            framework: Frameworks,
-            dataset_name: str,
-            transformations: List,
+        self,
+        model,
+        model_type: str,
+        framework: Frameworks,
+        dataset_name: str,
+        transformations: List,
     ):
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -269,7 +273,7 @@ class SecleaAI:
         self._upload_transformations(
             transformations=self._process_transformations(transformations),
             training_run_pk=self._training_run,
-            dataset_pk=dataset_pk
+            dataset_pk=dataset_pk,
         )
 
         # upload model state. TODO figure out how this fits with multiple model states.
@@ -282,7 +286,6 @@ class SecleaAI:
                 framework=framework, data_manager=CompressedFileManager(compression=Zstd())
             ),
         )
-
 
     def _init_project(self, project_name) -> None:
         """
@@ -458,7 +461,7 @@ class SecleaAI:
         )
 
     def _upload_training_run(
-            self, training_run_name: str, model_pk: int, dataset_pk: int, params: Dict
+        self, training_run_name: str, model_pk: int, dataset_pk: int, params: Dict
     ):
         """
 
@@ -483,12 +486,12 @@ class SecleaAI:
         )
 
     def _upload_model_state(
-            self,
-            model,
-            training_run_pk: int,
-            sequence_num: int,
-            final: bool,
-            model_manager: ModelManager,
+        self,
+        model,
+        training_run_pk: int,
+        sequence_num: int,
+        final: bool,
+        model_manager: ModelManager,
     ):
         os.makedirs(
             os.path.join(self._cache_dir, str(training_run_pk)),
@@ -520,7 +523,7 @@ class SecleaAI:
         return res
 
     def _upload_transformations(
-            self, transformations: List[Tuple[Callable, List, Dict]], training_run_pk: int, dataset_pk
+        self, transformations: List[Tuple[Callable, List, Dict]], training_run_pk: int, dataset_pk
     ):
         responses = list()
         self._process_transformations(transformations)
@@ -532,7 +535,7 @@ class SecleaAI:
                 "code_encoded": encode_func(trans, args, kwargs),
                 "order": idx,
                 # "training_run": training_run_pk,
-                "dataset": dataset_pk
+                "dataset": dataset_pk,
             }
             res = self._transmission.send_json(
                 url_path="/collection/dataset-transformations", obj=data
