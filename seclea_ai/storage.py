@@ -1,19 +1,20 @@
 from pathlib import Path
-import pickledb as db
+
+import pickledb as db  # nosec
 
 
 class Storage:
-    """ Simple storage supporting pickledb for now."""
+    """Simple storage supporting pickledb for now."""
 
-    def __init__(self, root: str = None, db_name='default.db'):
+    def __init__(self, root: str = None, db_name="default.db"):
         """
         @param root: root path of db default is Path.home()/.seclea/
         @param db_name: name of database
         """
         if root is None:
-            self._path = f'{Path.home()}/.seclea/{db_name}'
+            self._path = f"{Path.home()}/.seclea/{db_name}"
         else:
-            self._path = f'{root}/{db_name}'
+            self._path = f"{root}/{db_name}"
         self.db = db.load(self._path, True)
 
     @property
@@ -29,6 +30,7 @@ class Storage:
         Path(path).mkdir(parents=True, exist_ok=True)
         self._path = path
         self.db = db.load(self._path, True)
+
     def write(self, key, val):
         self.db.set(key, val)
 
