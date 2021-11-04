@@ -1,4 +1,6 @@
 from seclea_ai import SecleaAI
+from seclea_ai import Frameworks
+
 from unittest import TestCase
 import pandas as pd
 import numpy as np
@@ -117,7 +119,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
         model.fit(X_train, y_train)
         preds = model.predict(X_test)
 
-        self.controller.upload_training_run(model, model_type=model.__class__.__name__, framework="sklearn",
+        self.controller.upload_training_run(model, model_type=model.__class__.__name__, framework=Frameworks.SKLEARN,
                                             dataset_name=self.sample_df_1_name, transformations=self.transformations)
 
     def _steps(self):

@@ -1,7 +1,6 @@
 """
 Description for seclea_ai.py
 """
-import copy
 import inspect
 import json
 import os
@@ -12,7 +11,7 @@ from seclea_ai.exceptions import AuthenticationError
 import pandas as pd
 from pandas import DataFrame
 from requests import Response
-from seclea_utils import get_model_manager
+from seclea_utils.get_model_manager import get_model_manager, Frameworks
 from seclea_utils.core import (
     CompressedFileManager,
     ModelManager,
@@ -189,7 +188,7 @@ class SecleaAI:
             self,
             model,
             model_type: str,
-            framework: str,
+            framework: Frameworks,
             dataset_name: str,
             transformations: List,
     ):
@@ -218,7 +217,7 @@ class SecleaAI:
         Example::
 
             >>> seclea = SecleaAI(project_name="Test Project")
-            >>> dataset = pd.read_csv(<dataset_path>)
+            >>> dataset = pd.read_csv(<dataset_name>)
             ... define transformation functions
             >>> transformations = [(<function names>, [<list of args>], {<dict of keyword args>}), (<fn>, [],{})]
             >>> model = LogisticRegressionClassifier()
@@ -226,7 +225,7 @@ class SecleaAI:
             >>> seclea.upload_training_run(
                     model,
                     model_type="GradientBoostingMachine",
-                    framework="sklearn",
+                    framework=seclea_ai.Frameworks.SKLEARN,
                     dataset_name="Test Dataset",
                     transformations=transformations,
                 )
@@ -254,7 +253,7 @@ class SecleaAI:
         training_run_name = f"Training Run {largest + 1}"
 
         # extract params from the model
-        params = self._get_params(model=model, framework=framework)
+        params = framework.value.get_params(model)
 
         # upload training run
         tr_res = self._upload_training_run(
@@ -280,25 +279,10 @@ class SecleaAI:
             sequence_num=0,
             final=True,
             model_manager=get_model_manager(
-                framework=framework, manager=CompressedFileManager(compression=Zstd())
+                framework=framework, data_manager=CompressedFileManager(compression=Zstd())
             ),
         )
 
-    def _get_params(self, model, framework) -> Dict:
-        """
-        Extracts the parameters of the model.
-        :param model: The model
-        :param framework: The framework of the model.
-        :return: Dict The parameters in a dictionary.
-        """
-        if framework == "sklearn":
-            return model.get_params()
-        elif framework == "xgboost":
-            return model.save_config()
-        elif framework == "lgbm":
-            return copy.deepcopy(model.params)
-        else:
-            raise ValueError(f"Framework must be one of {self._available_frameworks}")
 
     def _init_project(self, project_name) -> None:
         """
@@ -368,7 +352,7 @@ class SecleaAI:
             res, expected=201, msg=f"There was an issue creating the project: {res.text}"
         )
 
-    def _set_model(self, model_name: str, framework: str) -> int:
+    def _set_model(self, model_name: str, framework: Frameworks) -> int:
         """
         Set the model for this session.
         Checks if it has already been uploaded. If not it will upload it.
@@ -382,7 +366,7 @@ class SecleaAI:
 
         Example::
 
-            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
+            >>> seclea = SecleaAI(project_name="Test Project", framework="seclea_ai.Frameworks.SKLEARN")
             >>> seclea.set_model(model_name="GradientBoostingMachine")
         """
         res = handle_response(
@@ -390,7 +374,7 @@ class SecleaAI:
                 url_path="/collection/models",
                 query_params={
                     "name": model_name,
-                    "framework": framework,
+                    "framework": framework.name,
                 },
             ),
             expected=200,
@@ -409,7 +393,7 @@ class SecleaAI:
                     url_path="/collection/models",
                     query_params={
                         "name": model_name,
-                        "framework": framework,
+                        "framework": framework.name,
                     },
                 ),
                 expected=200,
@@ -432,7 +416,7 @@ class SecleaAI:
 
         Example::
 
-            >>> seclea = SecleaAI(project_name="Test Project", framework="sklearn")
+            >>> seclea = SecleaAI(project_name="Test Project", framework="seclea_ai.Frameworks.SKLEARN")
             >>> seclea.set_dataset(dataset_name="Test Dataset")
         """
         res = handle_response(
@@ -455,18 +439,18 @@ class SecleaAI:
             "The dataset has not been uploaded yet, please use upload_dataset(path, id, metadata) to upload one."
         )
 
-    def _upload_model(self, model_name: str, framework: str):
+    def _upload_model(self, model_name: str, framework: Frameworks):
         """
 
         :param model_name:
-        :param framework:
+        :param framework: instance of seclea_ai.Frameworks
         :return:
         """
         res = self._transmission.send_json(
             url_path="/collection/models",
             obj={
                 "name": model_name,
-                "framework": framework,
+                "framework": framework.name,
             },
         )
         return handle_response(
