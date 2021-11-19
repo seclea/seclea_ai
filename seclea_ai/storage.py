@@ -34,5 +34,6 @@ class Storage:
     def write(self, key, val):
         self.db.set(key, val)
 
-    def get(self, key):
-        return self.db.get(key)
+    def get(self, key, default=None):
+        val = self.db.get(key)
+        return default if val is None else val

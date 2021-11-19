@@ -13,6 +13,25 @@ def handle_response(res: Response, msg):
         print(f"{msg}: {res.status_code} - {res.reason} - {res.text}")
 
 
+def singleton(cls):
+    """Decorator to ensures a class follows the singleton pattern.
+
+    Example:
+        @singleton
+        class MyClass:
+            ...
+    """
+    instances = {}
+
+    def get_instance():
+        if cls not in instances:
+            instances[cls] = cls()
+        return instances[cls]
+
+    return get_instance
+
+
+@singleton
 class AuthenticationService:
     def __init__(self, transmission: Transmission):
         self._transmission = transmission
@@ -28,28 +47,68 @@ class AuthenticationService:
         Attempts to authenticate with server and then passes credential to specified transmission
 
         :param transmission: transmission service we wish to authenticate
+
         :return:
         """
-        if not self.refresh_token():
+        if not self.refresh_stored_token():
             self._obtain_initial_tokens(username=username, password=password)
-        if not self.verify_token():
+        if not self.verify_stored_token():
             raise AuthenticationError("Failed to verify token")
         transmission.cookies = self._transmission.cookies
 
-    def verify_token(self) -> bool:
+    def verify_token(self, transmission: Transmission) -> bool:
+        """
+        Verifies if the access token a transmission object has is valid.
+
+        :param transmission: The transmission object containing the access token
+
+        :return: bool True if valid or False
+        """
+        if self._key_token_access not in transmission.cookies:
+            return False
+        self._transmission.cookies = {
+            self._key_token_access: transmission.cookies[self._key_token_access]
+        }
+        response = self._transmission.send_json(url_path=self._path_token_verify, obj={})
+        return response.status_code == 200
+
+    def verify_stored_token(self) -> bool:
         """
         Verifies if access token in database is valid
-        :return: bool valid
+
+        :return: bool True if valid or False
         """
-        self._transmission.cookies = {self._key_token_access: self._db.get(self._key_token_access)}
+        self._transmission.cookies = {
+            self._key_token_access: self._db.get(self._key_token_access, default="")
+        }
 
         response = self._transmission.send_json(url_path=self._path_token_verify, obj={})
         return response.status_code == 200
 
-    def refresh_token(self) -> bool:
+    def refresh_token(self, transmission: Transmission) -> bool:
         """
-        Refreshes the access token by posting the refresh token.
-        :return: bool success
+        Refreshes the access token for the transmission if successful.
+
+        :param transmission: Transmission The transmission which needs the refreshed token.
+
+        :return: bool Success
+        """
+        if not self._db.get(self._key_token_refresh):
+            return False
+        self._transmission.cookies = {
+            self._key_token_refresh: self._db.get(self._key_token_refresh)
+        }
+        response = self._transmission.send_json(url_path=self._path_token_refresh, obj={})
+        self._save_response_tokens(response)
+        if response.status_code == 200:
+            transmission.cookies = {self._key_token_access: self._db.get(self._key_token_access)}
+        return response.status_code == 200
+
+    def refresh_stored_token(self) -> bool:
+        """
+        Refreshes the stored access token by posting the refresh token.
+
+        :return: bool Success
         """
         if not self._db.get(self._key_token_refresh):
             return False
@@ -60,28 +119,43 @@ class AuthenticationService:
         self._save_response_tokens(response)
         return response.status_code == 200
 
-    def _request_user_credentials(self) -> dict:
+    @staticmethod
+    def _request_user_credentials() -> dict:
         """
         Gets user credentials manually
-        :return:
+
+        :return: dict Username and password
         """
         return {"username": input("Username: "), "password": getpass("Password: ")}
 
     def _save_response_tokens(self, response) -> None:
         """
         Saves refresh and access tokens into db
+
         :param response:
-        :return:
+
+        :return: None
         """
         if self._key_token_refresh in response.cookies:
             self._db.write(self._key_token_refresh, response.cookies[self._key_token_refresh])
         if self._key_token_access in response.cookies:
             self._db.write(self._key_token_access, response.cookies[self._key_token_access])
 
-    def _obtain_initial_tokens(self, username=None, password=None):
+    def _obtain_initial_tokens(self, username=None, password=None) -> None:
+        """
+        Wrapper method to get initial tokens, either with passed in credentials. (For non secure scripting use only)
+        This method saves the tokens in the db.
+
+        :param username: str Username
+
+        :param password: str Password
+
+        :return: None
+        """
         if username is None or password is None:
             credentials = self._request_user_credentials()
         else:
+            print("Warning - Avoid storing credentials in code where possible!")
             credentials = {"username": username, "password": password}
         response = self._transmission.send_json(url_path=self._path_token_obtain, obj=credentials)
         if response.status_code != 200:

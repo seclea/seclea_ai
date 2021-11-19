@@ -50,7 +50,7 @@ class TestSecleaAI(unittest.TestCase):
         ) as mock_file:
             SecleaAI(
                 project_name="test-project",
-                plat_url="http://localhost:8000",
+                platform_url="http://localhost:8000",
                 auth_url="http://localhost:8010",
             )
         mock_file.assert_called()
@@ -80,7 +80,7 @@ class TestSecleaAI(unittest.TestCase):
         with self.assertRaises(ValueError):
             SecleaAI(
                 project_name="New Project",
-                plat_url="http://localhost:8000",
+                platform_url="http://localhost:8000",
                 auth_url="http://localhost:8010",
             )
 
@@ -127,7 +127,7 @@ class TestSecleaAI(unittest.TestCase):
         with self.assertRaises(ValueError):
             SecleaAI(
                 project_name="New Project",
-                plat_url="http://localhost:8000",
+                platform_url="http://localhost:8000",
                 auth_url="http://localhost:8010",
             )
 

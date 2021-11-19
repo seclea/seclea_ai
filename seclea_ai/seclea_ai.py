@@ -4,9 +4,10 @@ Description for seclea_ai.py
 import inspect
 import json
 import os
+import uuid
 from itertools import zip_longest
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 from pandas import DataFrame
@@ -23,6 +24,7 @@ from seclea_utils.get_model_manager import Frameworks, get_model_manager
 
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
+from seclea_ai.internal.backend import Backend
 
 
 def handle_response(res: Response, expected: int, msg: str) -> Response:
@@ -55,7 +57,8 @@ class SecleaAI:
     def __init__(
         self,
         project_name: str,
-        plat_url: str = "https://platform.seclea.com",
+        project_root: str = ".",
+        platform_url: str = "https://platform.seclea.com",
         auth_url: str = "https://auth.seclea.com",
         username: str = None,
         password: str = None,
@@ -65,7 +68,7 @@ class SecleaAI:
 
         :param project_name: The name of the project
 
-        :param plat_url: The url of the platform server. Default: "https://platform.seclea.com"
+        :param platform_url: The url of the platform server. Default: "https://platform.seclea.com"
 
         :param auth_url: The url of the auth server. Default: "https://auth.seclea.com"
 
@@ -79,19 +82,27 @@ class SecleaAI:
 
         Example::
 
-            >>> seclea = SecleaAI(project_name="Test Project")
+            >>> seclea = SecleaAI(project_name="Test Project", project_root=".")
         """
+        self._settings = {
+            "project": project_name,
+            "project_root": project_root,
+            "platform_url": platform_url,
+            "auth_url": auth_url,
+            "cache_dir": os.path.join(project_root, ".seclea/cache"),
+        }
+        self._backend = Backend()
+        self._backend.ensure_launched()
         self._auth_service = AuthenticationService(RequestWrapper(auth_url))
-        self._transmission = RequestWrapper(server_root_url=plat_url)
-        if username is not None and password is not None:
-            print("Unsecure login")
-            self.login(username=username, password=password)
-        self._auth_service.authenticate(self._transmission)
+        self._transmission = RequestWrapper(server_root_url=platform_url)
+        # if username is not None and password is not None:
+        #     print("Unsecure login")
+        #     self.login(username=username, password=password)
+        # self._auth_service.authenticate(self._transmission)
         self._project = None
         self._project_name = project_name
         self._available_frameworks = {"sklearn", "xgboost", "lightgbm"}
         self._training_run = None
-        self._cache_dir = os.path.join(Path.home(), f".seclea/{self._project_name}")
         self._init_project(project_name=project_name)
         print("success")
 
@@ -122,17 +133,28 @@ class SecleaAI:
             raise AuthenticationError("Failed to login.")
 
     def upload_dataset(
-        self, dataset: Union[str, List[str], DataFrame], dataset_name: str, metadata: Dict
+        self,
+        dataset: Union[str, List[str], DataFrame],
+        dataset_name: str,
+        metadata: Dict,
+        parent_dataset: DataFrame = None,
+        transformations: List[
+            Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
+        ] = None,
     ):
         """
         Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.
 
-        :param dataset: Path or list of paths to the dataset or DataFrame containing the dataset. If a list then they must be split by row only and all
+        :param dataset: The dataset to be uploaded. DataFrame, Path or list of paths to the dataset or DataFrame containing the dataset. If a list then they must be split by row only and all
             files must contain column names as a header line.
 
         :param dataset_name: The name of the dataset.
 
         :param metadata: Any metadata about the dataset.
+
+        :param parent_dataset: DataFrame The parent dataset this one derives from
+
+        :param transformations: List[Callable] The list of transformations applied to the parent dataset to get this dataset.
 
         :return: None
 
@@ -157,36 +179,28 @@ class SecleaAI:
             >>> seclea.upload_dataset(dataset=dataset, dataset_name="Multifile Dataset", metadata=dataset_metadata)
         """
         temp = False
-        if self._project is None:
-            raise Exception("You need to create a project before uploading a dataset")
-        if isinstance(dataset, List):
-            dataset = self._aggregate_dataset(dataset)
-            temp = True
+        temp_path = None
+        if isinstance(dataset, str):
+            dataset = [dataset]
         elif isinstance(dataset, DataFrame):
-            if not os.path.exists(self._cache_dir):
-                os.makedirs(self._cache_dir)
-            temp_path = os.path.join(self._cache_dir, "temp_dataset.csv")
+            if not os.path.exists(self._settings["cache_dir"]):
+                os.makedirs(self._settings["cache_dir"])
+            temp_path = os.path.join(
+                self._settings["cache_dir"], f"temp_dataset_{uuid.uuid4()}.csv"
+            )
             dataset.to_csv(temp_path, index=False)
-            dataset = temp_path
             temp = True
 
         # TODO check for already uploaded - show a warning but don't throw an exception
 
-        dataset_queryparams = {
-            "project": self._project,
+        dataset_record = {
             "name": dataset_name,
             "metadata": json.dumps(metadata),
+            "parent": pd.util.hash_pandas_object(parent_dataset),
+            "transformations": transformations,
+            "files": [temp_path] if temp else dataset,
         }
-        try:
-            res = self._transmission.send_file(
-                url_path="/collection/datasets",
-                file_path=dataset,
-                query_params=dataset_queryparams,
-            )
-            handle_response(res, 201, f"There was some issue uploading the dataset: {res.text}")
-        finally:
-            if temp:
-                os.remove(dataset)
+        self._backend.record_q.put(dataset_record)
 
     def upload_training_run(
         self,
@@ -493,10 +507,10 @@ class SecleaAI:
         final: bool,
         model_manager: ModelManager,
     ):
-        os.makedirs(
-            os.path.join(self._cache_dir, str(training_run_pk)),
-            exist_ok=True,
-        )
+        # os.makedirs(
+        #     os.path.join(self._cache_dir, str(training_run_pk)),
+        #     exist_ok=True,
+        # )
 
         save_path = model_manager.save_model(
             model,
@@ -561,22 +575,6 @@ class SecleaAI:
         )
         transformations = list(map(lambda x: x["code_encoded"], res.json()))
         return list(map(decode_func, transformations))
-
-    def _aggregate_dataset(self, datasets: List[str]) -> str:
-        """
-        Aggregates a list of dataset paths into a single file for upload.
-        NOTE the files must be split by row and have the same format otherwise this will fail or cause unexpected format
-        issues later.
-        :param datasets:
-        :return:
-        """
-        loaded_datasets = [pd.read_csv(dset) for dset in datasets]
-        aggregated = pd.concat(loaded_datasets, axis=0)
-        if not os.path.exists(self._cache_dir):
-            os.makedirs(self._cache_dir)
-        # save aggregated and return path as string
-        aggregated.to_csv(os.path.join(self._cache_dir, "temp_dataset.csv"), index=False)
-        return os.path.join(self._cache_dir, "temp_dataset.csv")
 
     @staticmethod
     def _process_transformations(transformations: List) -> List[Tuple[Callable, List, Dict]]:
