@@ -23,11 +23,13 @@ class TestIntegrationSecleaAIPortal(TestCase):
     def step_0_project_setup(self):
         self.password = "asdf"
         self.username = "onespanadmin"
-        self.project_name = f"test-project{uuid.uuid4()}"
+        self.organization = "Onespan"
+        self.project_name = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
             self.project_name,
+            self.organization,
             self.portal_url,
             self.auth_url,
             username=self.username,
@@ -58,13 +60,16 @@ class TestIntegrationSecleaAIPortal(TestCase):
     def step_2_define_transformations(self):
         # transformations
         def encode_nans(df):
+            new_df = df.copy(deep=True)
             # dealing with special character
-            df["collision_type"] = df["collision_type"].replace("?", np.NaN)
-            df["property_damage"] = df["property_damage"].replace("?", np.NaN)
-            df["police_report_available"] = df["police_report_available"].replace(
-                "?", "NO"
+            new_df["collision_type"] = df["collision_type"].replace("?", np.NaN, inplace=False)
+            new_df["property_damage"] = df["property_damage"].replace("?", np.NaN, inplace=False)
+            new_df["police_report_available"] = df["police_report_available"].replace(
+                "?",
+                "NO",
+                inplace=False,
             )  # default to no police report present if previously ?
-            return df
+            return new_df
 
         df = encode_nans(self.sample_df_1)
 
@@ -103,18 +108,33 @@ class TestIntegrationSecleaAIPortal(TestCase):
         cat_cols = df.select_dtypes(include=["object"]).columns.tolist()
         df = encode_categorical(df, cat_cols)
 
-        df.fillna({"collision_type": -1, "property_damage": -1})
+        def fill_na_by_col(df, fill_values: dict):
+            return df.fillna(fill_values)
+
+        na_values = {"collision_type": -1, "property_damage": -1}
+        df = fill_na_by_col(df, na_values)
 
         self.transformations = [
             encode_nans,
             (drop_correlated, [corr_thresh]),
             (drop_nulls, [null_thresh]),
             (encode_categorical, {"cat_cols": cat_cols}),
+            (fill_na_by_col, {"fill_values": na_values}),
         ]
 
         self.sample_df_1_transformed = df
 
-    def step_3_upload_trainingrun(self):
+    def step_3_upload_transformed_dataset(self):
+        self.sample_df_1_transformed_name = "test_dataset_1_transformed"
+        self.controller.upload_dataset(
+            self.sample_df_1_transformed,
+            self.sample_df_1_transformed_name,
+            metadata=self.sample_df_1_meta,
+            parent_dataset=self.sample_df_1,
+            transformations=self.transformations,
+        )
+
+    def step_4_upload_trainingrun(self):
         # define model
 
         from sklearn.model_selection import train_test_split
@@ -130,10 +150,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
         % Positive class in Test  = {np.round(y_test.value_counts(normalize=True)[1] * 100, 2)}"""
         )
 
-        # %%
-
-        # testing without SMOTE
-
         from sklearn.ensemble import RandomForestClassifier
 
         # from sklearn.metrics import accuracy_score
@@ -144,10 +160,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
         self.controller.upload_training_run(
             model,
-            model_type=model.__class__.__name__,
             framework=Frameworks.SKLEARN,
-            dataset_name=self.sample_df_1_name,
-            transformations=self.transformations,
+            dataset_name=self.sample_df_1_transformed_name,
         )
 
     def _steps(self):
