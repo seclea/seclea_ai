@@ -195,7 +195,7 @@ class SecleaAI:
             "organization": self._organization,
             "name": dataset_name,
             "metadata": json.dumps(metadata),
-            "hash": str(dataset_hash),  # TODO add project id to hash same for parent.
+            "hash": str(dataset_hash),
             "parent_dataset": str(
                 hash(pd.util.hash_pandas_object(parent_dataset).sum() + self._project)
             )
