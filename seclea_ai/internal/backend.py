@@ -92,7 +92,7 @@ class Backend(object):
     record_q: Optional["multiprocessing.Queue"]
     result_q: Optional["multiprocessing.Queue"]
 
-    def __init__(self, settings: Dict = None, log_level: int = None) -> None:
+    def __init__(self, settings: Dict, log_level: int = None) -> None:
         self._done = False
         self.record_q = None
         self.result_q = None

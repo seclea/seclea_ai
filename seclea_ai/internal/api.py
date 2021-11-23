@@ -1,7 +1,7 @@
 """
 Everything to do with the API to the backend.
 """
-from seclea_utils.core.transmission import RequestWrapper
+import requests
 
 from seclea_ai.authentication import AuthenticationService
 
@@ -14,9 +14,9 @@ class Api:
     def __init__(self, settings):
         # setup some defaults
         self._settings = settings
-        self.transport = RequestWrapper(server_root_url=self._settings["platform_url"])
-        self.auth = AuthenticationService.get_instance()
-        self.auth.authenticate(self.transport)
+        self.transport = requests.Session()
+        self.auth = AuthenticationService(url=settings["auth_url"], session=self.transport)
+        self.auth.authenticate()
         self.project_endpoint = "/collection/projects"
         self.dataset_endpoint = "/collection/datasets"
         self.model_endpoint = "/collection/models"

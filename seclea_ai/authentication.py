@@ -1,6 +1,6 @@
 from getpass import getpass
 
-from requests import Response
+from requests import Response, Session
 from seclea_utils.core import Transmission
 
 from seclea_ai.exceptions import AuthenticationError
@@ -23,9 +23,9 @@ def singleton(cls):
     """
     instances = {}
 
-    def get_instance():
+    def get_instance(*args, **kwargs):
         if cls not in instances:
-            instances[cls] = cls()
+            instances[cls] = cls(*args, **kwargs)
         return instances[cls]
 
     return get_instance
@@ -33,9 +33,11 @@ def singleton(cls):
 
 @singleton
 class AuthenticationService:
-    def __init__(self, transmission: Transmission):
-        self._transmission = transmission
+    def __init__(self, url: str, session: Session):
+        self._instance = None
+        self._session = session
         self._db = Storage(db_name="auth_service")
+        self._url = url
         self._path_token_obtain = "/api/token/obtain/"
         self._path_token_refresh = "/api/token/refresh/"
         self._path_token_verify = "/api/token/verify/"
@@ -52,11 +54,11 @@ class AuthenticationService:
         """
         if not self.refresh_stored_token():
             self._obtain_initial_tokens(username=username, password=password)
-        if not self.verify_stored_token():
+        if not self.verify_token():
             raise AuthenticationError("Failed to verify token")
-        transmission.cookies = self._transmission.cookies
+        # transmission.cookies = self._transmission.cookies
 
-    def verify_token(self, transmission: Transmission) -> bool:
+    def verify_token(self) -> bool:
         """
         Verifies if the access token a transmission object has is valid.
 
@@ -64,12 +66,12 @@ class AuthenticationService:
 
         :return: bool True if valid or False
         """
-        if self._key_token_access not in transmission.cookies:
-            return False
-        self._transmission.cookies = {
-            self._key_token_access: transmission.cookies[self._key_token_access]
-        }
-        response = self._transmission.send_json(url_path=self._path_token_verify, obj={})
+        # if self._key_token_access not in transmission.cookies:
+        #     return False
+        # self._transmission.cookies = {
+        #     self._key_token_access: transmission.cookies[self._key_token_access]
+        # }
+        response = self._session.post(url=f"{self._url}{self._path_token_verify}")
         return response.status_code == 200
 
     def verify_stored_token(self) -> bool:
@@ -78,11 +80,16 @@ class AuthenticationService:
 
         :return: bool True if valid or False
         """
+        if not self._db.get(self._key_token_access):
+            return False
         self._transmission.cookies = {
             self._key_token_access: self._db.get(self._key_token_access, default="")
         }
 
-        response = self._transmission.send_json(url_path=self._path_token_verify, obj={})
+        response = self._session.post(
+            url=f"{self._url}{self._path_token_verify}",
+            cookies={self._key_token_access: self._db.get(self._key_token_access, default="")},
+        )
         return response.status_code == 200
 
     def refresh_token(self, transmission: Transmission) -> bool:
@@ -95,13 +102,16 @@ class AuthenticationService:
         """
         if not self._db.get(self._key_token_refresh):
             return False
-        self._transmission.cookies = {
-            self._key_token_refresh: self._db.get(self._key_token_refresh)
-        }
-        response = self._transmission.send_json(url_path=self._path_token_refresh, obj={})
-        self._save_response_tokens(response)
-        if response.status_code == 200:
-            transmission.cookies = {self._key_token_access: self._db.get(self._key_token_access)}
+        # self._transmission.cookies = {
+        #     self._key_token_refresh: self._db.get(self._key_token_refresh)
+        # }
+        response = self._session.post(
+            url=f"{self.url}{self._path_token_refresh}",
+            cookies={self._key_token_refresh: self._db.get(self._key_token_refresh)},
+        )
+        # self._save_response_tokens(response)
+        # if response.status_code == 200:
+        #     transmission.cookies = {self._key_token_access: self._db.get(self._key_token_access)}
         return response.status_code == 200
 
     def refresh_stored_token(self) -> bool:
@@ -112,10 +122,13 @@ class AuthenticationService:
         """
         if not self._db.get(self._key_token_refresh):
             return False
-        self._transmission.cookies = {
-            self._key_token_refresh: self._db.get(self._key_token_refresh)
-        }
-        response = self._transmission.send_json(url_path=self._path_token_refresh, obj={})
+        # self._transmission.cookies = {
+        #     self._key_token_refresh: self._db.get(self._key_token_refresh)
+        # }
+        response = self._session.post(
+            url=f"{self._url}{self._path_token_refresh}",
+            cookies={self._key_token_refresh: self._db.get(self._key_token_refresh)},
+        )
         self._save_response_tokens(response)
         return response.status_code == 200
 
@@ -157,7 +170,7 @@ class AuthenticationService:
         else:
             print("Warning - Avoid storing credentials in code where possible!")
             credentials = {"username": username, "password": password}
-        response = self._transmission.send_json(url_path=self._path_token_obtain, obj=credentials)
+        response = self._session.post(url=f"{self._url}{self._path_token_obtain}", json=credentials)
         if response.status_code != 200:
             raise AuthenticationError(f"status:{response.status_code}, content:{response.content}")
         self._save_response_tokens(response)

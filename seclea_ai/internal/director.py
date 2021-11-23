@@ -36,7 +36,7 @@ class Director:
         # default is to write to file if not connected to the internet.
         # TODO add congestion handling - write to file if sending q too long etc.
         # send files from storage to send when congestion reduced. - use flag and watcher?
-        if not self._settings.offline:
+        if not self._settings["offline"]:
             self._sender_q.put(record)
         else:
             self._writer_q.put(record)

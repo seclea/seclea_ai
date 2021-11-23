@@ -90,8 +90,9 @@ class SecleaAI:
             "platform_url": platform_url,
             "auth_url": auth_url,
             "cache_dir": os.path.join(project_root, ".seclea/cache"),
+            "offline": False,
         }
-        self._backend = Backend()
+        self._backend = Backend(settings=self._settings)
         self._backend.ensure_launched()
         self._auth_service = AuthenticationService(RequestWrapper(auth_url))
         self._transmission = RequestWrapper(server_root_url=platform_url)
@@ -196,7 +197,7 @@ class SecleaAI:
         dataset_record = {
             "name": dataset_name,
             "metadata": json.dumps(metadata),
-            "parent": pd.util.hash_pandas_object(parent_dataset),
+            "parent": pd.util.hash_pandas_object(parent_dataset).sum(),
             "transformations": transformations,
             "files": [temp_path] if temp else dataset,
         }

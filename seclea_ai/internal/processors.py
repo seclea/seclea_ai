@@ -88,7 +88,7 @@ class Sender(Processor):
 
     def handle(self, record) -> None:
         # TODO check record type (if we have different ones)
-        self._send_training_run(record)
+        self._send_dataset(record)
 
     def _send_training_run(self, record) -> None:
         # send the record and put the response in the result_q
