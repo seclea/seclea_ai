@@ -1,3 +1,4 @@
+import os
 import uuid
 from unittest import TestCase
 
@@ -5,6 +6,10 @@ import numpy as np
 import pandas as pd
 
 from seclea_ai import Frameworks, SecleaAI
+
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+folder_path = os.path.join(base_dir, "")
+print(folder_path)
 
 
 class TestIntegrationSecleaAIPortal(TestCase):
@@ -37,7 +42,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
         )
 
     def step_1_upload_dataset(self):
-        self.sample_df_1 = pd.read_csv("insurance_claims.csv")
+        self.sample_df_1 = pd.read_csv(f"{folder_path}/insurance_claims.csv")
         self.sample_df_1_name = "test_dataset_1"
         self.sample_df_1_meta = {
             "index": None,
