@@ -135,15 +135,23 @@ class TestSecleaAI(unittest.TestCase):
     #         )
 
     def test_process_transformations(self):
+        import pprint
         def test(a, b):
             return 3 + a - b
 
-        pre = [(test, [2], {"b": 3}), (test, [2, 4]), (test, {"a": 2, "b": 5}), test]
-
+        pre = [(test, [2], {"b": 3}),
+               (test, [2, 4]),
+               (test, {"a": 2, "b": 5}),
+               test]
+        expect = [[test, [2], {"b": 3}],
+                  [test, [2, 4], dict()],
+                  [test, list(), {"a": 2, "b": 5}],
+                  [test, list(), dict()]]
         post = SecleaAI._process_transformations(pre)
-
+        print(post)
+        print(expect)
         self.assertEqual(
-            post, pre
+            post, expect, msg=f'not same:{post} expected:{expect}'
         )
 
 

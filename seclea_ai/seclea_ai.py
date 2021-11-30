@@ -625,6 +625,7 @@ class SecleaAI:
                         raise Exception(
                             f'transformation signature must be the function,list,dict received:'
                             f' {trans_sig} of type {[type(el) for el in trans_sig]}')
+                    transformations[idx] = list(trans_sig)
                 else:
                     if isinstance(trans_sig[1], list):
                         transformations[idx] = [*trans_sig, dict()]
