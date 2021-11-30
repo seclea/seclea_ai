@@ -135,7 +135,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
             self.sample_df_1_transformed,
             self.sample_df_1_transformed_name,
             metadata=self.sample_df_1_meta,
-            parent_dataset=self.sample_df_1,
+            parent=self.sample_df_1,
             transformations=self.transformations,
         )
 
