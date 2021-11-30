@@ -202,6 +202,7 @@ class SecleaAI:
             if parent_dataset is not None
             else None,
         }
+        print("Query Params: ", dataset_queryparams)
         try:
             res = self._transmission.send_file(
                 url_path="/collection/datasets",
@@ -242,8 +243,6 @@ class SecleaAI:
 
             >>> seclea = SecleaAI(project_name="Test Project")
             >>> dataset = pd.read_csv(<dataset_name>)
-            ... define transformation functions
-            >>> transformations = [(<function names>, [<list of args>], {<dict of keyword args>}), (<fn>, [],{})]
             >>> model = LogisticRegressionClassifier()
             >>> model.fit(X, y)
             >>> seclea.upload_training_run(
@@ -254,7 +253,7 @@ class SecleaAI:
         """
         self._auth_service.authenticate(self._transmission)
         # check the dataset exists prompt if not
-        dataset_pk = self._set_dataset(dataset_name=dataset_name)
+        dataset_pk = self._set_dataset(dataset_name=dataset_name)  # TODO change to hash
 
         model_name = model.__class__.__name__
 
