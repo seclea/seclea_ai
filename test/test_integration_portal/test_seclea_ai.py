@@ -65,6 +65,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
     def step_2_define_transformations(self):
         # transformations
         def encode_nans(df):
+            import numpy as np
             new_df = df.copy(deep=True)
             # dealing with special character
             new_df["collision_type"] = df["collision_type"].replace("?", np.NaN, inplace=False)
@@ -79,6 +80,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
         df = encode_nans(self.sample_df_1)
 
         def drop_correlated(data, thresh):
+            import numpy as np
+
             # calculate correlations
             corr_matrix = data.corr().abs()
             # get the upper part of correlation matrix
@@ -121,10 +124,10 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
         self.transformations = [
             encode_nans,
-            (drop_correlated, [corr_thresh]),
-            (drop_nulls, [null_thresh]),
-            (encode_categorical, {"cat_cols": cat_cols}),
-            (fill_na_by_col, {"fill_values": na_values}),
+            (drop_correlated, [corr_thresh], {}),
+            (drop_nulls, [null_thresh], {}),
+            (encode_categorical, [], {"cat_cols": cat_cols}),
+            (fill_na_by_col, [], {"fill_values": na_values}),
         ]
 
         self.sample_df_1_transformed = df
