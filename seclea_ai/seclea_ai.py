@@ -53,13 +53,13 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
 
 class SecleaAI:
     def __init__(
-        self,
-        project_name: str,
-        organization: str,
-        platform_url: str = "https://platform.seclea.com",
-        auth_url: str = "https://auth.seclea.com",
-        username: str = None,
-        password: str = None,
+            self,
+            project_name: str,
+            organization: str,
+            platform_url: str = "https://platform.seclea.com",
+            auth_url: str = "https://auth.seclea.com",
+            username: str = None,
+            password: str = None,
     ):
         """
         Create a SecleaAI object to manage a session. Requires a project name and framework.
@@ -121,14 +121,14 @@ class SecleaAI:
             raise AuthenticationError("Failed to login.")
 
     def upload_dataset(
-        self,
-        dataset: Union[str, List[str], DataFrame],
-        dataset_name: str,
-        metadata: Dict,
-        parent: DataFrame = None,
-        transformations: List[
-            Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
-        ] = None,
+            self,
+            dataset: Union[str, List[str], DataFrame],
+            dataset_name: str,
+            metadata: Dict,
+            parent: DataFrame = None,
+            transformations: List[
+                Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
+            ] = None,
     ):
         """
         Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.
@@ -215,7 +215,6 @@ class SecleaAI:
                 os.remove(dataset)
 
         if res.status_code == 201 and transformations is not None:
-
             # upload transformations.
             self._upload_transformations(
                 transformations=self._process_transformations(transformations),
@@ -223,10 +222,10 @@ class SecleaAI:
             )
 
     def upload_training_run(
-        self,
-        model,
-        framework: Frameworks,
-        dataset_name: str,
+            self,
+            model,
+            framework: Frameworks,
+            dataset_name: str,
     ):
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -485,7 +484,7 @@ class SecleaAI:
         )
 
     def _upload_training_run(
-        self, training_run_name: str, model_pk: int, dataset_pk: str, params: Dict
+            self, training_run_name: str, model_pk: int, dataset_pk: str, params: Dict
     ):
         """
 
@@ -512,12 +511,12 @@ class SecleaAI:
         )
 
     def _upload_model_state(
-        self,
-        model,
-        training_run_pk: int,
-        sequence_num: int,
-        final: bool,
-        model_manager: ModelManager,
+            self,
+            model,
+            training_run_pk: int,
+            sequence_num: int,
+            final: bool,
+            model_manager: ModelManager,
     ):
         os.makedirs(
             os.path.join(self._cache_dir, str(training_run_pk)),
@@ -551,7 +550,7 @@ class SecleaAI:
         return res
 
     def _upload_transformations(
-        self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
+            self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
     ):
         responses = list()
         self._process_transformations(transformations)
@@ -610,21 +609,35 @@ class SecleaAI:
 
     @staticmethod
     def _process_transformations(transformations: List) -> List[Tuple[Callable, List, Dict]]:
-        types = [Callable, list, dict]
-        processed = list()
-        for element in transformations:
-            if isinstance(element, Callable):
-                processed.append((element, list(), dict()))
-            elif isinstance(element, Tuple):
-                processed_el = list()
-                for num, (t, el) in enumerate(zip_longest(types, element)):
-                    if not isinstance(el, t):
-                        if num == 0:
-                            raise ValueError(
-                                "First element must be a function, did you add brackets after the function name"
-                            )
-                        processed_el.append(t())
+        for idx, trans_sig in enumerate(transformations):
+            # if sig is iterable then first must be func, then one of: l | d | l,d   (list,dict)
+            if hasattr(trans_sig, '__iter__'):
+                # check too many args
+                if len(trans_sig) > 3:
+                    raise Exception(f'Too many arguments for transformation exp: func,args,kwarg recieved: {trans_sig}')
+                # check first arg is a function:
+                if not isinstance(trans_sig[0], Callable):
+                    raise Exception(f'First argument in transformation must be the function received: {trans_sig}')
+
+                if len(trans_sig) == 3:
+                    if not (isinstance(trans_sig[1], list) and isinstance(trans_sig[2], dict)):
+                        raise Exception(
+                            f'transformation signature must be the function,list,dict received:'
+                            f' {trans_sig} of type {[type(el) for el in trans_sig]}')
+                    transformations[idx] = list(trans_sig)
+                else:
+                    if isinstance(trans_sig[1], list):
+                        transformations[idx] = [*trans_sig, dict()]
+                    elif isinstance(trans_sig[1], dict):
+                        func, kwargs = trans_sig
+                        transformations[idx] = [func, list(), kwargs]
                     else:
-                        processed_el.append(el)
-                processed.append(tuple(processed_el))
-        return processed
+                        raise Exception(
+                            f'transformation signature type error: {trans_sig[1]}  '
+                            f'in {trans_sig} is not of type list or dict')
+            elif isinstance(trans_sig, Callable):
+                transformations[idx] = [trans_sig, list(), dict()]
+            else:
+                raise Exception(
+                    f'transformation: {trans_sig} must be function or iterable, recieved:{type(trans_sig)} ')
+        return transformations
