@@ -125,7 +125,7 @@ class SecleaAI:
         dataset: Union[str, List[str], DataFrame],
         dataset_name: str,
         metadata: Dict,
-        parent_dataset: DataFrame = None,
+        parent: DataFrame = None,
         transformations: List[
             Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
         ] = None,
@@ -140,7 +140,7 @@ class SecleaAI:
 
         :param metadata: Any metadata about the dataset.
 
-        :param parent_dataset: DataFrame The parent dataset this one derives from
+        :param parent: DataFrame The parent dataset this one derives from
 
         :param transformations: A list of functions that preprocess the Dataset.
             These need to be structured in a particular way:
@@ -196,10 +196,10 @@ class SecleaAI:
             "name": dataset_name,
             "metadata": json.dumps(metadata),
             "hash": str(dataset_hash),
-            "parent_dataset": str(
-                hash(pd.util.hash_pandas_object(parent_dataset).sum() + self._project)
+            "parent": str(
+                hash(pd.util.hash_pandas_object(parent).sum() + self._project)
             )
-            if parent_dataset is not None
+            if parent is not None
             else None,
         }
         try:
