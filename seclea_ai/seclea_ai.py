@@ -4,9 +4,8 @@ Description for seclea_ai.py
 import inspect
 import json
 import os
-from itertools import zip_longest
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 from pandas import DataFrame
@@ -55,7 +54,8 @@ class SecleaAI:
     def __init__(
         self,
         project_name: str,
-        plat_url: str = "https://platform.seclea.com",
+        organization: str,
+        platform_url: str = "https://platform.seclea.com",
         auth_url: str = "https://auth.seclea.com",
         username: str = None,
         password: str = None,
@@ -65,7 +65,7 @@ class SecleaAI:
 
         :param project_name: The name of the project
 
-        :param plat_url: The url of the platform server. Default: "https://platform.seclea.com"
+        :param platform_url: The url of the platform server. Default: "https://platform.seclea.com"
 
         :param auth_url: The url of the auth server. Default: "https://auth.seclea.com"
 
@@ -82,13 +82,11 @@ class SecleaAI:
             >>> seclea = SecleaAI(project_name="Test Project")
         """
         self._auth_service = AuthenticationService(RequestWrapper(auth_url))
-        self._transmission = RequestWrapper(server_root_url=plat_url)
-        if username is not None and password is not None:
-            print("Unsecure login")
-            self.login(username=username, password=password)
-        self._auth_service.authenticate(self._transmission)
+        self._transmission = RequestWrapper(server_root_url=platform_url)
+        self._auth_service.authenticate(self._transmission, username=username, password=password)
         self._project = None
         self._project_name = project_name
+        self._organization = organization
         self._available_frameworks = {"sklearn", "xgboost", "lightgbm"}
         self._training_run = None
         self._cache_dir = os.path.join(Path.home(), f".seclea/{self._project_name}")
@@ -122,7 +120,14 @@ class SecleaAI:
             raise AuthenticationError("Failed to login.")
 
     def upload_dataset(
-        self, dataset: Union[str, List[str], DataFrame], dataset_name: str, metadata: Dict
+        self,
+        dataset: Union[str, List[str], DataFrame],
+        dataset_name: str,
+        metadata: Dict,
+        parent: DataFrame = None,
+        transformations: List[
+            Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
+        ] = None,
     ):
         """
         Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.
@@ -134,6 +139,14 @@ class SecleaAI:
 
         :param metadata: Any metadata about the dataset.
 
+        :param parent: DataFrame The parent dataset this one derives from.
+
+        :param transformations: A list of functions that preprocess the Dataset.
+            These need to be structured in a particular way:
+                [(<function name>, [<list of args>], {<dict of keyword arguments>}), ...] eg.
+                [(test_function, [12, "testing"], {"test_argument": 23})] If there are no arguments or keyword arguments
+                these may be omitted. Don't include the original Dataframe input as an argument. See the tutorial for more
+                detailed information and examples.
         :return: None
 
         Example::
@@ -160,23 +173,33 @@ class SecleaAI:
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
         if isinstance(dataset, List):
-            dataset = self._aggregate_dataset(dataset)
+            dataset, dataset_hash = self._aggregate_dataset(dataset)
             temp = True
         elif isinstance(dataset, DataFrame):
             if not os.path.exists(self._cache_dir):
                 os.makedirs(self._cache_dir)
             temp_path = os.path.join(self._cache_dir, "temp_dataset.csv")
             dataset.to_csv(temp_path, index=False)
+            dataset_hash = pd.util.hash_pandas_object(dataset).sum()
             dataset = temp_path
             temp = True
+        else:
+            dset = pd.read_csv(dataset, index_col=metadata["index"])
+            dataset_hash = pd.util.hash_pandas_object(dset).sum()
 
-        # TODO check for already uploaded - show a warning but don't throw an exception
+        dataset_hash = hash(dataset_hash + self._project)
 
         dataset_queryparams = {
             "project": self._project,
+            "organization": self._organization,
             "name": dataset_name,
             "metadata": json.dumps(metadata),
+            "hash": str(dataset_hash),
+            "parent": str(hash(pd.util.hash_pandas_object(parent).sum() + self._project))
+            if parent is not None
+            else None,
         }
+        print("Query Params: ", dataset_queryparams)
         try:
             res = self._transmission.send_file(
                 url_path="/collection/datasets",
@@ -188,33 +211,27 @@ class SecleaAI:
             if temp:
                 os.remove(dataset)
 
+        if res.status_code == 201 and transformations is not None:
+            # upload transformations.
+            self._upload_transformations(
+                transformations=self._process_transformations(transformations),
+                dataset_pk=str(dataset_hash),
+            )
+
     def upload_training_run(
         self,
         model,
-        model_type: str,
         framework: Frameworks,
-        dataset_name: str,
-        transformations: List,
+        dataset: DataFrame,
     ):
         """
         Takes a model and extracts the necessary data for uploading the training run.
 
         :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
 
-        :param model_type: The type of the algorithm. eg. GradientBoostingMachine, DecisionTree, LinearRegression.
-            This is used for grouping training runs of the same class but different hyper-parameters or data inputs such
-            as with K-fold validation or grid search.
-
         :param framework: The framework being used. One of {"sklearn", "xgboost", "lgbm"}.
 
         :param dataset_name: The name of the Dataset, this is set upon Dataset upload.
-
-        :param transformations: A list of functions that preprocess the Dataset.
-            These need to be structured in a particular way:
-                [(<function name>, [<list of args>], {<dict of keyword arguments>}), ...] eg.
-                [(test_function, [12, "testing"], {"test_argument": 23})] If there are no arguments or keyword arguments
-                these may be omitted. Don't include the original Dataframe input as an argument. See the tutorial for more
-                detailed information and examples.
 
         :return: None
 
@@ -222,29 +239,31 @@ class SecleaAI:
 
             >>> seclea = SecleaAI(project_name="Test Project")
             >>> dataset = pd.read_csv(<dataset_name>)
-            ... define transformation functions
-            >>> transformations = [(<function names>, [<list of args>], {<dict of keyword args>}), (<fn>, [],{})]
             >>> model = LogisticRegressionClassifier()
             >>> model.fit(X, y)
             >>> seclea.upload_training_run(
                     model,
-                    model_type="GradientBoostingMachine",
                     framework=seclea_ai.Frameworks.SKLEARN,
                     dataset_name="Test Dataset",
-                    transformations=transformations,
                 )
         """
         self._auth_service.authenticate(self._transmission)
         # check the dataset exists prompt if not
-        dataset_pk = self._set_dataset(dataset_name=dataset_name)
+        dataset_pk = str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project))
+
+        model_name = model.__class__.__name__
 
         # check the model exists upload if not
-        model_type_pk = self._set_model(model_name=model_type, framework=framework)
+        model_type_pk = self._set_model(model_name=model_name, framework=framework)
 
         # check the latest training run
         training_runs_res = self._transmission.get(
             "/collection/training-runs",
-            query_params={"project": self._project, "model": model_type_pk},
+            query_params={
+                "project": self._project,
+                "model": model_type_pk,
+                "organization": self._organization,
+            },
         )
         training_runs = training_runs_res.json()
 
@@ -268,13 +287,6 @@ class SecleaAI:
         )
         # if the upload was successful, add the new training_run to the list to keep the names updated.
         self._training_run = tr_res.json()["id"]
-
-        # upload transformations.
-        self._upload_transformations(
-            transformations=self._process_transformations(transformations),
-            training_run_pk=self._training_run,
-            dataset_pk=dataset_pk,
-        )
 
         # upload model state. TODO figure out how this fits with multiple model states.
         self._upload_model_state(
@@ -320,9 +332,7 @@ class SecleaAI:
         """
         project_res = self._transmission.get(
             url_path="/collection/projects",
-            query_params={
-                "name": project_name,
-            },
+            query_params={"name": project_name, "organization": self._organization},
         )
         handle_response(
             project_res, 200, f"There was an issue getting the projects: {project_res.text}"
@@ -349,7 +359,9 @@ class SecleaAI:
             obj={
                 "name": project_name,
                 "description": description,
+                "organization": self._organization,
             },
+            query_params={"organization": self._organization},
         )
         return handle_response(
             res, expected=201, msg=f"There was an issue creating the project: {res.text}"
@@ -376,6 +388,8 @@ class SecleaAI:
             self._transmission.get(
                 url_path="/collection/models",
                 query_params={
+                    "organization": self._organization,
+                    "project": self._project,
                     "name": model_name,
                     "framework": framework.name,
                 },
@@ -395,6 +409,8 @@ class SecleaAI:
                 self._transmission.get(
                     url_path="/collection/models",
                     query_params={
+                        "organization": self._organization,
+                        "project": self._project,
                         "name": model_name,
                         "framework": framework.name,
                     },
@@ -404,43 +420,6 @@ class SecleaAI:
             )
             model_pk = resp.json()[0]["id"]
         return model_pk
-
-    def _set_dataset(self, dataset_name: str) -> int:
-        """
-        Set the dataset for the session.
-        Checks if it has been uploaded, if not throws an Exception.
-        Note that this may fail if the Dataset is uploaded immediately before
-
-        :param dataset_name: The name of the dataset.
-
-        :return: None
-
-        :raises: Exception - if the dataset has not already been uploaded.
-
-        Example::
-
-            >>> seclea = SecleaAI(project_name="Test Project", framework="seclea_ai.Frameworks.SKLEARN")
-            >>> seclea.set_dataset(dataset_name="Test Dataset")
-        """
-        res = handle_response(
-            self._transmission.get(
-                url_path="/collection/datasets",
-                query_params={
-                    "project": self._project,
-                    "name": dataset_name,
-                },
-            ),
-            expected=200,
-            msg="There was an issue getting the model list",
-        )
-        datasets = res.json()
-        if len(datasets) >= 1:  # TODO reset to be only one.
-            return datasets[0]["id"]
-
-        # if we got here then the dataset has not been uploaded somehow so the user needs to do so.
-        raise Exception(  # TODO replace with custom or more appropriate Exception.
-            "The dataset has not been uploaded yet, please use upload_dataset(path, id, metadata) to upload one."
-        )
 
     def _upload_model(self, model_name: str, framework: Frameworks):
         """
@@ -452,16 +431,19 @@ class SecleaAI:
         res = self._transmission.send_json(
             url_path="/collection/models",
             obj={
+                "organization": self._organization,
+                "project": self._project,
                 "name": model_name,
                 "framework": framework.name,
             },
+            query_params={"organization": self._organization, "project": self._project},
         )
         return handle_response(
             res, expected=201, msg=f"There was an issue uploading the model: {res.text}"
         )
 
     def _upload_training_run(
-        self, training_run_name: str, model_pk: int, dataset_pk: int, params: Dict
+        self, training_run_name: str, model_pk: int, dataset_pk: str, params: Dict
     ):
         """
 
@@ -474,12 +456,14 @@ class SecleaAI:
         res = self._transmission.send_json(
             url_path="/collection/training-runs",
             obj={
+                "organization": self._organization,
                 "project": self._project,
                 "dataset": dataset_pk,
                 "model": model_pk,
                 "name": training_run_name,
                 "params": params,
             },
+            query_params={"organization": self._organization, "project": self._project},
         )
         return handle_response(
             res, expected=201, msg=f"There was an issue uploading the training run: {res.text}"
@@ -509,6 +493,8 @@ class SecleaAI:
             url_path="/collection/model-states",
             file_path=save_path,
             query_params={
+                "organization": self._organization,
+                "project": self._project,
                 "sequence_num": sequence_num,
                 "training_run": training_run_pk,
                 "final_state": final,
@@ -523,7 +509,7 @@ class SecleaAI:
         return res
 
     def _upload_transformations(
-        self, transformations: List[Tuple[Callable, List, Dict]], training_run_pk: int, dataset_pk
+        self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
     ):
         responses = list()
         self._process_transformations(transformations)
@@ -534,11 +520,12 @@ class SecleaAI:
                 "code_raw": inspect.getsource(trans),
                 "code_encoded": encode_func(trans, args, kwargs),
                 "order": idx,
-                # "training_run": training_run_pk,
                 "dataset": dataset_pk,
             }
             res = self._transmission.send_json(
-                url_path="/collection/dataset-transformations", obj=data
+                url_path="/collection/dataset-transformations",
+                obj=data,
+                query_params={"organization": self._organization, "project": self._project},
             )
             res = handle_response(
                 res,
@@ -562,7 +549,7 @@ class SecleaAI:
         transformations = list(map(lambda x: x["code_encoded"], res.json()))
         return list(map(decode_func, transformations))
 
-    def _aggregate_dataset(self, datasets: List[str]) -> str:
+    def _aggregate_dataset(self, datasets: List[str]) -> Tuple[str, int]:
         """
         Aggregates a list of dataset paths into a single file for upload.
         NOTE the files must be split by row and have the same format otherwise this will fail or cause unexpected format
@@ -575,26 +562,48 @@ class SecleaAI:
         if not os.path.exists(self._cache_dir):
             os.makedirs(self._cache_dir)
         # save aggregated and return path as string
+        dset_hash = pd.util.hash_pandas_object(aggregated).sum()
         aggregated.to_csv(os.path.join(self._cache_dir, "temp_dataset.csv"), index=False)
-        return os.path.join(self._cache_dir, "temp_dataset.csv")
+        return os.path.join(self._cache_dir, "temp_dataset.csv"), dset_hash
 
     @staticmethod
     def _process_transformations(transformations: List) -> List[Tuple[Callable, List, Dict]]:
-        types = [Callable, list, dict]
-        processed = list()
-        for element in transformations:
-            if isinstance(element, Callable):
-                processed.append((element, list(), dict()))
-            elif isinstance(element, Tuple):
-                processed_el = list()
-                for num, (t, el) in enumerate(zip_longest(types, element)):
-                    if not isinstance(el, t):
-                        if num == 0:
-                            raise ValueError(
-                                "First element must be a function, did you add brackets after the function name"
-                            )
-                        processed_el.append(t())
+        for idx, trans_sig in enumerate(transformations):
+            # if sig is iterable then first must be func, then one of: l | d | l,d   (list,dict)
+            if hasattr(trans_sig, "__iter__"):
+                # check too many args
+                if len(trans_sig) > 3:
+                    raise Exception(
+                        f"Too many arguments for transformation exp: func,args,kwarg recieved: {trans_sig}"
+                    )
+                # check first arg is a function:
+                if not isinstance(trans_sig[0], Callable):
+                    raise Exception(
+                        f"First argument in transformation must be the function received: {trans_sig}"
+                    )
+
+                if len(trans_sig) == 3:
+                    if not (isinstance(trans_sig[1], list) and isinstance(trans_sig[2], dict)):
+                        raise Exception(
+                            f"transformation signature must be the function,list,dict received:"
+                            f" {trans_sig} of type {[type(el) for el in trans_sig]}"
+                        )
+                    transformations[idx] = list(trans_sig)
+                else:
+                    if isinstance(trans_sig[1], list):
+                        transformations[idx] = [*trans_sig, dict()]
+                    elif isinstance(trans_sig[1], dict):
+                        func, kwargs = trans_sig
+                        transformations[idx] = [func, list(), kwargs]
                     else:
-                        processed_el.append(el)
-                processed.append(tuple(processed_el))
-        return processed
+                        raise Exception(
+                            f"transformation signature type error: {trans_sig[1]}  "
+                            f"in {trans_sig} is not of type list or dict"
+                        )
+            elif isinstance(trans_sig, Callable):
+                transformations[idx] = [trans_sig, list(), dict()]
+            else:
+                raise Exception(
+                    f"transformation: {trans_sig} must be function or iterable, recieved:{type(trans_sig)} "
+                )
+        return transformations
