@@ -66,6 +66,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
         # transformations
         def encode_nans(df):
             import numpy as np
+
             new_df = df.copy(deep=True)
             # dealing with special character
             new_df["collision_type"] = df["collision_type"].replace("?", np.NaN, inplace=False)
@@ -169,7 +170,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.controller.upload_training_run(
             model,
             framework=Frameworks.SKLEARN,
-            dataset_name=self.sample_df_1_transformed_name,
+            dataset=self.sample_df_1_transformed,
         )
 
     def _steps(self):
