@@ -47,9 +47,6 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
     return res
 
 
-# defining a decorator
-
-
 class SecleaAI:
     def __init__(
         self,

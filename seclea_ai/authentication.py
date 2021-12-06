@@ -7,6 +7,13 @@ from seclea_ai.exceptions import AuthenticationError
 
 from .storage import Storage
 
+try:
+    import google.colab  # noqa F401
+
+    IN_COLAB = True
+except ImportError:
+    IN_COLAB = False
+
 
 def handle_response(res: Response, msg):
     if not res.ok:
@@ -16,7 +23,7 @@ def handle_response(res: Response, msg):
 class AuthenticationService:
     def __init__(self, transmission: Transmission):
         self._transmission = transmission
-        self._db = Storage(db_name="auth_service")
+        self._db = Storage(db_name="auth_service", root="." if IN_COLAB else None)
         self._path_token_obtain = "/api/token/obtain/"
         self._path_token_refresh = "/api/token/refresh/"
         self._path_token_verify = "/api/token/verify/"
