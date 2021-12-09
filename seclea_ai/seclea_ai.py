@@ -4,7 +4,6 @@ Description for seclea_ai.py
 import inspect
 import json
 import os
-from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -53,13 +52,13 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
 
 class SecleaAI:
     def __init__(
-            self,
-            project_name: str,
-            organization: str,
-            platform_url: str = "https://platform.seclea.com",
-            auth_url: str = "https://auth.seclea.com",
-            username: str = None,
-            password: str = None,
+        self,
+        project_name: str,
+        organization: str,
+        platform_url: str = "https://platform.seclea.com",
+        auth_url: str = "https://auth.seclea.com",
+        username: str = None,
+        password: str = None,
     ):
         """
         Create a SecleaAI object to manage a session. Requires a project name and framework.
@@ -121,14 +120,14 @@ class SecleaAI:
             raise AuthenticationError("Failed to login.")
 
     def upload_dataset(
-            self,
-            dataset: Union[str, List[str], DataFrame],
-            dataset_name: str,
-            metadata: Dict,
-            parent: DataFrame = None,
-            transformations: List[
-                Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
-            ] = None,
+        self,
+        dataset: Union[str, List[str], DataFrame],
+        dataset_name: str,
+        metadata: Dict,
+        parent: DataFrame = None,
+        transformations: List[
+            Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
+        ] = None,
     ):
         """
         Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.
@@ -140,7 +139,7 @@ class SecleaAI:
 
         :param metadata: Any metadata about the dataset.
 
-        :param parent: DataFrame The parent dataset this one derives from
+        :param parent: DataFrame The parent dataset this one derives from.
 
         :param transformations: A list of functions that preprocess the Dataset.
             These need to be structured in a particular way:
@@ -196,12 +195,11 @@ class SecleaAI:
             "name": dataset_name,
             "metadata": json.dumps(metadata),
             "hash": str(dataset_hash),
-            "parent": str(
-                hash(pd.util.hash_pandas_object(parent).sum() + self._project)
-            )
+            "parent": str(hash(pd.util.hash_pandas_object(parent).sum() + self._project))
             if parent is not None
             else None,
         }
+        print("Query Params: ", dataset_queryparams)
         try:
             res = self._transmission.send_file(
                 url_path="/collection/datasets",
@@ -221,10 +219,10 @@ class SecleaAI:
             )
 
     def upload_training_run(
-            self,
-            model,
-            framework: Frameworks,
-            dataset_name: str,
+        self,
+        model,
+        framework: Frameworks,
+        dataset: DataFrame,
     ):
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -241,8 +239,6 @@ class SecleaAI:
 
             >>> seclea = SecleaAI(project_name="Test Project")
             >>> dataset = pd.read_csv(<dataset_name>)
-            ... define transformation functions
-            >>> transformations = [(<function names>, [<list of args>], {<dict of keyword args>}), (<fn>, [],{})]
             >>> model = LogisticRegressionClassifier()
             >>> model.fit(X, y)
             >>> seclea.upload_training_run(
@@ -253,7 +249,7 @@ class SecleaAI:
         """
         self._auth_service.authenticate(self._transmission)
         # check the dataset exists prompt if not
-        dataset_pk = self._set_dataset(dataset_name=dataset_name)
+        dataset_pk = str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project))
 
         model_name = model.__class__.__name__
 
@@ -425,44 +421,6 @@ class SecleaAI:
             model_pk = resp.json()[0]["id"]
         return model_pk
 
-    def _set_dataset(self, dataset_name: str) -> str:
-        """
-        Set the dataset for the session.
-        Checks if it has been uploaded, if not throws an Exception.
-        Note that this may fail if the Dataset is uploaded immediately before
-
-        :param dataset_name: The name of the dataset.
-
-        :return: primary key of the dataset.
-
-        :raises: Exception - if the dataset has not already been uploaded.
-
-        Example::
-
-            >>> seclea = SecleaAI(project_name="Test Project", framework="seclea_ai.Frameworks.SKLEARN")
-            >>> seclea.set_dataset(dataset_name="Test Dataset")
-        """
-        res = handle_response(
-            self._transmission.get(
-                url_path="/collection/datasets",
-                query_params={
-                    "organization": self._organization,
-                    "project": self._project,
-                    "name": dataset_name,
-                },
-            ),
-            expected=200,
-            msg="There was an issue getting the model list",
-        )
-        datasets = res.json()
-        if len(datasets) >= 1:  # TODO reset to be only one.
-            return datasets[0]["hash"]
-
-        # if we got here then the dataset has not been uploaded somehow so the user needs to do so.
-        raise Exception(  # TODO replace with custom or more appropriate Exception.
-            "The dataset has not been uploaded yet, please use upload_dataset(path, id, metadata) to upload one."
-        )
-
     def _upload_model(self, model_name: str, framework: Frameworks):
         """
 
@@ -485,7 +443,7 @@ class SecleaAI:
         )
 
     def _upload_training_run(
-            self, training_run_name: str, model_pk: int, dataset_pk: str, params: Dict
+        self, training_run_name: str, model_pk: int, dataset_pk: str, params: Dict
     ):
         """
 
@@ -512,12 +470,12 @@ class SecleaAI:
         )
 
     def _upload_model_state(
-            self,
-            model,
-            training_run_pk: int,
-            sequence_num: int,
-            final: bool,
-            model_manager: ModelManager,
+        self,
+        model,
+        training_run_pk: int,
+        sequence_num: int,
+        final: bool,
+        model_manager: ModelManager,
     ):
         os.makedirs(
             os.path.join(self._cache_dir, str(training_run_pk)),
@@ -551,7 +509,7 @@ class SecleaAI:
         return res
 
     def _upload_transformations(
-            self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
+        self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
     ):
         responses = list()
         self._process_transformations(transformations)
@@ -612,19 +570,24 @@ class SecleaAI:
     def _process_transformations(transformations: List) -> List[Tuple[Callable, List, Dict]]:
         for idx, trans_sig in enumerate(transformations):
             # if sig is iterable then first must be func, then one of: l | d | l,d   (list,dict)
-            if hasattr(trans_sig, '__iter__'):
+            if hasattr(trans_sig, "__iter__"):
                 # check too many args
                 if len(trans_sig) > 3:
-                    raise Exception(f'Too many arguments for transformation exp: func,args,kwarg recieved: {trans_sig}')
+                    raise Exception(
+                        f"Too many arguments for transformation exp: func,args,kwarg recieved: {trans_sig}"
+                    )
                 # check first arg is a function:
                 if not isinstance(trans_sig[0], Callable):
-                    raise Exception(f'First argument in transformation must be the function received: {trans_sig}')
+                    raise Exception(
+                        f"First argument in transformation must be the function received: {trans_sig}"
+                    )
 
                 if len(trans_sig) == 3:
                     if not (isinstance(trans_sig[1], list) and isinstance(trans_sig[2], dict)):
                         raise Exception(
-                            f'transformation signature must be the function,list,dict received:'
-                            f' {trans_sig} of type {[type(el) for el in trans_sig]}')
+                            f"transformation signature must be the function,list,dict received:"
+                            f" {trans_sig} of type {[type(el) for el in trans_sig]}"
+                        )
                     transformations[idx] = list(trans_sig)
                 else:
                     if isinstance(trans_sig[1], list):
@@ -634,11 +597,13 @@ class SecleaAI:
                         transformations[idx] = [func, list(), kwargs]
                     else:
                         raise Exception(
-                            f'transformation signature type error: {trans_sig[1]}  '
-                            f'in {trans_sig} is not of type list or dict')
+                            f"transformation signature type error: {trans_sig[1]}  "
+                            f"in {trans_sig} is not of type list or dict"
+                        )
             elif isinstance(trans_sig, Callable):
                 transformations[idx] = [trans_sig, list(), dict()]
             else:
                 raise Exception(
-                    f'transformation: {trans_sig} must be function or iterable, recieved:{type(trans_sig)} ')
+                    f"transformation: {trans_sig} must be function or iterable, recieved:{type(trans_sig)} "
+                )
         return transformations
