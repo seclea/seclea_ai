@@ -630,7 +630,7 @@ class SecleaAI:
                     if isinstance(trans_sig[1], list):
                         transformations[idx] = [*trans_sig, dict()]
                     elif isinstance(trans_sig[1], dict):
-                        func, kwargs = trans_sig
+                        func, kwargs = trans_sig2
                         transformations[idx] = [func, list(), kwargs]
                     else:
                         raise Exception(
