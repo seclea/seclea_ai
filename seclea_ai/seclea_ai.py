@@ -509,7 +509,7 @@ class SecleaAI:
         self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
     ):
         responses = list()
-        self._process_transformations(transformations)
+        transformations = self._process_transformations(transformations)
         for idx, (trans, args, kwargs) in enumerate(transformations):
             # unpack transformations list
             data = {
