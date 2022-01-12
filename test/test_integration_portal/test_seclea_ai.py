@@ -8,7 +8,7 @@ import pandas as pd
 from seclea_ai import Frameworks, SecleaAI
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-folder_path = os.path.join(base_dir, "")
+folder_path = os.path.join(base_dir, "test_integration_portal")
 print(folder_path)
 
 
@@ -29,11 +29,21 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.password = "asdf"
         self.username = "onespanadmin"
         self.organization = "Onespan"
-        self.project_name = f"test-project-{uuid.uuid4()}"
+        self.project_name_1 = f"test-project-{uuid.uuid4()}"
+        self.project_name_2 = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
-        self.controller = SecleaAI(
-            self.project_name,
+        self.controller_1 = SecleaAI(
+            self.project_name_1,
+            self.organization,
+            self.portal_url,
+            self.auth_url,
+            username=self.username,
+            password=self.password,
+        )
+        # create second project for second dataset
+        self.controller_2 = SecleaAI(
+            self.project_name_2,
             self.organization,
             self.portal_url,
             self.auth_url,
@@ -43,7 +53,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
     def step_1_upload_dataset(self):
         self.sample_df_1 = pd.read_csv(f"{folder_path}/insurance_claims.csv")
-        self.sample_df_1_name = "test_dataset_1"
+        self.sample_df_1_name = "Insurance Fraud Dataset"
         self.sample_df_1_meta = {
             "index": None,
             "outcome_name": "fraud_reported",
@@ -58,8 +68,26 @@ class TestIntegrationSecleaAIPortal(TestCase):
                 "incident_hour_of_the_day",
             ],
         }
-        self.controller.upload_dataset(
+        self.controller_1.upload_dataset(
             self.sample_df_1, self.sample_df_1_name, self.sample_df_1_meta
+        )
+
+        self.sample_df_2 = pd.read_csv(f"{folder_path}/adult_data.csv")
+        self.sample_df_2_name = "Census dataset"
+        self.sample_df_2_meta = {
+            "index": None,
+            "outcome_name": "income-per-year",
+            "continuous_features": [
+                "age",
+                "fnlwgt",
+                "education-num",
+                "capital-gain",
+                "capital-loss",
+                "hours-per-week",
+            ],
+        }
+        self.controller_2.upload_dataset(
+            self.sample_df_2, self.sample_df_2_name, self.sample_df_2_meta
         )
 
     def step_2_define_transformations(self):
@@ -134,8 +162,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.sample_df_1_transformed = df
 
     def step_3_upload_transformed_dataset(self):
-        self.sample_df_1_transformed_name = "test_dataset_1_transformed"
-        self.controller.upload_dataset(
+        self.sample_df_1_transformed_name = "Insurance Fraud Transformed"
+        self.controller_1.upload_dataset(
             self.sample_df_1_transformed,
             self.sample_df_1_transformed_name,
             metadata=self.sample_df_1_meta,
@@ -167,7 +195,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
         model.fit(X_train, y_train)
         # preds = model.predict(X_test)
 
-        self.controller.upload_training_run(
+        self.controller_1.upload_training_run(
             model,
             framework=Frameworks.SKLEARN,
             dataset=self.sample_df_1_transformed,
