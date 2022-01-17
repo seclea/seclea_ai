@@ -1,3 +1,3 @@
-[submodule "seclea_utils"]
-	path = seclea_utils
+[submodule "seclea_ai/seclea_ai/seclea_utils"]
+	path = seclea_ai/seclea_ai/seclea_utils
 	url = git@github.com:seclea/seclea_utils
