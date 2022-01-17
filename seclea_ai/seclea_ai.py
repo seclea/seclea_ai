@@ -18,8 +18,7 @@ from seclea_utils.core import (
     decode_func,
     encode_func,
 )
-from seclea_utils.get_model_manager import Frameworks, get_model_manager
-
+from seclea_utils.model_management.get_model_manager import Frameworks, get_model_manager
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
 
@@ -49,13 +48,13 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
 
 class SecleaAI:
     def __init__(
-        self,
-        project_name: str,
-        organization: str,
-        platform_url: str = "https://platform.seclea.com",
-        auth_url: str = "https://auth.seclea.com",
-        username: str = None,
-        password: str = None,
+            self,
+            project_name: str,
+            organization: str,
+            platform_url: str = "https://platform.seclea.com",
+            auth_url: str = "https://auth.seclea.com",
+            username: str = None,
+            password: str = None,
     ):
         """
         Create a SecleaAI object to manage a session. Requires a project name and framework.
@@ -117,14 +116,14 @@ class SecleaAI:
             raise AuthenticationError("Failed to login.")
 
     def upload_dataset(
-        self,
-        dataset: Union[str, List[str], DataFrame],
-        dataset_name: str,
-        metadata: Dict,
-        parent: DataFrame = None,
-        transformations: List[
-            Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
-        ] = None,
+            self,
+            dataset: Union[str, List[str], DataFrame],
+            dataset_name: str,
+            metadata: Dict,
+            parent: DataFrame = None,
+            transformations: List[
+                Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
+            ] = None,
     ):
         """
         Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.
@@ -216,10 +215,10 @@ class SecleaAI:
             )
 
     def upload_training_run(
-        self,
-        model,
-        framework: Frameworks,
-        dataset: DataFrame,
+            self,
+            model,
+            framework: Frameworks,
+            dataset: DataFrame,
     ):
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -440,7 +439,7 @@ class SecleaAI:
         )
 
     def _upload_training_run(
-        self, training_run_name: str, model_pk: int, dataset_pk: str, params: Dict
+            self, training_run_name: str, model_pk: int, dataset_pk: str, params: Dict
     ):
         """
 
@@ -467,12 +466,12 @@ class SecleaAI:
         )
 
     def _upload_model_state(
-        self,
-        model,
-        training_run_pk: int,
-        sequence_num: int,
-        final: bool,
-        model_manager: ModelManager,
+            self,
+            model,
+            training_run_pk: int,
+            sequence_num: int,
+            final: bool,
+            model_manager: ModelManager,
     ):
         os.makedirs(
             os.path.join(self._cache_dir, str(training_run_pk)),
@@ -506,7 +505,7 @@ class SecleaAI:
         return res
 
     def _upload_transformations(
-        self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
+            self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
     ):
         responses = list()
         transformations = self._process_transformations(transformations)
