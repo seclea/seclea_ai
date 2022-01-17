@@ -47,9 +47,6 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
     return res
 
 
-# defining a decorator
-
-
 class SecleaAI:
     def __init__(
         self,
@@ -512,7 +509,7 @@ class SecleaAI:
         self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
     ):
         responses = list()
-        self._process_transformations(transformations)
+        transformations = self._process_transformations(transformations)
         for idx, (trans, args, kwargs) in enumerate(transformations):
             # unpack transformations list
             data = {

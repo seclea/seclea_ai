@@ -8,14 +8,14 @@ with open("README.md", "r") as fh:
 
 setup(
     name="seclea_ai",
-    version="0.0.30",
+    version="0.0.36",
     author="octavio",
     author_email="octavio.delser@gmail.com",
     description="Seclea integration.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/seclea/seclea_ai",
-    packages=find_packages(),
+    packages=find_packages(exclude=["test"]),
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",
