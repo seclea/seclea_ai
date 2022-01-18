@@ -10,6 +10,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import pandas as pd
 from pandas import DataFrame
 from requests import Response
+
+from seclea_ai.authentication import AuthenticationService
+from seclea_ai.exceptions import AuthenticationError
 from seclea_ai.seclea_utils.core import (
     CompressedFileManager,
     ModelManager,
@@ -19,8 +22,6 @@ from seclea_ai.seclea_utils.core import (
     encode_func,
 )
 from seclea_ai.seclea_utils.model_management.get_model_manager import Frameworks, get_model_manager
-from seclea_ai.authentication import AuthenticationService
-from seclea_ai.exceptions import AuthenticationError
 
 
 def handle_response(res: Response, expected: int, msg: str) -> Response:
@@ -48,13 +49,13 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
 
 class SecleaAI:
     def __init__(
-            self,
-            project_name: str,
-            organization: str,
-            platform_url: str = "https://platform.seclea.com",
-            auth_url: str = "https://auth.seclea.com",
-            username: str = None,
-            password: str = None,
+        self,
+        project_name: str,
+        organization: str,
+        platform_url: str = "https://platform.seclea.com",
+        auth_url: str = "https://auth.seclea.com",
+        username: str = None,
+        password: str = None,
     ):
         """
         Create a SecleaAI object to manage a session. Requires a project name and framework.
@@ -116,19 +117,20 @@ class SecleaAI:
             raise AuthenticationError("Failed to login.")
 
     def upload_dataset(
-            self,
-            dataset: Union[str, List[str], DataFrame],
-            dataset_name: str,
-            metadata: Dict,
-            parent: DataFrame = None,
-            transformations: List[
-                Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
-            ] = None,
+        self,
+        dataset: Union[str, List[str], DataFrame],
+        dataset_name: str,
+        metadata: Dict,
+        parent: DataFrame = None,
+        transformations: List[
+            Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
+        ] = None,
     ):
         """
-        Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.
+        Uploads a dataset.
 
-        :param dataset: Path or list of paths to the dataset or DataFrame containing the dataset. If a list then they must be split by row only and all
+        :param dataset: Path or list of paths to the dataset or DataFrame containing the dataset.
+            If a list then they must be split by row only and all
             files must contain column names as a header line.
 
         :param dataset_name: The name of the dataset.
@@ -140,9 +142,14 @@ class SecleaAI:
         :param transformations: A list of functions that preprocess the Dataset.
             These need to be structured in a particular way:
                 [(<function name>, [<list of args>], {<dict of keyword arguments>}), ...] eg.
-                [(test_function, [12, "testing"], {"test_argument": 23})] If there are no arguments or keyword arguments
-                these may be omitted. Don't include the original Dataframe input as an argument. See the tutorial for more
+                [(test_function, [12, "testing"], {"test_argument": 23})]
+
+                If there are no arguments or keyword arguments
+                these may be omitted.
+
+                Don't include the original Dataframe input as an argument. See the tutorial for more
                 detailed information and examples.
+
         :return: None
 
         Example::
@@ -215,10 +222,10 @@ class SecleaAI:
             )
 
     def upload_training_run(
-            self,
-            model,
-            framework: Frameworks,
-            dataset: DataFrame,
+        self,
+        model,
+        framework: Frameworks,
+        dataset: DataFrame,
     ):
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -439,7 +446,7 @@ class SecleaAI:
         )
 
     def _upload_training_run(
-            self, training_run_name: str, model_pk: int, dataset_pk: str, params: Dict
+        self, training_run_name: str, model_pk: int, dataset_pk: str, params: Dict
     ):
         """
 
@@ -466,12 +473,12 @@ class SecleaAI:
         )
 
     def _upload_model_state(
-            self,
-            model,
-            training_run_pk: int,
-            sequence_num: int,
-            final: bool,
-            model_manager: ModelManager,
+        self,
+        model,
+        training_run_pk: int,
+        sequence_num: int,
+        final: bool,
+        model_manager: ModelManager,
     ):
         os.makedirs(
             os.path.join(self._cache_dir, str(training_run_pk)),
@@ -505,7 +512,7 @@ class SecleaAI:
         return res
 
     def _upload_transformations(
-            self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
+        self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
     ):
         responses = list()
         transformations = self._process_transformations(transformations)
@@ -589,7 +596,7 @@ class SecleaAI:
                     if isinstance(trans_sig[1], list):
                         transformations[idx] = [*trans_sig, dict()]
                     elif isinstance(trans_sig[1], dict):
-                        func, kwargs = trans_sig2
+                        func, kwargs = trans_sig
                         transformations[idx] = [func, list(), kwargs]
                     else:
                         raise Exception(
