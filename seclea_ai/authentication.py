@@ -1,7 +1,7 @@
 from getpass import getpass
 
 from requests import Response
-from seclea_utils.core import Transmission
+from seclea_ai.seclea_utils.core import Transmission
 
 from seclea_ai.exceptions import AuthenticationError
 
