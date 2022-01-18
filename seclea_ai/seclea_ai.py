@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import pandas as pd
 from pandas import DataFrame
 from requests import Response
-from seclea_utils.core import (
+from seclea_ai.seclea_utils.core import (
     CompressedFileManager,
     ModelManager,
     RequestWrapper,
@@ -18,7 +18,7 @@ from seclea_utils.core import (
     decode_func,
     encode_func,
 )
-from seclea_utils.model_management.get_model_manager import Frameworks, get_model_manager
+from seclea_ai.seclea_utils.model_management.get_model_manager import Frameworks, get_model_manager
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
 
