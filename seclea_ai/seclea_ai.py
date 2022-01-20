@@ -142,13 +142,10 @@ class SecleaAI:
         :param transformations: A list of functions that preprocess the Dataset.
             These need to be structured in a particular way:
                 [(<function name>, [<list of args>], {<dict of keyword arguments>}), ...] eg.
-                [(test_function, [12, "testing"], {"test_argument": 23})]
+                [(test_function, [dataset, 12, "testing"], {"test_argument": 23}, ["X", "y"])]
 
                 If there are no arguments or keyword arguments
                 these may be omitted.
-
-                Don't include the original Dataframe input as an argument. See the tutorial for more
-                detailed information and examples.
 
         :return: None
 
@@ -172,6 +169,8 @@ class SecleaAI:
             >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
             >>> seclea.upload_dataset(dataset=dataset, dataset_name="Multifile Dataset", metadata=dataset_metadata)
         """
+
+        # processing the final dataset - get hash etc.
         temp = False
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
@@ -192,6 +191,27 @@ class SecleaAI:
 
         dataset_hash = hash(dataset_hash + self._project)
 
+        if transformations is not None:
+            # process transformations to usable format
+
+            # create intermediate datasets and upload them.
+            for trans in transformations:
+                output = trans()
+
+                self._handle_transformation_output(output)
+                # output can be many things so we need to be careful in handling it.
+                # could be (df), (X, y), (X_train, X_test, y_train, y_test) or (X_train, y_train, X_test, y_test)
+                # need to set some standard for return values I think.
+                # how to deal when the transformation splits -
+                # what do we input to the next transformation? Both? only one?
+                #
+                # perhaps we shouldn't allow that, each set of transformations must only relate to one dataset.
+                # then how do they split?
+                # how do we distinguish between two DFs and X, y? check dimensions?
+                # min points of upload -
+                # Raw data (can be test and train), Split data into test and train. Immediately before input to training
+
+        # upload the final dataset
         dataset_queryparams = {
             "project": self._project,
             "organization": self._organization,
@@ -214,6 +234,7 @@ class SecleaAI:
             if temp:
                 os.remove(dataset)
 
+        # upload the transformations
         if res.status_code == 201 and transformations is not None:
             # upload transformations.
             self._upload_transformations(
@@ -234,7 +255,7 @@ class SecleaAI:
 
         :param framework: The framework being used. One of {"sklearn", "xgboost", "lgbm"}.
 
-        :param dataset_name: The name of the Dataset, this is set upon Dataset upload.
+        :param dataset: The Dataset as a DataFrame.
 
         :return: None
 
@@ -344,6 +365,10 @@ class SecleaAI:
             return None
         return project_res.json()[0]["id"]
 
+    def _get_dataset(self, dataset_hash):
+        # TODO delete if not necessary.
+        pass
+
     def _create_project(self, project_name: str, description: str = "Please add a description.."):
         """
         Creates a new project.
@@ -423,6 +448,10 @@ class SecleaAI:
             )
             model_pk = resp.json()[0]["id"]
         return model_pk
+
+    def _upload_dataset(self):
+        # upload a dataset, constructing it if needed from component parts.
+        pass
 
     def _upload_model(self, model_name: str, framework: Frameworks):
         """
@@ -577,7 +606,7 @@ class SecleaAI:
                 # check too many args
                 if len(trans_sig) > 3:
                     raise Exception(
-                        f"Too many arguments for transformation exp: func,args,kwarg recieved: {trans_sig}"
+                        f"Too many arguments for transformation exp: func,args,kwarg received: {trans_sig}"
                     )
                 # check first arg is a function:
                 if not isinstance(trans_sig[0], Callable):
@@ -607,6 +636,11 @@ class SecleaAI:
                 transformations[idx] = [trans_sig, list(), dict()]
             else:
                 raise Exception(
-                    f"transformation: {trans_sig} must be function or iterable, recieved:{type(trans_sig)} "
+                    f"transformation: {trans_sig} must be function or iterable, received:{type(trans_sig)} "
                 )
         return transformations
+
+    def _handle_transformation_output(self, output: Dict):
+        # only allow dataset outputs - any other outputs of the function have to be saved locally and passed into
+        # whatever function as a normal variable....
+        pass

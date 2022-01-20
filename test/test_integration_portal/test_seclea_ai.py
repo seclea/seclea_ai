@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from seclea_ai import Frameworks, SecleaAI
+from seclea_ai.transformations import DatasetTransformation
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
@@ -132,8 +133,10 @@ class TestIntegrationSecleaAIPortal(TestCase):
         null_thresh = 0.9
         df = drop_nulls(df, threshold=null_thresh)
 
-        def encode_categorical(df, cat_cols):
+        def encode_categorical(df):
             from sklearn.preprocessing import LabelEncoder
+
+            cat_cols = df.select_dtypes(include=["object"]).columns.tolist()
 
             for col in cat_cols:
                 if col in df.columns:
@@ -142,8 +145,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
                     df[col] = le.transform(list(df[col].astype(str).values))
             return df
 
-        cat_cols = df.select_dtypes(include=["object"]).columns.tolist()
-        df = encode_categorical(df, cat_cols)
+        df = encode_categorical(df)
 
         def fill_na_by_col(df, fill_values: dict):
             return df.fillna(fill_values)
@@ -151,12 +153,119 @@ class TestIntegrationSecleaAIPortal(TestCase):
         na_values = {"collision_type": -1, "property_damage": -1}
         df = fill_na_by_col(df, na_values)
 
+        def smote_balance(df):
+            from imblearn.over_sampling import SMOTE
+
+            X1 = df.drop("fraud_reported", axis=1)
+            y1 = df.fraud_reported
+
+            sm = SMOTE(random_state=42)
+
+            X_sm, y_sm = sm.fit_resample(X1, y1)
+
+            print(
+                f"""Shape of X before SMOTE: {X1.shape}
+            Shape of X after SMOTE: {X_sm.shape}"""
+            )
+            print(
+                f"""Shape of y before SMOTE: {y1.shape}
+            Shape of y after SMOTE: {y_sm.shape}"""
+            )
+            return pd.concat([X_sm, y_sm], axis=1)
+            # returns DataFrame
+
+        def smote_balance_split(X, y):
+            from imblearn.over_sampling import SMOTE
+
+            sm = SMOTE(random_state=42)
+
+            X_sm, y_sm = sm.fit_resample(X, y)
+
+            print(
+                f"""Shape of X before SMOTE: {X.shape}
+            Shape of X after SMOTE: {X_sm.shape}"""
+            )
+            print(
+                f"""Shape of y before SMOTE: {y.shape}
+            Shape of y after SMOTE: {y_sm.shape}"""
+            )
+            return X_sm, y_sm
+            # returns X, y
+
+        def smote_balance_df_split(df, output_col):
+            from imblearn.over_sampling import SMOTE
+
+            X1 = df.drop(output_col, axis=1)
+            y1 = df.fraud_reported
+
+            sm = SMOTE(random_state=42)
+
+            X_sm, y_sm = sm.fit_resample(X1, y1)
+
+            print(
+                f"""Shape of X before SMOTE: {X1.shape}
+            Shape of X after SMOTE: {X_sm.shape}"""
+            )
+            print(
+                f"""Shape of y before SMOTE: {y1.shape}
+            Shape of y after SMOTE: {y_sm.shape}"""
+            )
+            return X_sm, y_sm
+            # returns X, y
+
+        def get_test_train_splits(df, output_col, test_size, random_state):
+            from sklearn.model_selection import train_test_split
+
+            X = df.drop(output_col, axis=1)
+            y = df[output_col]
+
+            return train_test_split(
+                X, y, test_size=test_size, stratify=y, random_state=random_state
+            )
+            # returns X_train, X_test, y_train, y_test
+
+        def get_test_train_splits_split(X, y, test_size, random_state):
+            from sklearn.model_selection import train_test_split
+
+            return train_test_split(
+                X, y, test_size=test_size, stratify=y, random_state=random_state
+            )
+            # returns X_train, X_test, y_train, y_test
+
         self.transformations = [
             encode_nans,
             (drop_correlated, [corr_thresh], {}),
             (drop_nulls, [null_thresh], {}),
-            (encode_categorical, [], {"cat_cols": cat_cols}),
+            (encode_categorical, [], {}),
             (fill_na_by_col, [], {"fill_values": na_values}),
+        ]
+
+        # could do variable substitution - assign variable name to output to use later in transformations.
+        # merge prev output - None's and new - inherit
+
+        self.complicated_transformations = [
+            DatasetTransformation(encode_nans, {"df": self.sample_df_1}, ["data"]),
+            DatasetTransformation(
+                drop_correlated, {"data": "inherit", "thresh": corr_thresh}, ["df"]
+            ),
+            DatasetTransformation(drop_nulls, {"df": "inherit", "threshold": null_thresh}, ["df"]),
+            DatasetTransformation(encode_categorical, {"df": "inherit"}, ["df"]),
+            DatasetTransformation(
+                fill_na_by_col, {"df": "inherit", "fill_values": na_values}, ["df"]
+            ),
+            DatasetTransformation(
+                get_test_train_splits,
+                {
+                    "df": "inherit",
+                    "output_col": "fraud_reported",
+                    "test_size": 0.2,
+                    "random_state": 42,
+                },
+                ["X", None, "y", None],
+            ),
+            DatasetTransformation(
+                smote_balance_split, {"X": "inherit", "y": "inherit"}, ["X", "y"]
+            ),
         ]
 
         self.sample_df_1_transformed = df
