@@ -5,7 +5,7 @@ import inspect
 import json
 import os
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 import pandas as pd
 from pandas import DataFrame
@@ -22,6 +22,7 @@ from seclea_ai.seclea_utils.core import (
     encode_func,
 )
 from seclea_ai.seclea_utils.model_management.get_model_manager import Frameworks, get_model_manager
+from seclea_ai.transformations import DatasetTransformation
 
 
 def handle_response(res: Response, expected: int, msg: str) -> Response:
@@ -121,10 +122,7 @@ class SecleaAI:
         dataset: Union[str, List[str], DataFrame],
         dataset_name: str,
         metadata: Dict,
-        parent: DataFrame = None,
-        transformations: List[
-            Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
-        ] = None,
+        transformations: List[DatasetTransformation] = None,
     ):
         """
         Uploads a dataset.
@@ -170,35 +168,74 @@ class SecleaAI:
             >>> seclea.upload_dataset(dataset=dataset, dataset_name="Multifile Dataset", metadata=dataset_metadata)
         """
 
-        # processing the final dataset - get hash etc.
-        temp = False
+        # processing the final dataset - make sure it's a DataFrame
+        # TODO assemble Dataframe from X, y...
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
         if isinstance(dataset, List):
-            dataset, dataset_hash = self._aggregate_dataset(dataset)
-            temp = True
-        elif isinstance(dataset, DataFrame):
-            if not os.path.exists(self._cache_dir):
-                os.makedirs(self._cache_dir)
-            temp_path = os.path.join(self._cache_dir, "temp_dataset.csv")
-            dataset.to_csv(temp_path, index=False)
-            dataset_hash = pd.util.hash_pandas_object(dataset).sum()
-            dataset = temp_path
-            temp = True
-        else:
-            dset = pd.read_csv(dataset, index_col=metadata["index"])
-            dataset_hash = pd.util.hash_pandas_object(dset).sum()
+            dataset = self._aggregate_dataset(dataset)
+        elif isinstance(dataset, str):
+            dataset = pd.read_csv(dataset, index_col=metadata["index"])
 
-        dataset_hash = hash(dataset_hash + self._project)
+        dataset_hash = pd.util.hash_pandas_object(dataset).sum()
 
         if transformations is not None:
-            # process transformations to usable format
 
-            # create intermediate datasets and upload them.
-            for trans in transformations:
+            parent = self._assemble_dataset(transformations[0].data_kwargs)
+
+            # check that the parent exists
+            parent_hash = hash(pd.util.hash_pandas_object(parent).sum() + self._project)
+            res = self._transmission.get(
+                url_path=f"/collection/datasets/{parent_hash}",
+                query_params={"project": self._project, "organization": self._organization},
+            )
+            if not res.status_code == 200:
+                raise AssertionError(
+                    "Parent Dataset does not exist on the Platform. Please check your arguments and "
+                    "that you have uploaded the parent dataset already"
+                )
+
+            length = len(transformations)
+            upload_queue = list()
+
+            for idx, trans in enumerate(transformations):
                 output = trans()
 
-                self._handle_transformation_output(output)
+                # construct the generated dataset from outputs
+                dset = self._assemble_dataset(output)
+                dset_metadata = {}
+                dset_name = f"{dataset_name}-{trans.func.__name__}"
+
+                if idx == length:
+                    if (
+                        pd.util.hash_pandas_object(dset).sum() != dataset_hash
+                    ):  # TODO create or find better exception
+                        raise AssertionError(
+                            """Generated Dataset does not match the Dataset passed in.
+                                         Please check your DatasetTransformation definitions and try again.
+                                         Try using less DatasetTransformations if you are having persistent problems"""
+                        )
+                    else:
+                        dset_metadata = metadata
+                        dset_name = dataset_name
+
+                # add data to queue to upload later after final dataset checked.from
+                upload_kwargs = {
+                    "dataset": dset,
+                    "dataset_name": dset_name,
+                    "metadata": dset_metadata,
+                    "parent": parent,
+                    "transformation": trans,
+                }
+                # update the parent dataset - these chained transformations only make sense if they are pushing the
+                # same dataset through multiple transformations.
+                parent = dset
+                upload_queue.append(upload_kwargs)
+
+            # here the final dataset has been
+            for up_kwargs in upload_queue:
+                self._upload_dataset(**up_kwargs)
+
                 # output can be many things so we need to be careful in handling it.
                 # could be (df), (X, y), (X_train, X_test, y_train, y_test) or (X_train, y_train, X_test, y_test)
                 # need to set some standard for return values I think.
@@ -207,39 +244,52 @@ class SecleaAI:
                 #
                 # perhaps we shouldn't allow that, each set of transformations must only relate to one dataset.
                 # then how do they split?
-                # how do we distinguish between two DFs and X, y? check dimensions?
+                # how do we distinguish between two DFs and X, y? only allow one df output per transformation
                 # min points of upload -
                 # Raw data (can be test and train), Split data into test and train. Immediately before input to training
 
         # upload the final dataset
-        dataset_queryparams = {
-            "project": self._project,
-            "organization": self._organization,
-            "name": dataset_name,
-            "metadata": json.dumps(metadata),
-            "hash": str(dataset_hash),
-            "parent": str(hash(pd.util.hash_pandas_object(parent).sum() + self._project))
-            if parent is not None
-            else None,
-        }
-        print("Query Params: ", dataset_queryparams)
-        try:
-            res = self._transmission.send_file(
-                url_path="/collection/datasets",
-                file_path=dataset,
-                query_params=dataset_queryparams,
-            )
-            handle_response(res, 201, f"There was some issue uploading the dataset: {res.text}")
-        finally:
-            if temp:
-                os.remove(dataset)
 
-        # upload the transformations
-        if res.status_code == 201 and transformations is not None:
-            # upload transformations.
-            self._upload_transformations(
-                transformations=self._process_transformations(transformations),
-                dataset_pk=str(dataset_hash),
+        # dataset_queryparams = {
+        #     "project": self._project,
+        #     "organization": self._organization,
+        #     "name": dataset_name,
+        #     "metadata": json.dumps(metadata),
+        #     "hash": str(dataset_hash),
+        #     "parent": str(hash(pd.util.hash_pandas_object(parent).sum() + self._project))
+        #     if parent is not None
+        #     else None,
+        # }
+        # print("Query Params: ", dataset_queryparams)
+        # try:
+        #     res = self._transmission.send_file(
+        #         url_path="/collection/datasets",
+        #         file_path=dataset,
+        #         query_params=dataset_queryparams,
+        #     )
+        #     handle_response(res, 201, f"There was some issue uploading the dataset: {res.text}")
+        # finally:
+        #     if temp:
+        #         os.remove(dataset)
+        #
+        # # upload the transformations
+        # if res.status_code == 201 and transformations is not None:
+        #     # upload transformations.
+        #     self._upload_transformations(
+        #         transformations=self._process_transformations(transformations),
+        #         dataset_pk=str(dataset_hash),
+        #     )
+
+    @staticmethod
+    def _assemble_dataset(data: Dict):
+        if len(data) == 1:
+            return next(iter(data.values()))
+        elif len(data) == 2:
+            # create dataframe from X and y and upload - will have one item in metadata, the output_col
+            return pd.concat([x for x in data.values()], axis=1)
+        else:
+            raise AssertionError(
+                "Output doesn't match the requirements. Please review the documentation."
             )
 
     def upload_training_run(
@@ -449,8 +499,53 @@ class SecleaAI:
             model_pk = resp.json()[0]["id"]
         return model_pk
 
-    def _upload_dataset(self):
+    def _upload_dataset(
+        self,
+        dataset: DataFrame,
+        dataset_name: str,
+        metadata: Dict,
+        parent: DataFrame,
+        transformation: DatasetTransformation,
+    ):
         # upload a dataset, constructing it if needed from component parts.
+        # only works for a single transformation.
+        if not os.path.exists(self._cache_dir):
+            os.makedirs(self._cache_dir)
+        temp_path = os.path.join(self._cache_dir, "temp_dataset.csv")
+        dataset.to_csv(temp_path, index=False)
+        dataset = temp_path
+
+        dataset_hash = hash(pd.util.hash_pandas_object(dataset).sum() + self._project)
+
+        dataset_queryparams = {
+            "project": self._project,
+            "organization": self._organization,
+            "name": dataset_name,
+            "metadata": json.dumps(metadata),
+            "hash": str(dataset_hash),
+            "parent": str(hash(pd.util.hash_pandas_object(parent).sum() + self._project))
+            if parent is not None
+            else None,
+        }
+        print("Query Params: ", dataset_queryparams)
+
+        try:
+            res = self._transmission.send_file(
+                url_path="/collection/datasets",
+                file_path=dataset,
+                query_params=dataset_queryparams,
+            )
+            handle_response(res, 201, f"There was some issue uploading the dataset: {res.text}")
+        finally:
+            os.remove(dataset)
+
+        # upload the transformations TODO redo.
+        if res.status_code == 201 and transformation is not None:
+            # upload transformations.
+            self._upload_transformations(
+                transformations=self._process_transformations(transformation),
+                dataset_pk=str(dataset_hash),
+            )
         pass
 
     def _upload_model(self, model_name: str, framework: Frameworks):
@@ -581,7 +676,8 @@ class SecleaAI:
         transformations = list(map(lambda x: x["code_encoded"], res.json()))
         return list(map(decode_func, transformations))
 
-    def _aggregate_dataset(self, datasets: List[str]) -> Tuple[str, int]:
+    @staticmethod
+    def _aggregate_dataset(datasets: List[str]) -> DataFrame:
         """
         Aggregates a list of dataset paths into a single file for upload.
         NOTE the files must be split by row and have the same format otherwise this will fail or cause unexpected format
@@ -591,12 +687,7 @@ class SecleaAI:
         """
         loaded_datasets = [pd.read_csv(dset) for dset in datasets]
         aggregated = pd.concat(loaded_datasets, axis=0)
-        if not os.path.exists(self._cache_dir):
-            os.makedirs(self._cache_dir)
-        # save aggregated and return path as string
-        dset_hash = pd.util.hash_pandas_object(aggregated).sum()
-        aggregated.to_csv(os.path.join(self._cache_dir, "temp_dataset.csv"), index=False)
-        return os.path.join(self._cache_dir, "temp_dataset.csv"), dset_hash
+        return aggregated
 
     @staticmethod
     def _process_transformations(transformations: List) -> List[Tuple[Callable, List, Dict]]:
@@ -639,8 +730,3 @@ class SecleaAI:
                     f"transformation: {trans_sig} must be function or iterable, received:{type(trans_sig)} "
                 )
         return transformations
-
-    def _handle_transformation_output(self, output: Dict):
-        # only allow dataset outputs - any other outputs of the function have to be saved locally and passed into
-        # whatever function as a normal variable....
-        pass
