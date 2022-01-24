@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from seclea_ai import Frameworks, SecleaAI
+from seclea_ai.transformations import DatasetTransformation
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
@@ -91,7 +92,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
         )
 
     def step_2_define_transformations(self):
-        # transformations
         def encode_nans(df):
             import numpy as np
 
@@ -105,8 +105,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
                 inplace=False,
             )  # default to no police report present if previously ?
             return new_df
-
-        df = encode_nans(self.sample_df_1)
 
         def drop_correlated(data, thresh):
             import numpy as np
@@ -122,15 +120,9 @@ class TestIntegrationSecleaAIPortal(TestCase):
             data.drop(columns=redundant, inplace=True)
             return data
 
-        corr_thresh = 0.97
-        df = drop_correlated(df, corr_thresh)
-
         def drop_nulls(df, threshold):
             cols = [x for x in df.columns if df[x].isnull().sum() / df.shape[0] > threshold]
             return df.drop(columns=cols)
-
-        null_thresh = 0.9
-        df = drop_nulls(df, threshold=null_thresh)
 
         def encode_categorical(df):
             from sklearn.preprocessing import LabelEncoder
@@ -144,39 +136,27 @@ class TestIntegrationSecleaAIPortal(TestCase):
                     df[col] = le.transform(list(df[col].astype(str).values))
             return df
 
-        df = encode_categorical(df)
-
         def fill_na_by_col(df, fill_values: dict):
             return df.fillna(fill_values)
 
-        na_values = {"collision_type": -1, "property_damage": -1}
-        df = fill_na_by_col(df, na_values)
+        def get_samples_labels(df, output_col):
+            X = df.drop(output_col, axis=1)
+            y = df[output_col]
 
-        def smote_balance(df):
+            return X, y
+
+        def get_test_train_splits(X, y, test_size, random_state):
+            from sklearn.model_selection import train_test_split
+
+            return train_test_split(
+                X, y, test_size=test_size, stratify=y, random_state=random_state
+            )
+            # returns X_train, X_test, y_train, y_test
+
+        def smote_balance(X, y, random_state):
             from imblearn.over_sampling import SMOTE
 
-            X1 = df.drop("fraud_reported", axis=1)
-            y1 = df.fraud_reported
-
-            sm = SMOTE(random_state=42)
-
-            X_sm, y_sm = sm.fit_resample(X1, y1)
-
-            print(
-                f"""Shape of X before SMOTE: {X1.shape}
-            Shape of X after SMOTE: {X_sm.shape}"""
-            )
-            print(
-                f"""Shape of y before SMOTE: {y1.shape}
-            Shape of y after SMOTE: {y_sm.shape}"""
-            )
-            return pd.concat([X_sm, y_sm], axis=1)
-            # returns DataFrame
-
-        def smote_balance_split(X, y):
-            from imblearn.over_sampling import SMOTE
-
-            sm = SMOTE(random_state=42)
+            sm = SMOTE(random_state=random_state)
 
             X_sm, y_sm = sm.fit_resample(X, y)
 
@@ -191,45 +171,134 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return X_sm, y_sm
             # returns X, y
 
-        def smote_balance_df_split(df, output_col):
-            from imblearn.over_sampling import SMOTE
+        def fit_and_scale(X, y):
+            from sklearn.preprocessing import StandardScaler
 
-            X1 = df.drop(output_col, axis=1)
-            y1 = df[output_col]
+            scaler = StandardScaler()
 
-            sm = SMOTE(random_state=42)
+            scaler.fit(X)
+            X_transformed = scaler.transform(X)
+            return X_transformed, y, scaler
 
-            X_sm, y_sm = sm.fit_resample(X1, y1)
-
-            print(
-                f"""Shape of X before SMOTE: {X1.shape}
-            Shape of X after SMOTE: {X_sm.shape}"""
+        def fit(X):  # how do we handle these that don't affect directly the dataset..
+            from sklearn.preprocessing import (
+                StandardScaler,  # for this specific case we will record the output..
             )
-            print(
-                f"""Shape of y before SMOTE: {y1.shape}
-            Shape of y after SMOTE: {y_sm.shape}"""
-            )
-            return X_sm, y_sm
-            # returns X, y
 
-        def get_test_train_splits(df, output_col, test_size, random_state):
-            from sklearn.model_selection import train_test_split
+            scaler = (
+                StandardScaler()
+            )  # ie. the scaler (as the input to another function) but that's not general..
 
-            X = df.drop(output_col, axis=1)
-            y = df[output_col]
+            scaler.fit(
+                X
+            )  # MAJOR question is. could we identify if they fitted it over the whole dataset... let's test
+            return scaler
 
-            return train_test_split(
-                X, y, test_size=test_size, stratify=y, random_state=random_state
-            )
-            # returns X_train, X_test, y_train, y_test
+        def scale(X, y, fitted_scaler):
+            X_transformed = fitted_scaler.transform(X)
+            return X_transformed, y
 
-        def get_test_train_splits_split(X, y, test_size, random_state):
-            from sklearn.model_selection import train_test_split
+        df = encode_nans(self.sample_df_1)
+        corr_thresh = 0.97
+        df = drop_correlated(df, corr_thresh)
+        null_thresh = 0.9
+        df = drop_nulls(df, threshold=null_thresh)
+        df = encode_categorical(df)
+        na_values = {"collision_type": -1, "property_damage": -1}
+        df = fill_na_by_col(df, na_values)
+        output_col = "fraud_reported"
+        X, y = get_samples_labels(df, output_col=output_col)
+        test_size = 0.2
+        random_state = 42
+        X_train, X_test, y_train, self.y_test = get_test_train_splits(
+            X, y, test_size=test_size, random_state=random_state
+        )
+        self.X_sm, self.y_sm = smote_balance(X_train, y_train, random_state=random_state)
+        # deliberate test of datasnooping.
+        scaler = fit(pd.concat([self.X_sm, X_test], axis=0))
+        self.X_sm_scaled, _ = scale(self.X_sm, self.y_sm, scaler)
+        self.X_test_scaled, _ = scale(X_test, self.y_test, scaler)
 
-            return train_test_split(
-                X, y, test_size=test_size, stratify=y, random_state=random_state
-            )
-            # returns X_train, X_test, y_train, y_test
+        self.complicated_transformations = [
+            DatasetTransformation(encode_nans, {"df": self.sample_df_1}, {}, ["data"]),
+            DatasetTransformation(
+                drop_correlated, {"data": "inherit"}, {"thresh": corr_thresh}, ["df"]
+            ),
+            DatasetTransformation(
+                drop_nulls, {"df": "inherit"}, {"threshold": null_thresh}, ["df"]
+            ),
+            DatasetTransformation(encode_categorical, {"df": "inherit"}, {}, ["df"]),
+            DatasetTransformation(
+                fill_na_by_col, {"df": "inherit"}, {"fill_values": na_values}, ["df"]
+            ),
+            DatasetTransformation(
+                get_samples_labels, {"df": "inherit"}, {"output_col": "fraud_reported"}, ["X", "y"]
+            ),
+        ]
+
+        # upload dataset here
+        self.controller_1.upload_dataset_split(
+            X=X,
+            y=y,
+            dataset_name=f"{self.sample_df_1_name} - Cleaned",
+            metadata=self.sample_df_1_meta,
+            transformations=self.complicated_transformations,
+        )
+
+        self.complicated_transformations_train = [
+            DatasetTransformation(
+                get_test_train_splits,
+                {"X": X, "y": y},
+                {
+                    "test_size": 0.2,
+                    "random_state": 42,
+                    # this becomes v important bc we are re-running functions for uploading different branches...
+                },
+                ["X", None, "y", None],
+            ),
+            DatasetTransformation(
+                smote_balance,
+                {"X": "inherit", "y": "inherit"},
+                {"random_state": random_state},
+                ["X", "y"],
+            ),
+            DatasetTransformation(
+                scale, {"X": "inherit", "y": "inherit"}, {"scaler": scaler}, ["X", "y", None]
+            ),
+        ]
+
+        # upload dataset here
+        self.controller_1.upload_dataset_split(
+            X=self.X_sm_scaled,
+            y=self.y_sm,
+            dataset_name=f"{self.sample_df_1_name} Train - Balanced - Scaled",
+            metadata=self.sample_df_1_meta,
+            transformations=self.complicated_transformations_train,
+        )
+
+        self.complicated_transformations_test = [
+            DatasetTransformation(
+                get_test_train_splits,
+                {"X": X, "y": y},
+                {
+                    "test_size": 0.2,
+                    "random_state": 42,
+                },
+                [None, "X", None, "y"],
+            ),
+            DatasetTransformation(
+                scale, {"X": "inherit", "y": "inherit"}, {"scaler": scaler}, ["X", "y"]
+            ),
+        ]
+
+        # upload dataset here
+        self.controller_1.upload_dataset_split(
+            X=self.X_test_scaled,
+            y=self.y_test,
+            dataset_name=f"{self.sample_df_1_name} Test - Scaled",
+            metadata=self.sample_df_1_meta,
+            transformations=self.complicated_transformations_test,
+        )
 
         self.transformations = [
             encode_nans,
@@ -239,89 +308,14 @@ class TestIntegrationSecleaAIPortal(TestCase):
             (fill_na_by_col, [], {"fill_values": na_values}),
         ]
 
-        # could do variable substitution - assign variable name to output to use later in transformations.
-        # merge prev output - None's and new - inherit
-
-        # self.complicated_transformations = [
-        #     DatasetTransformation(encode_nans, {"df": self.sample_df_1}, ["data"]),
-        #     DatasetTransformation(
-        #         drop_correlated, {"data": "inherit", "thresh": corr_thresh}, ["df"]
-        #     ),
-        #     DatasetTransformation(drop_nulls, {"df": "inherit", "threshold": null_thresh}, ["df"]),
-        #     DatasetTransformation(encode_categorical, {"df": "inherit"}, ["df"]),
-        #     DatasetTransformation(
-        #         fill_na_by_col, {"df": "inherit", "fill_values": na_values}, ["df"]
-        #     ),
-        #     DatasetTransformation(
-        #         get_test_train_splits,
-        #         {
-        #             "df": "inherit",
-        #             "output_col": "fraud_reported",
-        #             "test_size": 0.2,
-        #             "random_state": 42,
-        #         },
-        #         ["X", None, "y", None],
-        #     ),
-        #     DatasetTransformation(
-        #         smote_balance_split, {"X": "inherit", "y": "inherit"}, ["X", "y"]
-        #     ),
-        # ]
-        #
-        # self.complicated_transformations_train = [
-        #     DatasetTransformation(
-        #         get_test_train_splits,
-        #         {
-        #             "df": "inherit",
-        #             "output_col": "fraud_reported",
-        #             "test_size": 0.2,
-        #             "random_state": 42,
-        #         },
-        #         ["X", None, "y", None],
-        #     ),
-        #     DatasetTransformation(
-        #         smote_balance_split, {"X": "inherit", "y": "inherit"}, ["X", "y"]
-        #     ),
-        # ]
-        #
-        # self.complicated_transformations_test = [
-        #     DatasetTransformation(
-        #         get_test_train_splits,
-        #         {
-        #             "df": "inherit",
-        #             "output_col": "fraud_reported",
-        #             "test_size": 0.2,
-        #             "random_state": 42,
-        #         },
-        #         [None, "X", None, "y"],
-        #     )
-        # ]
-
         self.sample_df_1_transformed = df
 
-    def step_3_upload_transformed_dataset(self):
-        self.sample_df_1_transformed_name = "Insurance Fraud Transformed"
-        self.controller_1.upload_dataset(
-            self.sample_df_1_transformed,
-            self.sample_df_1_transformed_name,
-            metadata=self.sample_df_1_meta,
-            parent=self.sample_df_1,
-            transformations=self.transformations,
-        )
-
-    def step_4_upload_trainingrun(self):
+    def step_3_upload_trainingrun(self):
         # define model
 
-        from sklearn.model_selection import train_test_split
-
-        X = self.sample_df_1_transformed.drop("fraud_reported", axis=1)
-        y = self.sample_df_1_transformed.fraud_reported
-
-        # train test split
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
         print(
-            f"""% Positive class in Train = {np.round(y_train.value_counts(normalize=True)[1] * 100, 2)}
-        % Positive class in Test  = {np.round(y_test.value_counts(normalize=True)[1] * 100, 2)}"""
+            f"""% Positive class in Train = {np.round(self.y_sm.value_counts(normalize=True)[1] * 100, 2)}
+            % Positive class in Test  = {np.round(self.y_test.value_counts(normalize=True)[1] * 100, 2)}"""
         )
 
         from sklearn.ensemble import RandomForestClassifier
@@ -329,8 +323,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
         # from sklearn.metrics import accuracy_score
         # Train
         model = RandomForestClassifier(random_state=42)
-        model.fit(X_train, y_train)
-        # preds = model.predict(X_test)
+        model.fit(self.X_sm_scaled, self.y_sm)
+        # preds = model.predict(self.X_test_scaled)
 
         self.controller_1.upload_training_run(
             model,
