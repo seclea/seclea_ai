@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 
 from seclea_ai import Frameworks, SecleaAI
-from seclea_ai.transformations import DatasetTransformation
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
@@ -196,7 +195,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
             from imblearn.over_sampling import SMOTE
 
             X1 = df.drop(output_col, axis=1)
-            y1 = df.fraud_reported
+            y1 = df[output_col]
 
             sm = SMOTE(random_state=42)
 
@@ -243,30 +242,59 @@ class TestIntegrationSecleaAIPortal(TestCase):
         # could do variable substitution - assign variable name to output to use later in transformations.
         # merge prev output - None's and new - inherit
 
-        self.complicated_transformations = [
-            DatasetTransformation(encode_nans, {"df": self.sample_df_1}, ["data"]),
-            DatasetTransformation(
-                drop_correlated, {"data": "inherit", "thresh": corr_thresh}, ["df"]
-            ),
-            DatasetTransformation(drop_nulls, {"df": "inherit", "threshold": null_thresh}, ["df"]),
-            DatasetTransformation(encode_categorical, {"df": "inherit"}, ["df"]),
-            DatasetTransformation(
-                fill_na_by_col, {"df": "inherit", "fill_values": na_values}, ["df"]
-            ),
-            DatasetTransformation(
-                get_test_train_splits,
-                {
-                    "df": "inherit",
-                    "output_col": "fraud_reported",
-                    "test_size": 0.2,
-                    "random_state": 42,
-                },
-                ["X", None, "y", None],
-            ),
-            DatasetTransformation(
-                smote_balance_split, {"X": "inherit", "y": "inherit"}, ["X", "y"]
-            ),
-        ]
+        # self.complicated_transformations = [
+        #     DatasetTransformation(encode_nans, {"df": self.sample_df_1}, ["data"]),
+        #     DatasetTransformation(
+        #         drop_correlated, {"data": "inherit", "thresh": corr_thresh}, ["df"]
+        #     ),
+        #     DatasetTransformation(drop_nulls, {"df": "inherit", "threshold": null_thresh}, ["df"]),
+        #     DatasetTransformation(encode_categorical, {"df": "inherit"}, ["df"]),
+        #     DatasetTransformation(
+        #         fill_na_by_col, {"df": "inherit", "fill_values": na_values}, ["df"]
+        #     ),
+        #     DatasetTransformation(
+        #         get_test_train_splits,
+        #         {
+        #             "df": "inherit",
+        #             "output_col": "fraud_reported",
+        #             "test_size": 0.2,
+        #             "random_state": 42,
+        #         },
+        #         ["X", None, "y", None],
+        #     ),
+        #     DatasetTransformation(
+        #         smote_balance_split, {"X": "inherit", "y": "inherit"}, ["X", "y"]
+        #     ),
+        # ]
+        #
+        # self.complicated_transformations_train = [
+        #     DatasetTransformation(
+        #         get_test_train_splits,
+        #         {
+        #             "df": "inherit",
+        #             "output_col": "fraud_reported",
+        #             "test_size": 0.2,
+        #             "random_state": 42,
+        #         },
+        #         ["X", None, "y", None],
+        #     ),
+        #     DatasetTransformation(
+        #         smote_balance_split, {"X": "inherit", "y": "inherit"}, ["X", "y"]
+        #     ),
+        # ]
+        #
+        # self.complicated_transformations_test = [
+        #     DatasetTransformation(
+        #         get_test_train_splits,
+        #         {
+        #             "df": "inherit",
+        #             "output_col": "fraud_reported",
+        #             "test_size": 0.2,
+        #             "random_state": 42,
+        #         },
+        #         [None, "X", None, "y"],
+        #     )
+        # ]
 
         self.sample_df_1_transformed = df
 
