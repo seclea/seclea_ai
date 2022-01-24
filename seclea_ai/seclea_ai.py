@@ -5,7 +5,7 @@ import inspect
 import json
 import os
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Union
 
 import pandas as pd
 from pandas import DataFrame
@@ -117,13 +117,41 @@ class SecleaAI:
         if not success:
             raise AuthenticationError("Failed to login.")
 
+    def upload_dataset_split(
+        self,
+        X: DataFrame,
+        y: DataFrame,
+        dataset_name: str,
+        metadata: Dict,
+        transformations: List[DatasetTransformation] = None,
+    ) -> None:
+        """
+        Uploads a dataset.
+
+        :param X: DataFrame The samples of the Dataset.
+
+        :param y: Dataframe The labels of the Dataset
+
+        :param dataset_name: The name of the Dataset
+
+        :param metadata: Any metadata about the Dataset. Required keys are:
+            "index" and "continuous_features"
+        :param transformations:
+
+        :return: None
+        """
+        dataset = self._assemble_dataset({"X": X, "y": y})
+        # potentially fragile vvv TODO check this vvv
+        metadata["outcome_name"] = y.columns[0]
+        self.upload_dataset(dataset, dataset_name, metadata, transformations)
+
     def upload_dataset(
         self,
         dataset: Union[str, List[str], DataFrame],
         dataset_name: str,
         metadata: Dict,
         transformations: List[DatasetTransformation] = None,
-    ):
+    ) -> None:
         """
         Uploads a dataset.
 
@@ -135,19 +163,16 @@ class SecleaAI:
 
         :param metadata: Any metadata about the dataset.
 
-        :param parent: DataFrame The parent dataset this one derives from.
+        :param transformations: A list of DatasetTransformation's.
 
-        :param transformations: A list of functions that preprocess the Dataset.
-            These need to be structured in a particular way:
-                [(<function name>, [<list of args>], {<dict of keyword arguments>}), ...] eg.
-                [(test_function, [dataset, 12, "testing"], {"test_argument": 23}, ["X", "y"])]
+                        If your Dataset is large try call this function more often with less DatasetTransformations
+                        as the function currently requires no. DatasetTransformations x Dataset size memory to function.
 
-                If there are no arguments or keyword arguments
-                these may be omitted.
+                        See DatasetTransformation for more details.
 
         :return: None
 
-        Example::
+        Example:: TODO update docs
 
             >>> seclea = SecleaAI(project_name="Test Project")
             >>> seclea.upload_dataset(dataset="/test_folder/dataset_file.csv", dataset_name="Test Dataset", metadata={})
@@ -169,7 +194,6 @@ class SecleaAI:
         """
 
         # processing the final dataset - make sure it's a DataFrame
-        # TODO assemble Dataframe from X, y...
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
         if isinstance(dataset, List):
@@ -181,9 +205,8 @@ class SecleaAI:
 
         if transformations is not None:
 
+            # check that the parent exists on platform
             parent = self._assemble_dataset(transformations[0].data_kwargs)
-
-            # check that the parent exists
             parent_hash = hash(pd.util.hash_pandas_object(parent).sum() + self._project)
             res = self._transmission.get(
                 url_path=f"/collection/datasets/{parent_hash}",
@@ -195,9 +218,12 @@ class SecleaAI:
                     "that you have uploaded the parent dataset already"
                 )
 
-            length = len(transformations)
+            # setup for generating datasets.
+            last = len(transformations) - 1
             upload_queue = list()
 
+            # iterate over transformations, assembling intermediate datasets
+            # TODO address memory issue of keeping all datasets
             for idx, trans in enumerate(transformations):
                 output = trans()
 
@@ -206,7 +232,8 @@ class SecleaAI:
                 dset_metadata = {}
                 dset_name = f"{dataset_name}-{trans.func.__name__}"
 
-                if idx == length:
+                # handle the final dataset - check generated = passed in.
+                if idx == last:
                     if (
                         pd.util.hash_pandas_object(dset).sum() != dataset_hash
                     ):  # TODO create or find better exception
@@ -219,7 +246,7 @@ class SecleaAI:
                         dset_metadata = metadata
                         dset_name = dataset_name
 
-                # add data to queue to upload later after final dataset checked.from
+                # add data to queue to upload later after final dataset checked
                 upload_kwargs = {
                     "dataset": dset,
                     "dataset_name": dset_name,
@@ -235,69 +262,22 @@ class SecleaAI:
             # here the final dataset has been
             for up_kwargs in upload_queue:
                 self._upload_dataset(**up_kwargs)
-
-                # output can be many things so we need to be careful in handling it.
-                # could be (df), (X, y), (X_train, X_test, y_train, y_test) or (X_train, y_train, X_test, y_test)
-                # need to set some standard for return values I think.
-                # how to deal when the transformation splits -
-                # what do we input to the next transformation? Both? only one?
-                #
-                # perhaps we shouldn't allow that, each set of transformations must only relate to one dataset.
-                # then how do they split?
-                # how do we distinguish between two DFs and X, y? only allow one df output per transformation
-                # min points of upload -
-                # Raw data (can be test and train), Split data into test and train. Immediately before input to training
-
-        # upload the final dataset
-
-        # dataset_queryparams = {
-        #     "project": self._project,
-        #     "organization": self._organization,
-        #     "name": dataset_name,
-        #     "metadata": json.dumps(metadata),
-        #     "hash": str(dataset_hash),
-        #     "parent": str(hash(pd.util.hash_pandas_object(parent).sum() + self._project))
-        #     if parent is not None
-        #     else None,
-        # }
-        # print("Query Params: ", dataset_queryparams)
-        # try:
-        #     res = self._transmission.send_file(
-        #         url_path="/collection/datasets",
-        #         file_path=dataset,
-        #         query_params=dataset_queryparams,
-        #     )
-        #     handle_response(res, 201, f"There was some issue uploading the dataset: {res.text}")
-        # finally:
-        #     if temp:
-        #         os.remove(dataset)
-        #
-        # # upload the transformations
-        # if res.status_code == 201 and transformations is not None:
-        #     # upload transformations.
-        #     self._upload_transformations(
-        #         transformations=self._process_transformations(transformations),
-        #         dataset_pk=str(dataset_hash),
-        #     )
-
-    @staticmethod
-    def _assemble_dataset(data: Dict):
-        if len(data) == 1:
-            return next(iter(data.values()))
-        elif len(data) == 2:
-            # create dataframe from X and y and upload - will have one item in metadata, the output_col
-            return pd.concat([x for x in data.values()], axis=1)
-        else:
-            raise AssertionError(
-                "Output doesn't match the requirements. Please review the documentation."
-            )
+            return
+        # this only happens if this has no transformations ie. it is a Raw Dataset.
+        self._upload_dataset(
+            dataset=dataset,
+            dataset_name=dataset_name,
+            metadata=metadata,
+            parent=None,
+            transformation=None,
+        )
 
     def upload_training_run(
         self,
         model,
         framework: Frameworks,
         dataset: DataFrame,
-    ):
+    ) -> None:
         """
         Takes a model and extracts the necessary data for uploading the training run.
 
@@ -373,6 +353,18 @@ class SecleaAI:
             ),
         )
 
+    @staticmethod
+    def _assemble_dataset(data: Dict[str, DataFrame]) -> DataFrame:
+        if len(data) == 1:
+            return next(iter(data.values()))
+        elif len(data) == 2:
+            # create dataframe from X and y and upload - will have one item in metadata, the output_col
+            return pd.concat([x for x in data.values()], axis=1)
+        else:
+            raise AssertionError(
+                "Output doesn't match the requirements. Please review the documentation."
+            )
+
     def _init_project(self, project_name) -> None:
         """
         Initialises the project for the object. If the project does not exist on the server it will be created.
@@ -415,10 +407,6 @@ class SecleaAI:
             return None
         return project_res.json()[0]["id"]
 
-    def _get_dataset(self, dataset_hash):
-        # TODO delete if not necessary.
-        pass
-
     def _create_project(self, project_name: str, description: str = "Please add a description.."):
         """
         Creates a new project.
@@ -456,11 +444,6 @@ class SecleaAI:
 
         :raises: ValueError - if the framework is not one of the supported frameworks or if there is an issue uploading
          the model.
-
-        Example::
-
-            >>> seclea = SecleaAI(project_name="Test Project", framework="seclea_ai.Frameworks.SKLEARN")
-            >>> seclea.set_model(model_name="GradientBoostingMachine")
         """
         res = handle_response(
             self._transmission.get(
@@ -504,18 +487,16 @@ class SecleaAI:
         dataset: DataFrame,
         dataset_name: str,
         metadata: Dict,
-        parent: DataFrame,
-        transformation: DatasetTransformation,
+        parent: Union[DataFrame, None],
+        transformation: Union[DatasetTransformation, None],
     ):
-        # upload a dataset, constructing it if needed from component parts.
-        # only works for a single transformation.
+        # upload a dataset - only works for a single transformation.
         if not os.path.exists(self._cache_dir):
             os.makedirs(self._cache_dir)
         temp_path = os.path.join(self._cache_dir, "temp_dataset.csv")
         dataset.to_csv(temp_path, index=False)
-        dataset = temp_path
-
         dataset_hash = hash(pd.util.hash_pandas_object(dataset).sum() + self._project)
+        dataset = temp_path
 
         dataset_queryparams = {
             "project": self._project,
@@ -539,14 +520,13 @@ class SecleaAI:
         finally:
             os.remove(dataset)
 
-        # upload the transformations TODO redo.
+        # upload the transformations
         if res.status_code == 201 and transformation is not None:
             # upload transformations.
-            self._upload_transformations(
-                transformations=self._process_transformations(transformation),
+            self._upload_transformation(
+                transformation=transformation,
                 dataset_pk=str(dataset_hash),
             )
-        pass
 
     def _upload_model(self, model_name: str, framework: Frameworks):
         """
@@ -635,36 +615,32 @@ class SecleaAI:
             os.remove(save_path)
         return res
 
-    def _upload_transformations(
-        self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
-    ):
-        responses = list()
-        transformations = self._process_transformations(transformations)
-        for idx, (trans, args, kwargs) in enumerate(transformations):
-            # unpack transformations list
-            data = {
-                "name": trans.__name__,
-                "code_raw": inspect.getsource(trans),
-                "code_encoded": encode_func(trans, args, kwargs),
-                "order": idx,
-                "dataset": dataset_pk,
-            }
-            res = self._transmission.send_json(
-                url_path="/collection/dataset-transformations",
-                obj=data,
-                query_params={"organization": self._organization, "project": self._project},
-            )
-            res = handle_response(
-                res,
-                expected=201,
-                msg=f"There was an issue uploading the transformations on transformation {idx} with name {trans.__name__}: {res.text}",
-            )
-            responses.append(res)
-        return responses
+    def _upload_transformation(self, transformation: DatasetTransformation, dataset_pk):
+        idx = 0
+        trans_kwargs = {**transformation.data_kwargs, **transformation.kwargs}
+        data = {
+            "name": transformation.func.__name__,
+            "code_raw": inspect.getsource(transformation.func),
+            "code_encoded": encode_func(transformation.func, [], trans_kwargs),
+            "order": idx,
+            "dataset": dataset_pk,
+        }
+        res = self._transmission.send_json(
+            url_path="/collection/dataset-transformations",
+            obj=data,
+            query_params={"organization": self._organization, "project": self._project},
+        )
+        res = handle_response(
+            res,
+            expected=201,
+            msg=f"There was an issue uploading the transformations on transformation {idx} with name {transformation.func.__name__}: {res.text}",
+        )
+        return res
 
     def _load_transformations(self, training_run_pk: int):
         """
         Expects a list of code_encoded as set by upload_transformations.
+        TODO replace or remove
         """
         res = self._transmission.get(
             url_path="/collection/dataset-transformations",
@@ -688,45 +664,3 @@ class SecleaAI:
         loaded_datasets = [pd.read_csv(dset) for dset in datasets]
         aggregated = pd.concat(loaded_datasets, axis=0)
         return aggregated
-
-    @staticmethod
-    def _process_transformations(transformations: List) -> List[Tuple[Callable, List, Dict]]:
-        for idx, trans_sig in enumerate(transformations):
-            # if sig is iterable then first must be func, then one of: l | d | l,d   (list,dict)
-            if hasattr(trans_sig, "__iter__"):
-                # check too many args
-                if len(trans_sig) > 3:
-                    raise Exception(
-                        f"Too many arguments for transformation exp: func,args,kwarg received: {trans_sig}"
-                    )
-                # check first arg is a function:
-                if not isinstance(trans_sig[0], Callable):
-                    raise Exception(
-                        f"First argument in transformation must be the function received: {trans_sig}"
-                    )
-
-                if len(trans_sig) == 3:
-                    if not (isinstance(trans_sig[1], list) and isinstance(trans_sig[2], dict)):
-                        raise Exception(
-                            f"transformation signature must be the function,list,dict received:"
-                            f" {trans_sig} of type {[type(el) for el in trans_sig]}"
-                        )
-                    transformations[idx] = list(trans_sig)
-                else:
-                    if isinstance(trans_sig[1], list):
-                        transformations[idx] = [*trans_sig, dict()]
-                    elif isinstance(trans_sig[1], dict):
-                        func, kwargs = trans_sig
-                        transformations[idx] = [func, list(), kwargs]
-                    else:
-                        raise Exception(
-                            f"transformation signature type error: {trans_sig[1]}  "
-                            f"in {trans_sig} is not of type list or dict"
-                        )
-            elif isinstance(trans_sig, Callable):
-                transformations[idx] = [trans_sig, list(), dict()]
-            else:
-                raise Exception(
-                    f"transformation: {trans_sig} must be function or iterable, received:{type(trans_sig)} "
-                )
-        return transformations
