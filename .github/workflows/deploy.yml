@@ -13,18 +13,25 @@ jobs:
     env:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+
     steps:
+      - name: Checkout repo - including submodules
       - uses: actions/checkout@v2
         with:
           token: ${{ secrets.TOKEN_AUTOMATION }}
+          submodules: "recursive"
+
       - name: Increment version in setup.py
         run: |
           pip3 install bump2version==1.0.1
           ./scripts/increment-version.sh patch
+
       - name: Build Sphinx Documentation
         run: |
           pip3 install -r requirements.txt
           ./scripts/run_make_doc.sh
+
+      - name: Commit changes to dev.
       - uses: EndBug/add-and-commit@v7 # You can change this to use a specific version
         with:
           add: "."
@@ -40,15 +47,18 @@ jobs:
           # The flag used on the pull strategy. Use NO-PULL to avoid the action pulling at all.
           # Default: '--no-rebase'
           pull: "NO-PULL"
+
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
           python-version: "3.8"
-      - name: build wheel
+
+      - name: Build wheel
         run: |
           pip3 install wheel
           python3 setup.py bdist_wheel
-      - name: upload wheel
+
+      - name: Upload wheel
         run: |
           pip3 install twine
           twine upload dist/*
