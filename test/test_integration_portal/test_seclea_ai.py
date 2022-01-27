@@ -194,8 +194,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
             )  # MAJOR question is. could we identify if they fitted it over the whole dataset... let's test
             return scaler
 
-        def scale(X, y, fitted_scaler):
-            X_transformed = fitted_scaler.transform(X)
+        def scale(X, y, scaler):
+            X_transformed = scaler.transform(X)
             return X_transformed, y
 
         df = encode_nans(self.sample_df_1)
@@ -228,12 +228,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
                 drop_nulls, {"df": "inherit"}, {"threshold": null_thresh}, ["df"]
             ),
             DatasetTransformation(encode_categorical, {"df": "inherit"}, {}, ["df"]),
-            DatasetTransformation(
-                fill_na_by_col, {"df": "inherit"}, {"fill_values": na_values}, ["df"]
-            ),
-            DatasetTransformation(
-                get_samples_labels, {"df": "inherit"}, {"output_col": "fraud_reported"}, ["X", "y"]
-            ),
         ]
 
         # upload dataset here
