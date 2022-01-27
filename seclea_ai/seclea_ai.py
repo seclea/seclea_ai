@@ -1,6 +1,7 @@
 """
 Description for seclea_ai.py
 """
+import copy
 import inspect
 import json
 import os
@@ -8,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Union
 
 import pandas as pd
-from pandas import DataFrame
+from pandas import DataFrame, Series
 from requests import Response
 
 from seclea_ai.authentication import AuthenticationService
@@ -142,7 +143,7 @@ class SecleaAI:
         """
         dataset = self._assemble_dataset({"X": X, "y": y})
         # potentially fragile vvv TODO check this vvv
-        metadata["outcome_name"] = y.columns[0]
+        metadata["outcome_name"] = y.name
         self.upload_dataset(dataset, dataset_name, metadata, transformations)
 
     def upload_dataset(
@@ -206,26 +207,17 @@ class SecleaAI:
         if transformations is not None:
 
             # check that the parent exists on platform
-            parent = self._assemble_dataset(transformations[0].data_kwargs)
-            parent_hash = hash(pd.util.hash_pandas_object(parent).sum() + self._project)
-            res = self._transmission.get(
-                url_path=f"/collection/datasets/{parent_hash}",
-                query_params={"project": self._project, "organization": self._organization},
-            )
-            if not res.status_code == 200:
-                raise AssertionError(
-                    "Parent Dataset does not exist on the Platform. Please check your arguments and "
-                    "that you have uploaded the parent dataset already"
-                )
+            parent = self._assemble_dataset(transformations[0].raw_data_kwargs)
 
             # setup for generating datasets.
             last = len(transformations) - 1
             upload_queue = list()
 
+            output = dict()
             # iterate over transformations, assembling intermediate datasets
             # TODO address memory issue of keeping all datasets
             for idx, trans in enumerate(transformations):
-                output = trans()
+                output = trans(output)
 
                 # construct the generated dataset from outputs
                 dset = self._assemble_dataset(output)
@@ -248,27 +240,37 @@ class SecleaAI:
 
                 # add data to queue to upload later after final dataset checked
                 upload_kwargs = {
-                    "dataset": dset,
-                    "dataset_name": dset_name,
-                    "metadata": dset_metadata,
-                    "parent": parent,
-                    "transformation": trans,
+                    "dataset": copy.deepcopy(dset),
+                    "dataset_name": copy.deepcopy(dset_name),
+                    "metadata": copy.deepcopy(dset_metadata),
+                    "parent_hash": pd.util.hash_pandas_object(parent).sum(),
+                    "transformation": copy.deepcopy(trans),
                 }
                 # update the parent dataset - these chained transformations only make sense if they are pushing the
                 # same dataset through multiple transformations.
-                parent = dset
+                parent = copy.deepcopy(dset)
                 upload_queue.append(upload_kwargs)
 
-            # here the final dataset has been
+            # check for duplicates
+            for up_kwargs in upload_queue:
+                if (
+                    pd.util.hash_pandas_object(up_kwargs["dataset"]).sum()
+                    == up_kwargs["parent_hash"]
+                ):
+                    raise AssertionError(
+                        f"The transformation {up_kwargs['transformation'].func.__name__} does not change the dataset. Please remove it and try again."
+                    )
+            # upload all the datasets and transformations.
             for up_kwargs in upload_queue:
                 self._upload_dataset(**up_kwargs)
             return
+
         # this only happens if this has no transformations ie. it is a Raw Dataset.
         self._upload_dataset(
             dataset=dataset,
             dataset_name=dataset_name,
             metadata=metadata,
-            parent=None,
+            parent_hash=None,
             transformation=None,
         )
 
@@ -359,6 +361,9 @@ class SecleaAI:
             return next(iter(data.values()))
         elif len(data) == 2:
             # create dataframe from X and y and upload - will have one item in metadata, the output_col
+            for key, val in data.items():
+                if not (isinstance(val, DataFrame) or isinstance(val, Series)):
+                    data[key] = DataFrame(val)
             return pd.concat([x for x in data.values()], axis=1)
         else:
             raise AssertionError(
@@ -487,9 +492,22 @@ class SecleaAI:
         dataset: DataFrame,
         dataset_name: str,
         metadata: Dict,
-        parent: Union[DataFrame, None],
+        parent_hash: Union[int, None],
         transformation: Union[DatasetTransformation, None],
     ):
+        if parent_hash is not None:
+            parent_hash = hash(parent_hash + self._project)
+            # check parent exists - throw an error if not.
+            res = self._transmission.get(
+                url_path=f"/collection/datasets/{parent_hash}",
+                query_params={"project": self._project, "organization": self._organization},
+            )
+            if not res.status_code == 200:
+                raise AssertionError(
+                    "Parent Dataset does not exist on the Platform. Please check your arguments and "
+                    "that you have uploaded the parent dataset already"
+                )
+
         # upload a dataset - only works for a single transformation.
         if not os.path.exists(self._cache_dir):
             os.makedirs(self._cache_dir)
@@ -504,9 +522,7 @@ class SecleaAI:
             "name": dataset_name,
             "metadata": json.dumps(metadata),
             "hash": str(dataset_hash),
-            "parent": str(hash(pd.util.hash_pandas_object(parent).sum() + self._project))
-            if parent is not None
-            else None,
+            "parent": str(parent_hash) if parent_hash is not None else None,
         }
         print("Query Params: ", dataset_queryparams)
 

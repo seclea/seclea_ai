@@ -23,5 +23,5 @@ setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.6",
-    install_requires=["seclea_utils>=0.0.45", "pandas>=1.1.0", "pickleDB>=0.9.2"],
+    install_requires=["pandas>=1.1.0", "pickleDB>=0.9.2"],
 )
