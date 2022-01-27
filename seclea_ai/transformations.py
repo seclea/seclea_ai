@@ -2,11 +2,14 @@ from typing import Callable, Dict, List, Tuple
 
 
 class DatasetTransformation:
-    def __init__(self, func: Callable, data_kwargs: Dict, kwargs: Dict, outputs: List):
+    def __init__(
+        self, func: Callable, data_kwargs: Dict, kwargs: Dict, outputs: List, split: str = None
+    ):
         self.func = func
         self._data_kwargs = data_kwargs
         self.kwargs = kwargs
         self.outputs = outputs
+        self.split = split
 
     def __call__(self, previous_output: Dict) -> Dict:
         # preprocess and data substitution.

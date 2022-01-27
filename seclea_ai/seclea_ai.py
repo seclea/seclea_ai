@@ -495,6 +495,7 @@ class SecleaAI:
         parent_hash: Union[int, None],
         transformation: Union[DatasetTransformation, None],
     ):
+        split = transformation.split if transformation is not None else None
         if parent_hash is not None:
             parent_hash = hash(parent_hash + self._project)
             # check parent exists - throw an error if not.
@@ -507,6 +508,15 @@ class SecleaAI:
                     "Parent Dataset does not exist on the Platform. Please check your arguments and "
                     "that you have uploaded the parent dataset already"
                 )
+
+            # deal with the splits - take the set one by default but inherit from parent if None
+            if transformation.split is None:
+                # check the parent split - inherit split
+                parent = res.json()
+                split = parent["metadata"]["split"]
+
+        # this needs to be here so split is always set.
+        metadata = {**metadata, "split": split}
 
         # upload a dataset - only works for a single transformation.
         if not os.path.exists(self._cache_dir):
