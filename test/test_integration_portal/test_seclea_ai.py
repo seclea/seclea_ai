@@ -249,6 +249,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
                     # this becomes v important bc we are re-running functions for uploading different branches...
                 },
                 ["X", None, "y", None],
+                split="train",
             ),
             DatasetTransformation(
                 smote_balance,
@@ -279,6 +280,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
                     "random_state": 42,
                 },
                 [None, "X", None, "y"],
+                split="test",
             ),
             DatasetTransformation(
                 scale, {"X": "inherit", "y": "inherit"}, {"scaler": scaler}, ["X", "y"]
