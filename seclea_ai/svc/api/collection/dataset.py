@@ -1,20 +1,25 @@
 import json
 from types import SimpleNamespace
+
 from seclea_ai.seclea_utils.core.transmission import Transmission
+
 from ..errors import throws_api_err
 
-root = '/collection/datasets'
+root = "/collection/datasets"
 
 
 # @throws_api_err
-def post_dataset(transmission: Transmission,
-                 dataset_file_path: str,
-                 project_pk: str,
-                 organization_pk: str,
-                 name: str,
-                 metadata: dict,
-                 dataset_hash: str,
-                 parent_dataset_hash: str = None, delete=False):
+def post_dataset(
+    transmission: Transmission,
+    dataset_file_path: str,
+    project_pk: str,
+    organization_pk: str,
+    name: str,
+    metadata: dict,
+    dataset_hash: str,
+    parent_dataset_hash: str = None,
+    delete=False,
+):
     """
     @param transmission:
     @param dataset_file_path:
@@ -33,13 +38,12 @@ def post_dataset(transmission: Transmission,
         "name": name,
         "metadata": json.dumps(metadata),
         "hash": str(dataset_hash),
-        "parent": parent_dataset_hash
-
+        "parent": parent_dataset_hash,
     }
     res = transmission.send_file(
-        url_path=f'{root}',
+        url_path=f"{root}",
         file_path=dataset_file_path,
         query_params=dataset_queryparams,
-        delete=delete
+        delete=delete,
     )
     return res
