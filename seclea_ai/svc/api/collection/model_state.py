@@ -1,13 +1,23 @@
 import json
 from types import SimpleNamespace
+
 from seclea_ai.seclea_utils.core.transmission import Transmission
+
 from ..errors import throws_api_err
 
-root = '/collection/model-states'
+root = "/collection/model-states"
 
 
-def post_model_state(transmission: Transmission, model_state_file_path: str, organization_pk: str, project_pk: str,
-                     training_run_pk: str, sequence_num: int, final_state,delete=False):
+def post_model_state(
+    transmission: Transmission,
+    model_state_file_path: str,
+    organization_pk: str,
+    project_pk: str,
+    training_run_pk: str,
+    sequence_num: int,
+    final_state,
+    delete=False,
+):
     """
 
     @param transmission:
@@ -30,6 +40,6 @@ def post_model_state(transmission: Transmission, model_state_file_path: str, org
             "training_run": training_run_pk,
             "final_state": final_state,
         },
-        delete=delete
+        delete=delete,
     )
     return res.json()
