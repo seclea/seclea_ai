@@ -171,6 +171,7 @@ class SecleaAI:
             >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
             >>> seclea.upload_dataset(dataset=dataset, dataset_name="Multifile Dataset", metadata=dataset_metadata)
         """
+        temp = False
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
         if isinstance(dataset, List):
