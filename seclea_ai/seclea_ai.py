@@ -11,14 +11,15 @@ import pandas as pd
 from pandas import DataFrame
 from requests import Response
 from seclea_ai.seclea_utils.core import (
-    CompressedFileManager,
-    ModelManager,
     RequestWrapper,
     Zstd,
     decode_func,
     encode_func,
+    save_object,
+    load_object,
+    CompressionFactory
 )
-from seclea_ai.seclea_utils.model_management.get_model_manager import Frameworks, get_model_manager
+from seclea_ai.seclea_utils.model_management.get_model_manager import ModelManagers, serialize, deserialize
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
 
@@ -165,49 +166,42 @@ class SecleaAI:
             >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
             >>> seclea.upload_dataset(dataset=dataset, dataset_name="Multifile Dataset", metadata=dataset_metadata)
         """
-        temp = False
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
         if isinstance(dataset, List):
-            dataset, dataset_hash = self._aggregate_dataset(dataset)
-            temp = True
-        elif isinstance(dataset, DataFrame):
+            dataset= self._aggregate_dataset(dataset)
+        if isinstance(dataset, DataFrame):
             if not os.path.exists(self._cache_dir):
                 os.makedirs(self._cache_dir)
             temp_path = os.path.join(self._cache_dir, "temp_dataset.csv")
             dataset.to_csv(temp_path, index=False)
-            dataset_hash = pd.util.hash_pandas_object(dataset).sum()
-            dataset = temp_path
-            temp = True
         else:
-            dset = pd.read_csv(dataset, index_col=metadata["index"])
-            dataset_hash = pd.util.hash_pandas_object(dset).sum()
+            dataset = pd.read_csv(dataset, index_col=metadata["index"])
+
+        comp_path = f'{temp_path}/compressed'
+        rb = open(temp_path, 'rb')
+        save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
+        dataset_hash = pd.util.hash_pandas_object(dataset).sum()
+        dataset = comp_path
 
         dataset_hash = hash(dataset_hash + self._project)
+        from svc.api.collection.dataset import post_dataset
+        response = post_dataset(
+            transmission=self._transmission,
+            dataset_file_path=dataset,
+            project_pk=self._project,
+            organization_pk=self._organization,
+            name=dataset_name,
+            metadata=metadata,
+            dataset_hash=str(dataset_hash),
+            parent_dataset_hash=str(
+                hash(pd.util.hash_pandas_object(parent).sum() + self._project)) if parent is not None else None,
+            delete=True
 
-        dataset_queryparams = {
-            "project": self._project,
-            "organization": self._organization,
-            "name": dataset_name,
-            "metadata": json.dumps(metadata),
-            "hash": str(dataset_hash),
-            "parent": str(hash(pd.util.hash_pandas_object(parent).sum() + self._project))
-            if parent is not None
-            else None,
-        }
-        print("Query Params: ", dataset_queryparams)
-        try:
-            res = self._transmission.send_file(
-                url_path="/collection/datasets",
-                file_path=dataset,
-                query_params=dataset_queryparams,
-            )
-            handle_response(res, 201, f"There was some issue uploading the dataset: {res.text}")
-        finally:
-            if temp:
-                os.remove(dataset)
+        )
+        handle_response(response, 201, f"There was some issue uploading the dataset: {response.text}")
 
-        if res.status_code == 201 and transformations is not None:
+        if response.status_code == 201 and transformations is not None:
             # upload transformations.
             self._upload_transformations(
                 transformations=self._process_transformations(transformations),
@@ -217,8 +211,8 @@ class SecleaAI:
     def upload_training_run(
             self,
             model,
-            framework: Frameworks,
             dataset: DataFrame,
+            framework: ModelManagers
     ):
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -290,9 +284,7 @@ class SecleaAI:
             training_run_pk=self._training_run,
             sequence_num=0,
             final=True,
-            model_manager=get_model_manager(
-                framework=framework, data_manager=CompressedFileManager(compression=Zstd())
-            ),
+            model_manager=framework
         )
 
     def _init_project(self, project_name) -> None:
@@ -363,7 +355,7 @@ class SecleaAI:
             res, expected=201, msg=f"There was an issue creating the project: {res.text}"
         )
 
-    def _set_model(self, model_name: str, framework: Frameworks) -> int:
+    def _set_model(self, model_name: str, framework: ModelManagers) -> int:
         """
         Set the model for this session.
         Checks if it has already been uploaded. If not it will upload it.
@@ -417,7 +409,7 @@ class SecleaAI:
             model_pk = resp.json()[0]["id"]
         return model_pk
 
-    def _upload_model(self, model_name: str, framework: Frameworks):
+    def _upload_model(self, model_name: str, framework: ModelManagers):
         """
 
         :param model_name:
@@ -471,37 +463,22 @@ class SecleaAI:
             training_run_pk: int,
             sequence_num: int,
             final: bool,
-            model_manager: ModelManager,
+            model_manager: ModelManagers,
     ):
         os.makedirs(
             os.path.join(self._cache_dir, str(training_run_pk)),
             exist_ok=True,
         )
+        model_data = serialize(model, model_manager)
+        save_path = os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_pk}/model-{sequence_num}")
+        save_object(model_data, save_path, compression=CompressionFactory.ZSTD)
+        from svc.api.collection.model_state import post_model_state
+        res = post_model_state(self._transmission, save_path, self._organization, self._project, str(training_run_pk),
+                               sequence_num, final, True)
 
-        save_path = model_manager.save_model(
-            model,
-            os.path.join(
-                Path.home(), f".seclea/{self._project_name}/{training_run_pk}/model-{sequence_num}"
-            ),
+        res = handle_response(
+            res, expected=201, msg=f"There was an issue uploading a model state: {res.text}"
         )
-
-        res = self._transmission.send_file(
-            url_path="/collection/model-states",
-            file_path=save_path,
-            query_params={
-                "organization": self._organization,
-                "project": self._project,
-                "sequence_num": sequence_num,
-                "training_run": training_run_pk,
-                "final_state": final,
-            },
-        )
-        try:
-            res = handle_response(
-                res, expected=201, msg=f"There was an issue uploading a model state: {res.text}"
-            )
-        finally:
-            os.remove(save_path)
         return res
 
     def _upload_transformations(
@@ -545,7 +522,7 @@ class SecleaAI:
         transformations = list(map(lambda x: x["code_encoded"], res.json()))
         return list(map(decode_func, transformations))
 
-    def _aggregate_dataset(self, datasets: List[str]) -> Tuple[str, int]:
+    def _aggregate_dataset(self, datasets: List[str]) -> DataFrame:
         """
         Aggregates a list of dataset paths into a single file for upload.
         NOTE the files must be split by row and have the same format otherwise this will fail or cause unexpected format
@@ -554,13 +531,7 @@ class SecleaAI:
         :return:
         """
         loaded_datasets = [pd.read_csv(dset) for dset in datasets]
-        aggregated = pd.concat(loaded_datasets, axis=0)
-        if not os.path.exists(self._cache_dir):
-            os.makedirs(self._cache_dir)
-        # save aggregated and return path as string
-        dset_hash = pd.util.hash_pandas_object(aggregated).sum()
-        aggregated.to_csv(os.path.join(self._cache_dir, "temp_dataset.csv"), index=False)
-        return os.path.join(self._cache_dir, "temp_dataset.csv"), dset_hash
+        return pd.concat(loaded_datasets, axis=0)
 
     @staticmethod
     def _process_transformations(transformations: List) -> List[Tuple[Callable, List, Dict]]:
@@ -589,7 +560,7 @@ class SecleaAI:
                     if isinstance(trans_sig[1], list):
                         transformations[idx] = [*trans_sig, dict()]
                     elif isinstance(trans_sig[1], dict):
-                        func, kwargs = trans_sig2
+                        func, kwargs = trans_sig
                         transformations[idx] = [func, list(), kwargs]
                     else:
                         raise Exception(
