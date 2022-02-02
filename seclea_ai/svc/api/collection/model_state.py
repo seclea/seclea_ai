@@ -40,6 +40,6 @@ def post_model_state(
             "training_run": training_run_pk,
             "final_state": final_state,
         },
-        delete=delete,
+        delete_file=delete,
     )
-    return res.json()
+    return res
