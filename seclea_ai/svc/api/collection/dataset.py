@@ -44,6 +44,6 @@ def post_dataset(
         url_path=f"{root}",
         file_path=dataset_file_path,
         query_params=dataset_queryparams,
-        delete=delete,
+        delete_file=delete,
     )
     return res

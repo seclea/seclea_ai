@@ -27,6 +27,9 @@ from seclea_ai.seclea_utils.model_management.get_model_manager import (
     deserialize,
     serialize,
 )
+from .svc.api.collection.model_state import post_model_state
+
+from .svc.api.collection.dataset import post_dataset
 
 
 def handle_response(res: Response, expected: int, msg: str) -> Response:
@@ -54,13 +57,13 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
 
 class SecleaAI:
     def __init__(
-        self,
-        project_name: str,
-        organization: str,
-        platform_url: str = "https://platform.seclea.com",
-        auth_url: str = "https://auth.seclea.com",
-        username: str = None,
-        password: str = None,
+            self,
+            project_name: str,
+            organization: str,
+            platform_url: str = "https://platform.seclea.com",
+            auth_url: str = "https://auth.seclea.com",
+            username: str = None,
+            password: str = None,
     ):
         """
         Create a SecleaAI object to manage a session. Requires a project name and framework.
@@ -122,14 +125,14 @@ class SecleaAI:
             raise AuthenticationError("Failed to login.")
 
     def upload_dataset(
-        self,
-        dataset: Union[str, List[str], DataFrame],
-        dataset_name: str,
-        metadata: Dict,
-        parent: DataFrame = None,
-        transformations: List[
-            Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
-        ] = None,
+            self,
+            dataset: Union[str, List[str], DataFrame],
+            dataset_name: str,
+            metadata: Dict,
+            parent: DataFrame = None,
+            transformations: List[
+                Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
+            ] = None,
     ):
         """
         Uploads a dataset. Does not set the dataset for the session. Should be carried out before setting the dataset.
@@ -179,23 +182,22 @@ class SecleaAI:
         if isinstance(dataset, DataFrame):
             if not os.path.exists(self._cache_dir):
                 os.makedirs(self._cache_dir)
-            temp_path = os.path.join(self._cache_dir, "temp_dataset.csv")
-            dataset.to_csv(temp_path, index=False)
+            dataset_path = os.path.join(self._cache_dir, 'tmp.csv')
+            dataset.to_csv(dataset_path, index=False)
         else:
-            dataset = pd.read_csv(dataset, index_col=metadata["index"])
+            dataset_path = dataset
+            dataset = pd.read_csv(dataset_path, index_col=metadata["index"])
 
-        comp_path = f"{temp_path}/compressed"
-        rb = open(temp_path, "rb")
-        save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
+        comp_path = os.path.join(self._cache_dir, 'compressed')
+        rb = open(dataset_path, "rb")
+        comp_path = save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
         dataset_hash = pd.util.hash_pandas_object(dataset).sum()
-        dataset = comp_path
 
         dataset_hash = hash(dataset_hash + self._project)
-        from svc.api.collection.dataset import post_dataset
 
         response = post_dataset(
             transmission=self._transmission,
-            dataset_file_path=dataset,
+            dataset_file_path=comp_path,
             project_pk=self._project,
             organization_pk=self._organization,
             name=dataset_name,
@@ -435,7 +437,7 @@ class SecleaAI:
         )
 
     def _upload_training_run(
-        self, training_run_name: str, model_pk: int, dataset_pk: str, params: Dict
+            self, training_run_name: str, model_pk: int, dataset_pk: str, params: Dict
     ):
         """
 
@@ -462,12 +464,12 @@ class SecleaAI:
         )
 
     def _upload_model_state(
-        self,
-        model,
-        training_run_pk: int,
-        sequence_num: int,
-        final: bool,
-        model_manager: ModelManagers,
+            self,
+            model,
+            training_run_pk: int,
+            sequence_num: int,
+            final: bool,
+            model_manager: ModelManagers,
     ):
         os.makedirs(
             os.path.join(self._cache_dir, str(training_run_pk)),
@@ -477,8 +479,7 @@ class SecleaAI:
         save_path = os.path.join(
             Path.home(), f".seclea/{self._project_name}/{training_run_pk}/model-{sequence_num}"
         )
-        save_object(model_data, save_path, compression=CompressionFactory.ZSTD)
-        from svc.api.collection.model_state import post_model_state
+        save_path = save_object(model_data, save_path, compression=CompressionFactory.ZSTD)
 
         res = post_model_state(
             self._transmission,
@@ -492,12 +493,12 @@ class SecleaAI:
         )
 
         res = handle_response(
-            res, expected=201, msg=f"There was an issue uploading a model state: {res.text}"
+            res, expected=201, msg=f"There was an issue uploading a model state: {res}"
         )
         return res
 
     def _upload_transformations(
-        self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
+            self, transformations: List[Tuple[Callable, List, Dict]], dataset_pk
     ):
         responses = list()
         transformations = self._process_transformations(transformations)
