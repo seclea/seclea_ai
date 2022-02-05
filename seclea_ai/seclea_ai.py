@@ -3,7 +3,6 @@ Description for seclea_ai.py
 """
 import copy
 import inspect
-import json
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Union
@@ -16,15 +15,17 @@ from requests import Response
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
 from seclea_ai.seclea_utils.core import (
-    CompressedFileManager,
-    ModelManager,
+    CompressionFactory,
     RequestWrapper,
-    Zstd,
     decode_func,
     encode_func,
+    save_object,
 )
-from seclea_ai.seclea_utils.model_management.get_model_manager import Frameworks, get_model_manager
+from seclea_ai.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
+
+from .svc.api.collection.dataset import post_dataset
+from .svc.api.collection.model_state import post_model_state
 
 
 def handle_response(res: Response, expected: int, msg: str) -> Response:
@@ -209,6 +210,20 @@ class SecleaAI:
 
         dataset_hash = pd.util.hash_pandas_object(dataset).sum()
 
+        # OCTAVIO CHANGES
+        if isinstance(dataset, DataFrame):
+            if not os.path.exists(self._cache_dir):
+                os.makedirs(self._cache_dir)
+            dataset_path = os.path.join(self._cache_dir, "tmp.csv")
+            dataset.to_csv(dataset_path, index=False)
+        else:
+            dataset_path = dataset
+            dataset = pd.read_csv(dataset_path, index_col=metadata["index"])
+
+        dataset_hash = hash(dataset_hash + self._project)
+
+        # OCTAVIO CHANGES TODO change and update
+
         if transformations is not None:
 
             # check that the parent exists on platform
@@ -245,7 +260,7 @@ class SecleaAI:
 
                 # add data to queue to upload later after final dataset checked
                 upload_kwargs = {
-                    "dataset": copy.deepcopy(dset),
+                    "dataset": copy.deepcopy(dset),  # TODO change keys
                     "dataset_name": copy.deepcopy(dset_name),
                     "metadata": copy.deepcopy(dset_metadata),
                     "parent_hash": pd.util.hash_pandas_object(parent).sum(),
@@ -267,7 +282,7 @@ class SecleaAI:
                     )
             # upload all the datasets and transformations.
             for up_kwargs in upload_queue:
-                self._upload_dataset(**up_kwargs)
+                self._upload_dataset(**up_kwargs)  # TODO change
             return
 
         # this only happens if this has no transformations ie. it is a Raw Dataset.
@@ -358,9 +373,7 @@ class SecleaAI:
             training_run_pk=self._training_run,
             sequence_num=0,
             final=True,
-            model_manager=get_model_manager(
-                framework=framework, data_manager=CompressedFileManager(compression=Zstd())
-            ),
+            model_manager=framework,
         )
 
     @staticmethod
@@ -446,7 +459,7 @@ class SecleaAI:
             res, expected=201, msg=f"There was an issue creating the project: {res.text}"
         )
 
-    def _set_model(self, model_name: str, framework: Frameworks) -> int:
+    def _set_model(self, model_name: str, framework: ModelManagers) -> int:
         """
         Set the model for this session.
         Checks if it has already been uploaded. If not it will upload it.
@@ -529,40 +542,49 @@ class SecleaAI:
         # upload a dataset - only works for a single transformation.
         if not os.path.exists(self._cache_dir):
             os.makedirs(self._cache_dir)
-        temp_path = os.path.join(self._cache_dir, "temp_dataset.csv")
-        dataset.to_csv(temp_path, index=True)
+
+        dataset_path = os.path.join(self._cache_dir, "tmp.csv")
+        dataset.to_csv(dataset_path, index=True)
+        comp_path = os.path.join(self._cache_dir, "compressed")
+        rb = open(dataset_path, "rb")
+        comp_path = save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
+
         dataset_hash = hash(pd.util.hash_pandas_object(dataset).sum() + self._project)
-        dataset = temp_path
 
-        dataset_queryparams = {
-            "project": self._project,
-            "organization": self._organization,
-            "name": dataset_name,
-            "metadata": json.dumps(metadata),
-            "hash": str(dataset_hash),
-            "parent": str(parent_hash) if parent_hash is not None else None,
-        }
-        print("Query Params: ", dataset_queryparams)
+        response = post_dataset(
+            transmission=self._transmission,
+            dataset_file_path=comp_path,
+            project_pk=self._project,
+            organization_pk=self._organization,
+            name=dataset_name,
+            metadata=metadata,
+            dataset_hash=str(dataset_hash),
+            parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
+            delete=True,
+        )
+        handle_response(
+            response, 201, f"There was some issue uploading the dataset: {response.text}"
+        )
 
-        try:
-            res = self._transmission.send_file(
-                url_path="/collection/datasets",
-                file_path=dataset,
-                query_params=dataset_queryparams,
-            )
-            handle_response(res, 201, f"There was some issue uploading the dataset: {res.text}")
-        finally:
-            os.remove(dataset)
+        # dataset_queryparams = {
+        #     "project": self._project,
+        #     "organization": self._organization,
+        #     "name": dataset_name,
+        #     "metadata": json.dumps(metadata),
+        #     "hash": str(dataset_hash),
+        #     "parent": str(parent_hash) if parent_hash is not None else None,
+        # }
+        # print("Query Params: ", dataset_queryparams)
 
         # upload the transformations
-        if res.status_code == 201 and transformation is not None:
+        if response.status_code == 201 and transformation is not None:
             # upload transformations.
             self._upload_transformation(
                 transformation=transformation,
                 dataset_pk=str(dataset_hash),
             )
 
-    def _upload_model(self, model_name: str, framework: Frameworks):
+    def _upload_model(self, model_name: str, framework: ModelManagers):
         """
 
         :param model_name:
@@ -616,37 +638,32 @@ class SecleaAI:
         training_run_pk: int,
         sequence_num: int,
         final: bool,
-        model_manager: ModelManager,
+        model_manager: ModelManagers,
     ):
         os.makedirs(
             os.path.join(self._cache_dir, str(training_run_pk)),
             exist_ok=True,
         )
+        model_data = serialize(model, model_manager)
+        save_path = os.path.join(
+            Path.home(), f".seclea/{self._project_name}/{training_run_pk}/model-{sequence_num}"
+        )
+        save_path = save_object(model_data, save_path, compression=CompressionFactory.ZSTD)
 
-        save_path = model_manager.save_model(
-            model,
-            os.path.join(
-                Path.home(), f".seclea/{self._project_name}/{training_run_pk}/model-{sequence_num}"
-            ),
+        res = post_model_state(
+            self._transmission,
+            save_path,
+            self._organization,
+            self._project,
+            str(training_run_pk),
+            sequence_num,
+            final,
+            True,
         )
 
-        res = self._transmission.send_file(
-            url_path="/collection/model-states",
-            file_path=save_path,
-            query_params={
-                "organization": self._organization,
-                "project": self._project,
-                "sequence_num": sequence_num,
-                "training_run": training_run_pk,
-                "final_state": final,
-            },
+        res = handle_response(
+            res, expected=201, msg=f"There was an issue uploading a model state: {res}"
         )
-        try:
-            res = handle_response(
-                res, expected=201, msg=f"There was an issue uploading a model state: {res.text}"
-            )
-        finally:
-            os.remove(save_path)
         return res
 
     def _upload_transformation(self, transformation: DatasetTransformation, dataset_pk):
@@ -700,15 +717,15 @@ class SecleaAI:
         return aggregated
 
     @staticmethod
-    def _get_framework(model) -> Frameworks:
+    def _get_framework(model) -> ModelManagers:
         module = model.__class__.__module__
         # order is important as xgboost and lightgbm contain sklearn compliant packages.
         # TODO check if we can treat them as sklearn but for now we avoid that issue by doing sklearn last.
         if "xgboost" in module:
-            return Frameworks.XGBOOST
+            return ModelManagers.XGBOOST
         elif "lightgbm" in module:
-            return Frameworks.LIGHTGBM
+            return ModelManagers.LIGHTGBM
         elif "sklearn" in module:
-            return Frameworks.SKLEARN
+            return ModelManagers.SKLEARN
         else:
-            return Frameworks.NOT_IMPORTED
+            return ModelManagers.NOT_IMPORTED

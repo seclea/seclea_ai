@@ -2,7 +2,7 @@ from seclea_ai.seclea_utils.core.transmission import Transmission
 
 from ..errors import throws_api_err
 
-root = "/collection"
+root = "/collection/projects"
 
 
 @throws_api_err
@@ -12,4 +12,4 @@ def get_projects(transmission: Transmission) -> list:
     @param transmission: Transmission type used for communication with server
     @return: List of projects or empty list
     """
-    return transmission.get(f"{root}/projects").json()
+    return transmission.get(f"{root}").json()
