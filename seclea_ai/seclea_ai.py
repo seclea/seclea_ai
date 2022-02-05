@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
+import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
 from requests import Response
@@ -120,8 +121,8 @@ class SecleaAI:
 
     def upload_dataset_split(
         self,
-        X: DataFrame,
-        y: DataFrame,
+        X: Union[DataFrame, np.ndarray],
+        y: Union[DataFrame, np.ndarray],
         dataset_name: str,
         metadata: Dict,
         transformations: List[DatasetTransformation] = None,
@@ -144,6 +145,11 @@ class SecleaAI:
         dataset = self._assemble_dataset({"X": X, "y": y})
         # potentially fragile vvv TODO check this vvv
         metadata["outcome_name"] = y.name
+        # try and extract the index automatically
+        try:
+            metadata["index"] = X.index.name
+        except AttributeError:
+            metadata["index"] = None
         self.upload_dataset(dataset, dataset_name, metadata, transformations)
 
     def upload_dataset(
@@ -193,12 +199,11 @@ class SecleaAI:
             >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
             >>> seclea.upload_dataset(dataset=dataset, dataset_name="Multifile Dataset", metadata=dataset_metadata)
         """
-
         # processing the final dataset - make sure it's a DataFrame
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
         if isinstance(dataset, List):
-            dataset = self._aggregate_dataset(dataset)
+            dataset = self._aggregate_dataset(dataset, index=metadata["index"])
         elif isinstance(dataset, str):
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
 
@@ -274,18 +279,19 @@ class SecleaAI:
             transformation=None,
         )
 
+    def upload_training_run_split(self, model, X: DataFrame, y: Union[DataFrame, Series]) -> None:
+        dataset = self._assemble_dataset({"X": X, "y": y})
+        self.upload_training_run(model=model, dataset=dataset)
+
     def upload_training_run(
         self,
         model,
-        framework: Frameworks,
         dataset: DataFrame,
     ) -> None:
         """
         Takes a model and extracts the necessary data for uploading the training run.
 
         :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
-
-        :param framework: The framework being used. One of {"sklearn", "xgboost", "lgbm"}.
 
         :param dataset: The Dataset as a DataFrame.
 
@@ -308,6 +314,8 @@ class SecleaAI:
         dataset_pk = str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project))
 
         model_name = model.__class__.__name__
+
+        framework = self._get_framework(model)
 
         # check the model exists upload if not
         model_type_pk = self._set_model(model_name=model_name, framework=framework)
@@ -516,13 +524,13 @@ class SecleaAI:
                 split = parent["metadata"]["split"]
 
         # this needs to be here so split is always set.
-        metadata = {**metadata, "split": split}
+        metadata = {**metadata, "split": split, "features": list(dataset.columns)}
 
         # upload a dataset - only works for a single transformation.
         if not os.path.exists(self._cache_dir):
             os.makedirs(self._cache_dir)
         temp_path = os.path.join(self._cache_dir, "temp_dataset.csv")
-        dataset.to_csv(temp_path, index=False)
+        dataset.to_csv(temp_path, index=True)
         dataset_hash = hash(pd.util.hash_pandas_object(dataset).sum() + self._project)
         dataset = temp_path
 
@@ -679,7 +687,7 @@ class SecleaAI:
         return list(map(decode_func, transformations))
 
     @staticmethod
-    def _aggregate_dataset(datasets: List[str]) -> DataFrame:
+    def _aggregate_dataset(datasets: List[str], index) -> DataFrame:
         """
         Aggregates a list of dataset paths into a single file for upload.
         NOTE the files must be split by row and have the same format otherwise this will fail or cause unexpected format
@@ -687,6 +695,20 @@ class SecleaAI:
         :param datasets:
         :return:
         """
-        loaded_datasets = [pd.read_csv(dset) for dset in datasets]
+        loaded_datasets = [pd.read_csv(dset, index_col=index) for dset in datasets]
         aggregated = pd.concat(loaded_datasets, axis=0)
         return aggregated
+
+    @staticmethod
+    def _get_framework(model) -> Frameworks:
+        module = model.__class__.__module__
+        # order is important as xgboost and lightgbm contain sklearn compliant packages.
+        # TODO check if we can treat them as sklearn but for now we avoid that issue by doing sklearn last.
+        if "xgboost" in module:
+            return Frameworks.XGBOOST
+        elif "lightgbm" in module:
+            return Frameworks.LIGHTGBM
+        elif "sklearn" in module:
+            return Frameworks.SKLEARN
+        else:
+            return Frameworks.NOT_IMPORTED

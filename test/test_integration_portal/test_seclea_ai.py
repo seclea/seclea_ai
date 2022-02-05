@@ -5,7 +5,7 @@ from unittest import TestCase
 import numpy as np
 import pandas as pd
 
-from seclea_ai import Frameworks, SecleaAI
+from seclea_ai import SecleaAI
 from seclea_ai.transformations import DatasetTransformation
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -296,14 +296,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
             transformations=self.complicated_transformations_test,
         )
 
-        self.transformations = [
-            encode_nans,
-            (drop_correlated, [corr_thresh], {}),
-            (drop_nulls, [null_thresh], {}),
-            (encode_categorical, [], {}),
-            (fill_na_by_col, [], {"fill_values": na_values}),
-        ]
-
         self.sample_df_1_transformed = df
 
     def step_3_upload_trainingrun(self):
@@ -322,11 +314,11 @@ class TestIntegrationSecleaAIPortal(TestCase):
         model.fit(self.X_sm_scaled, self.y_sm)
         # preds = model.predict(self.X_test_scaled)
 
-        self.controller_1.upload_training_run(
-            model,
-            framework=Frameworks.SKLEARN,
-            dataset=self.sample_df_1_transformed,
-        )
+        self.controller_1.upload_training_run_split(model, X=self.X_sm_scaled, y=self.y_sm)
+
+        model1 = RandomForestClassifier(random_state=42)
+        model1.fit(self.X_sm, self.y_sm)
+        self.controller_1.upload_training_run_split(model, X=self.X_sm, y=self.y_sm)
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
