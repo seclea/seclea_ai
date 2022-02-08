@@ -210,20 +210,6 @@ class SecleaAI:
 
         dataset_hash = pd.util.hash_pandas_object(dataset).sum()
 
-        # OCTAVIO CHANGES
-        if isinstance(dataset, DataFrame):
-            if not os.path.exists(self._cache_dir):
-                os.makedirs(self._cache_dir)
-            dataset_path = os.path.join(self._cache_dir, "tmp.csv")
-            dataset.to_csv(dataset_path, index=False)
-        else:
-            dataset_path = dataset
-            dataset = pd.read_csv(dataset_path, index_col=metadata["index"])
-
-        dataset_hash = hash(dataset_hash + self._project)
-
-        # OCTAVIO CHANGES TODO change and update
-
         if transformations is not None:
 
             # check that the parent exists on platform
