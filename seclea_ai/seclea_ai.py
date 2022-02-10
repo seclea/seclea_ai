@@ -290,6 +290,17 @@ class SecleaAI:
         )
 
     def upload_training_run_split(self, model, X: DataFrame, y: Union[DataFrame, Series]) -> None:
+        """
+        Takes a model and extracts the necessary data for uploading the training run.
+
+        :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
+
+        :param X: Samples
+
+        :param y: Labels
+
+        :return: None
+        """
         dataset = self._assemble_dataset({"X": X, "y": y})
         self.upload_training_run(model=model, dataset=dataset)
 
