@@ -150,7 +150,7 @@ class SecleaAI:
         try:
             metadata["index"] = X.index.name
         except AttributeError:
-            metadata["index"] = None
+            metadata["index"] = 0
         self.upload_dataset(dataset, dataset_name, metadata, transformations)
 
     def upload_dataset(
@@ -203,6 +203,14 @@ class SecleaAI:
         # processing the final dataset - make sure it's a DataFrame
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
+        # here we need to ensure that if there is no index that we use the first column as the index.
+        # We always write the index for consistency.
+        try:
+            if metadata["index"] is None:
+                metadata["index"] = 0
+        except KeyError:
+            metadata["index"] = 0
+
         if isinstance(dataset, List):
             dataset = self._aggregate_dataset(dataset, index=metadata["index"])
         elif isinstance(dataset, str):
@@ -264,7 +272,8 @@ class SecleaAI:
                     == up_kwargs["parent_hash"]
                 ):
                     raise AssertionError(
-                        f"The transformation {up_kwargs['transformation'].func.__name__} does not change the dataset. Please remove it and try again."
+                        f"""The transformation {up_kwargs['transformation'].func.__name__} does not change the dataset.
+                        Please remove it and try again."""
                     )
             # upload all the datasets and transformations.
             for up_kwargs in upload_queue:
