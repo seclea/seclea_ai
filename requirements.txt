@@ -13,5 +13,5 @@ setuptools>=49.2.1
 Sphinx==4.1.1
 sphinx-rtd-theme==0.5.2
 ujson>=4.0.2
-xgbooost>=1.5.1
+xgbooost>=1.4.0
 zstandard>=0.16.0
