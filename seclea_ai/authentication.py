@@ -43,9 +43,9 @@ class AuthenticationService:
     def __init__(self, url: str, session: Session, transmission: Transmission):
         self._instance = None
         self._session = session
-        self._db = Storage(db_name="auth_service", root="." if IN_COLAB else None)
         self._url = url
         self._transmission = transmission
+        self._db = Storage(db_name="auth_service", root="." if IN_COLAB else None)
         self._path_token_obtain = "/api/token/obtain/"
         self._path_token_refresh = "/api/token/refresh/"
         self._path_token_verify = "/api/token/verify/"
