@@ -1,6 +1,6 @@
 from getpass import getpass
 
-from requests import Response, Session
+from requests import Response
 
 from seclea_ai.exceptions import AuthenticationError
 from seclea_ai.seclea_utils.core import Transmission
@@ -40,9 +40,8 @@ def singleton(cls):
 
 @singleton
 class AuthenticationService:
-    def __init__(self, url: str, session: Session, transmission: Transmission):
+    def __init__(self, url: str, transmission: Transmission):
         self._instance = None
-        self._session = session
         self._url = url
         self._transmission = transmission
         self._db = Storage(db_name="auth_service", root="." if IN_COLAB else None)
