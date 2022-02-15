@@ -139,7 +139,13 @@ class SecleaAI:
 
         :param metadata: Any metadata about the Dataset. Required keys are:
             "index" and "continuous_features"
-        :param transformations:
+
+        :param transformations: A list of DatasetTransformation's.
+
+                        If your Dataset is large try and call this function more often with less DatasetTransformations
+                        as the function currently requires (no. DatasetTransformations x Dataset size) memory.
+
+                        See DatasetTransformation for more details.
 
         :return: None
         """
@@ -163,13 +169,14 @@ class SecleaAI:
         """
         Uploads a dataset.
 
-        :param dataset: Path or list of paths to the dataset or DataFrame containing the dataset.
+        :param dataset: DataFrame, Path or list of paths to the dataset.
             If a list then they must be split by row only and all
             files must contain column names as a header line.
 
         :param dataset_name: The name of the dataset.
 
-        :param metadata: Any metadata about the dataset.
+        :param metadata: Any metadata about the dataset. Note that if using a Path or list of Paths then if there is an
+            index that you use when loading the data, it must be specified in the metadata.
 
         :param transformations: A list of DatasetTransformation's.
 
@@ -181,9 +188,15 @@ class SecleaAI:
         :return: None
 
         Example:: TODO update docs
-
             >>> seclea = SecleaAI(project_name="Test Project")
+            >>> dataset = pd.read_csv("/test_folder/dataset_file.csv")
+            >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
+            >>> seclea.upload_dataset(dataset=dataset, dataset_name="Multifile Dataset", metadata=dataset_metadata)
+
+        Example with file::
+
             >>> seclea.upload_dataset(dataset="/test_folder/dataset_file.csv", dataset_name="Test Dataset", metadata={})
+            >>> seclea = SecleaAI(project_name="Test Project", organization="Test Organization")
 
         Assuming the files are all in the /test_folder/dataset directory.
         Example with multiple files::
@@ -193,12 +206,6 @@ class SecleaAI:
             >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
             >>> seclea.upload_dataset(dataset=files, dataset_name="Multifile Dataset", metadata=dataset_metadata)
 
-        Example with DataFrame::
-
-            >>> seclea = SecleaAI(project_name="Test Project")
-            >>> dataset = pd.read_csv("/test_folder/dataset_file.csv")
-            >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
-            >>> seclea.upload_dataset(dataset=dataset, dataset_name="Multifile Dataset", metadata=dataset_metadata)
         """
         # processing the final dataset - make sure it's a DataFrame
         if self._project is None:
@@ -295,9 +302,9 @@ class SecleaAI:
 
         :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
 
-        :param X: Samples
+        :param X: Samples of the dataset that the model is trained on
 
-        :param y: Labels
+        :param y: Labels of the dataset that the model is trained on.
 
         :return: None
         """
@@ -314,7 +321,7 @@ class SecleaAI:
 
         :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
 
-        :param dataset: The Dataset as a DataFrame.
+        :param dataset: DataFrame The Dataset that the model is trained on.
 
         :return: None
 
