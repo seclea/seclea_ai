@@ -23,14 +23,33 @@ Example Usage
 
 Example of a simple Jupyter Notebook for a project using seclea_ai::
 
-    from seclea_ai import SecleaAI,
+    from seclea_ai import SecleaAI
     import pandas as pd
 
-    seclea = SecleaAI(project_name="Test Project")
+    seclea = SecleaAI(project_name="Test Project", organization="Test Org")
+
+::
 
     dataset = pd.read_csv("/content/dataset.csv")
 
-    seclea.upload_dataset("/content/dataset.csv", dataset_name="Test Dataset")
+    dataset_metadata = {
+            "outcome_name": "fraud_reported",
+            "continuous_features": [
+                "total_claim_amount",
+                "policy_annual_premium",
+                "capital-gains",
+                "capital-loss",
+                "injury_claim",
+                "property_claim",
+                "vehicle_claim",
+                "incident_hour_of_the_day",
+            ],
+        }
+
+    seclea.upload_dataset(dataset, dataset_name="Test Dataset", metadata=dataset_metadata
+
+    # Alternative - using a file instead of a loaded DataFrame.
+    # seclea.upload_dataset("/content/dataset.csv", dataset_name="Test Dataset", metadata=dataset_metadata)
 
 ::
 
@@ -62,7 +81,7 @@ Example of a simple Jupyter Notebook for a project using seclea_ai::
 
     import xgboost as xgb
 
-    label = dataset["isFraud"].copy(deep=True)
+    label =
     dataset = dataset.drop("isFraud", axis=1)
 
     threshold = 0.98
@@ -75,12 +94,16 @@ Example of a simple Jupyter Notebook for a project using seclea_ai::
         "Hours",
     ]
 
-    dataset = remove_correlated_features(dataset, keep, threshold)
+    dataset_cleaned = remove_correlated_features(dataset, keep, threshold)
 
-    dataset = encode_categorical(dataset)
+    dataset_cleaned = encode_categorical(dataset_cleaned)
 
     # load to XGBoost format
-    dtrain = xgb.DMatrix(data=data, label=label)
+    dtrain = xgb.DMatrix(
+                         data=dataset_cleaned.drop("isFraud", axis=1),
+                         label=dataset_cleaned["isFraud"].copy(deep=True)
+                         )
+
     # setup training params
     params = dict(max_depth=2, eta=1, objective="binary:logistic", nthread=4, eval_metric="auc")
     num_rounds = 5
@@ -88,12 +111,29 @@ Example of a simple Jupyter Notebook for a project using seclea_ai::
     # train model
     booster = xgb.train(params=params, dtrain=dtrain, num_boost_round=num_rounds)
 
+    transformations = [DatasetTransformation(
+                                            remove_correlated_features,
+                                            data_kwargs={"dataframe": dataset},
+                                            kwargs={"keep": keep, "threshold": threshold},
+                                            outputs=["dataframe"]
+                                            ),
+                       DatasetTransformation(
+                                            encode_categorical,
+                                            data_kwargs={"dataframe": inherit},
+                                            kwargs={},
+                                            outputs=["dataframe"]
+                                            )]
+
+    seclea.upload_dataset(
+        dataset_cleaned,
+        dataset_name="Test Dataset Cleaned",
+        metadata=dataset_metadata,
+        transformations=transformations,
+    )
+
     # upload model state and data
     seclea.upload_training_run(
         booster,
-        model_type="GradientBoostingMachine",
-        framework="xgboost",
-        dataset_name="Test Dataset",
-        transformations=[(remove_correlated_features, {"keep": keep, "threshold": threshold}), encode_categorical]
+        dataset=dataset_cleaned,
     )
 
