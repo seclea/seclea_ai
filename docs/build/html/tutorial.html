@@ -184,14 +184,32 @@ functions are designed to record and upload activities or data associated with y
 <section id="example-usage">
 <h2>Example Usage<a class="headerlink" href="#example-usage" title="Permalink to this headline">¶</a></h2>
 <p>Example of a simple Jupyter Notebook for a project using seclea_ai:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">seclea_ai</span> <span class="k">import</span> <span class="n">SecleaAI</span><span class="p">,</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">seclea_ai</span> <span class="k">import</span> <span class="n">SecleaAI</span>
 <span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
 
-<span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">)</span>
+<span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">,</span> <span class="n">organization</span><span class="o">=</span><span class="s2">&quot;Test Org&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">dataset</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;/content/dataset.csv&quot;</span><span class="p">)</span>
 
-<span class="n">dataset</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;/content/dataset.csv&quot;</span><span class="p">)</span>
+<span class="n">dataset_metadata</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;outcome_name&quot;</span><span class="p">:</span> <span class="s2">&quot;fraud_reported&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;continuous_features&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="s2">&quot;total_claim_amount&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;policy_annual_premium&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;capital-gains&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;capital-loss&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;injury_claim&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;property_claim&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;vehicle_claim&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;incident_hour_of_the_day&quot;</span><span class="p">,</span>
+        <span class="p">],</span>
+    <span class="p">}</span>
 
-<span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="s2">&quot;/content/dataset.csv&quot;</span><span class="p">,</span> <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Test Dataset&quot;</span><span class="p">)</span>
+<span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Test Dataset&quot;</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">dataset_metadata</span>
+
+<span class="c1"># Alternative - using a file instead of a loaded DataFrame.</span>
+<span class="c1"># seclea.upload_dataset(&quot;/content/dataset.csv&quot;, dataset_name=&quot;Test Dataset&quot;, metadata=dataset_metadata)</span>
 </pre></div>
 </div>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">remove_correlated_features</span><span class="p">(</span><span class="n">dataframe</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span> <span class="n">keep</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DataFrame</span><span class="p">:</span>
@@ -221,9 +239,6 @@ functions are designed to record and upload activities or data associated with y
 </div>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">xgboost</span> <span class="k">as</span> <span class="nn">xgb</span>
 
-<span class="n">label</span> <span class="o">=</span> <span class="n">dataset</span><span class="p">[</span><span class="s2">&quot;isFraud&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="n">dataset</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s2">&quot;isFraud&quot;</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-
 <span class="n">threshold</span> <span class="o">=</span> <span class="mf">0.98</span>
 
 <span class="n">keep</span> <span class="o">=</span> <span class="p">[</span>
@@ -234,12 +249,16 @@ functions are designed to record and upload activities or data associated with y
     <span class="s2">&quot;Hours&quot;</span><span class="p">,</span>
 <span class="p">]</span>
 
-<span class="n">dataset</span> <span class="o">=</span> <span class="n">remove_correlated_features</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">keep</span><span class="p">,</span> <span class="n">threshold</span><span class="p">)</span>
+<span class="n">dataset_cleaned</span> <span class="o">=</span> <span class="n">remove_correlated_features</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">keep</span><span class="p">,</span> <span class="n">threshold</span><span class="p">)</span>
 
-<span class="n">dataset</span> <span class="o">=</span> <span class="n">encode_categorical</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
+<span class="n">dataset_cleaned</span> <span class="o">=</span> <span class="n">encode_categorical</span><span class="p">(</span><span class="n">dataset_cleaned</span><span class="p">)</span>
 
 <span class="c1"># load to XGBoost format</span>
-<span class="n">dtrain</span> <span class="o">=</span> <span class="n">xgb</span><span class="o">.</span><span class="n">DMatrix</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
+<span class="n">dtrain</span> <span class="o">=</span> <span class="n">xgb</span><span class="o">.</span><span class="n">DMatrix</span><span class="p">(</span>
+                     <span class="n">data</span><span class="o">=</span><span class="n">dataset_cleaned</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s2">&quot;isFraud&quot;</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+                     <span class="n">label</span><span class="o">=</span><span class="n">dataset_cleaned</span><span class="p">[</span><span class="s2">&quot;isFraud&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                     <span class="p">)</span>
+
 <span class="c1"># setup training params</span>
 <span class="n">params</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">max_depth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">eta</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">objective</span><span class="o">=</span><span class="s2">&quot;binary:logistic&quot;</span><span class="p">,</span> <span class="n">nthread</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">eval_metric</span><span class="o">=</span><span class="s2">&quot;auc&quot;</span><span class="p">)</span>
 <span class="n">num_rounds</span> <span class="o">=</span> <span class="mi">5</span>
@@ -247,13 +266,30 @@ functions are designed to record and upload activities or data associated with y
 <span class="c1"># train model</span>
 <span class="n">booster</span> <span class="o">=</span> <span class="n">xgb</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span> <span class="n">dtrain</span><span class="o">=</span><span class="n">dtrain</span><span class="p">,</span> <span class="n">num_boost_round</span><span class="o">=</span><span class="n">num_rounds</span><span class="p">)</span>
 
+<span class="n">transformations</span> <span class="o">=</span> <span class="p">[</span><span class="n">DatasetTransformation</span><span class="p">(</span>
+                                        <span class="n">remove_correlated_features</span><span class="p">,</span>
+                                        <span class="n">data_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;dataframe&quot;</span><span class="p">:</span> <span class="n">dataset</span><span class="p">},</span>
+                                        <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;keep&quot;</span><span class="p">:</span> <span class="n">keep</span><span class="p">,</span> <span class="s2">&quot;threshold&quot;</span><span class="p">:</span> <span class="n">threshold</span><span class="p">},</span>
+                                        <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;dataframe&quot;</span><span class="p">]</span>
+                                        <span class="p">),</span>
+                   <span class="n">DatasetTransformation</span><span class="p">(</span>
+                                        <span class="n">encode_categorical</span><span class="p">,</span>
+                                        <span class="n">data_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;dataframe&quot;</span><span class="p">:</span> <span class="n">inherit</span><span class="p">},</span>
+                                        <span class="n">kwargs</span><span class="o">=</span><span class="p">{},</span>
+                                        <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;dataframe&quot;</span><span class="p">]</span>
+                                        <span class="p">)]</span>
+
+<span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span>
+    <span class="n">dataset_cleaned</span><span class="p">,</span>
+    <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Test Dataset Cleaned&quot;</span><span class="p">,</span>
+    <span class="n">metadata</span><span class="o">=</span><span class="n">dataset_metadata</span><span class="p">,</span>
+    <span class="n">transformations</span><span class="o">=</span><span class="n">transformations</span><span class="p">,</span>
+<span class="p">)</span>
+
 <span class="c1"># upload model state and data</span>
 <span class="n">seclea</span><span class="o">.</span><span class="n">upload_training_run</span><span class="p">(</span>
     <span class="n">booster</span><span class="p">,</span>
-    <span class="n">model_type</span><span class="o">=</span><span class="s2">&quot;GradientBoostingMachine&quot;</span><span class="p">,</span>
-    <span class="n">framework</span><span class="o">=</span><span class="s2">&quot;xgboost&quot;</span><span class="p">,</span>
-    <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Test Dataset&quot;</span><span class="p">,</span>
-    <span class="n">transformations</span><span class="o">=</span><span class="p">[(</span><span class="n">remove_correlated_features</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;keep&quot;</span><span class="p">:</span> <span class="n">keep</span><span class="p">,</span> <span class="s2">&quot;threshold&quot;</span><span class="p">:</span> <span class="n">threshold</span><span class="p">}),</span> <span class="n">encode_categorical</span><span class="p">]</span>
+    <span class="n">dataset</span><span class="o">=</span><span class="n">dataset_cleaned</span><span class="p">,</span>
 <span class="p">)</span>
 </pre></div>
 </div>
