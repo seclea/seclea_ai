@@ -197,11 +197,12 @@ but may appear in scripting usage.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>dataset</strong> – Path or list of paths to the dataset or DataFrame containing the dataset.
+<li><p><strong>dataset</strong> – DataFrame, Path or list of paths to the dataset.
 If a list then they must be split by row only and all
 files must contain column names as a header line.</p></li>
 <li><p><strong>dataset_name</strong> – The name of the dataset.</p></li>
-<li><p><strong>metadata</strong> – Any metadata about the dataset.</p></li>
+<li><p><strong>metadata</strong> – Any metadata about the dataset. Note that if using a Path or list of Paths then if there is an
+index that you use when loading the data, it must be specified in the metadata.</p></li>
 <li><p><strong>transformations</strong> – <p>A list of DatasetTransformation’s.</p>
 <p>If your Dataset is large try call this function more often with less DatasetTransformations
 as the function currently requires no. DatasetTransformations x Dataset size memory to function.</p>
@@ -213,9 +214,18 @@ as the function currently requires no. DatasetTransformations x Dataset size mem
 <dd class="field-even"><p>None</p>
 </dd>
 </dl>
-<p>Example:: TODO update docs</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="s2">&quot;/test_folder/dataset_file.csv&quot;</span><span class="p">,</span> <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Test Dataset&quot;</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="p">{})</span>
+<dl>
+<dt>Example:: TODO update docs</dt><dd><div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;/test_folder/dataset_file.csv&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset_metadata</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;index&quot;</span><span class="p">:</span> <span class="s2">&quot;TransactionID&quot;</span><span class="p">,</span> <span class="s2">&quot;outcome_name&quot;</span><span class="p">:</span> <span class="s2">&quot;isFraud&quot;</span><span class="p">,</span> <span class="s2">&quot;continuous_features&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;TransactionDT&quot;</span><span class="p">,</span> <span class="s2">&quot;TransactionAmt&quot;</span><span class="p">]}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">dataset</span><span class="p">,</span> <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Multifile Dataset&quot;</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">dataset_metadata</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+<p>Example with file:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="s2">&quot;/test_folder/dataset_file.csv&quot;</span><span class="p">,</span> <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Test Dataset&quot;</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="p">{})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">,</span> <span class="n">organization</span><span class="o">=</span><span class="s2">&quot;Test Organization&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Assuming the files are all in the /test_folder/dataset directory.
@@ -224,13 +234,6 @@ Example with multiple files:</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">dataset_metadata</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;index&quot;</span><span class="p">:</span> <span class="s2">&quot;TransactionID&quot;</span><span class="p">,</span> <span class="s2">&quot;outcome_name&quot;</span><span class="p">:</span> <span class="s2">&quot;isFraud&quot;</span><span class="p">,</span> <span class="s2">&quot;continuous_features&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;TransactionDT&quot;</span><span class="p">,</span> <span class="s2">&quot;TransactionAmt&quot;</span><span class="p">]}</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">files</span><span class="p">,</span> <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Multifile Dataset&quot;</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">dataset_metadata</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>Example with DataFrame:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;/test_folder/dataset_file.csv&quot;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">dataset_metadata</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;index&quot;</span><span class="p">:</span> <span class="s2">&quot;TransactionID&quot;</span><span class="p">,</span> <span class="s2">&quot;outcome_name&quot;</span><span class="p">:</span> <span class="s2">&quot;isFraud&quot;</span><span class="p">,</span> <span class="s2">&quot;continuous_features&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;TransactionDT&quot;</span><span class="p">,</span> <span class="s2">&quot;TransactionAmt&quot;</span><span class="p">]}</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">dataset</span><span class="p">,</span> <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Multifile Dataset&quot;</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">dataset_metadata</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -247,7 +250,11 @@ Example with multiple files:</p>
 <li><p><strong>dataset_name</strong> – The name of the Dataset</p></li>
 <li><p><strong>metadata</strong> – Any metadata about the Dataset. Required keys are:
 “index” and “continuous_features”</p></li>
-<li><p><strong>transformations</strong> – </p></li>
+<li><p><strong>transformations</strong> – <p>A list of DatasetTransformation’s.</p>
+<p>If your Dataset is large try and call this function more often with less DatasetTransformations
+as the function currently requires (no. DatasetTransformations x Dataset size) memory.</p>
+<p>See DatasetTransformation for more details.</p>
+</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -264,7 +271,7 @@ Example with multiple files:</p>
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>model</strong> – An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.</p></li>
-<li><p><strong>dataset</strong> – The Dataset as a DataFrame.</p></li>
+<li><p><strong>dataset</strong> – DataFrame The Dataset that the model is trained on.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -293,8 +300,8 @@ Example with multiple files:</p>
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>model</strong> – An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.</p></li>
-<li><p><strong>X</strong> – Samples</p></li>
-<li><p><strong>y</strong> – Labels</p></li>
+<li><p><strong>X</strong> – Samples of the dataset that the model is trained on</p></li>
+<li><p><strong>y</strong> – Labels of the dataset that the model is trained on.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
