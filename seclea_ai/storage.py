@@ -12,9 +12,9 @@ class Storage:
         @param db_name: name of database
         """
         if root is None:
-            self._path = f"{Path.home()}/.seclea/{db_name}"
-        else:
-            self._path = f"{root}/{db_name}"
+            root = f"{Path.home()}/.seclea/"
+        self._path = f"{root}/{db_name}"
+        Path(root).mkdir(parents=True, exist_ok=True)
         self.db = db.load(self._path, True)
 
     @property
@@ -27,7 +27,8 @@ class Storage:
         :param path:
         :return:
         """
-        Path(path).mkdir(parents=True, exist_ok=True)
+        path_root = path.split("/")[-1].join("/")
+        Path(path_root).mkdir(parents=True, exist_ok=True)
         self._path = path
         self.db = db.load(self._path, True)
 
