@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest import mock
 from unittest.mock import mock_open, patch
@@ -5,6 +6,10 @@ from unittest.mock import mock_open, patch
 import responses
 
 from seclea_ai import SecleaAI
+
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+folder_path = os.path.join(base_dir, "")
+print(folder_path)
 
 
 class TestSecleaAI(unittest.TestCase):
@@ -50,6 +55,7 @@ class TestSecleaAI(unittest.TestCase):
         ) as mock_file:
             SecleaAI(
                 project_name="test-project",
+                organization="Onespan",
                 platform_url="http://localhost:8000",
                 auth_url="http://localhost:8010",
             )
@@ -80,6 +86,7 @@ class TestSecleaAI(unittest.TestCase):
         with self.assertRaises(ValueError):
             SecleaAI(
                 project_name="New Project",
+                organization="Onespan",
                 platform_url="http://localhost:8000",
                 auth_url="http://localhost:8010",
             )
@@ -127,6 +134,7 @@ class TestSecleaAI(unittest.TestCase):
         with self.assertRaises(ValueError):
             SecleaAI(
                 project_name="New Project",
+                organization="Onespan",
                 platform_url="http://localhost:8000",
                 auth_url="http://localhost:8010",
             )
