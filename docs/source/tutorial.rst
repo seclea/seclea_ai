@@ -81,9 +81,6 @@ Example of a simple Jupyter Notebook for a project using seclea_ai::
 
     import xgboost as xgb
 
-    label =
-    dataset = dataset.drop("isFraud", axis=1)
-
     threshold = 0.98
 
     keep = [
