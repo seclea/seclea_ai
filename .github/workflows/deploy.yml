@@ -1,4 +1,4 @@
-name: Deploy minor version to PyPI
+name: Deploy to PyPI
 
 on:
   push:
