@@ -3,6 +3,8 @@ name: Integration Testing
 on:
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    branches: [dev, feature/deploy-to-conda]
 
 jobs:
   test:
