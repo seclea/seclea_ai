@@ -50,7 +50,7 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
     """
     if not res.status_code == expected:
         raise ValueError(
-            f"Response Status code {res.status_code}, expected:{expected}. \n{msg} - {res.reason} - {res.text}"
+            f"Response Status code {res.status_code}, expected:{expected}. \n{msg} - {res.content}"
         )
     return res
 
@@ -209,7 +209,7 @@ class SecleaAI:
             delete=True,
         )
         handle_response(
-            response, 201, f"There was some issue uploading the dataset: {response.text}"
+            response, 201, f"There was some issue uploading the dataset: {response.status_code}"
         )
 
         if response.status_code == 201 and transformations is not None:
@@ -452,7 +452,7 @@ class SecleaAI:
             obj={
                 "organization": self._organization,
                 "project": self._project,
-                "dataset": dataset_pk,
+                "dataset": [dataset_pk],
                 "model": model_pk,
                 "name": training_run_name,
                 "params": params,
