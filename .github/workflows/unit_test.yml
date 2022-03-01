@@ -1,8 +1,8 @@
-name: Python Package Testing
+name: Unit Testing
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [dev]
 
 jobs:
   validate:
