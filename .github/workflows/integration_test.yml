@@ -64,8 +64,13 @@ jobs:
         credentials:
           username: AWS
           password: ${{ needs.authenticate.outputs.password }}
+        options: >-
+          --health-cmd "curl localhost:8000"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
         env:
-          ENV_ROLE: production
+          ENV_ROLE: development
           DEBUG: _json_'true'
           STATIC_URL: static/
           DATABASE: postgres
@@ -94,7 +99,7 @@ jobs:
           username: AWS
           password: ${{ needs.authenticate.outputs.password }}
         env:
-          ENV_ROLE: production
+          ENV_ROLE: development
           DEBUG: _json_'true'
           STATIC_URL: static/
           DATABASE: postgres
@@ -120,8 +125,13 @@ jobs:
         credentials:
           username: AWS
           password: ${{ needs.authenticate.outputs.password }}
+        options: >-
+          --health-cmd "curl localhost:8010"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
         env:
-          ENV_ROLE: production
+          ENV_ROLE: development
           ENVIRONMENT: account_management
           DEBUG: _json_'false'
           DATABASE: postgres
