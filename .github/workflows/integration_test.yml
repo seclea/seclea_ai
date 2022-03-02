@@ -36,6 +36,11 @@ jobs:
     services:
       postgres:
         image: postgres:13.2
+        options: >-
+          --health-cmd "pg_isready -q -d postgres -U app_user"
+          --health-interval: 10s
+          --health-timeout: 10s
+          --health-retries: 5
         env:
           POSTGRES_DB: app
           POSTGRES_USER: app_user
@@ -67,7 +72,7 @@ jobs:
           SQL_DATABASE: app
           SQL_USER: app_user
           SQL_PASSWORD: postgres
-          SQL_HOST: localhost
+          SQL_HOST: postgres
           SQL_PORT: 5432
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           VERIFY_KEY: ${{ secrets.VERIFY_KEY }}
@@ -96,7 +101,7 @@ jobs:
           SQL_DATABASE: app
           SQL_USER: app_user
           SQL_PASSWORD: postgres
-          SQL_HOST: localhost
+          SQL_HOST: postgres
           SQL_PORT: 5432
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           VERIFY_KEY: ${{ secrets.VERIFY_KEY }}
