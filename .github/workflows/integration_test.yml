@@ -7,9 +7,28 @@ on:
     branches: [dev, feature/deploy-to-conda]
 
 jobs:
+  authenticate:
+    runs-on: ubuntu-latest
+    outputs:
+      password: ${{ steps.authenticate.outputs.password }}
+    steps:
+      - name: Install AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
+      - name: Set auth for AWS
+        run: |
+          export AWS_ACCESS_KEY_ID=${{ secrets.AWS_BUILD_USER_ACCESS_KEY }}
+          export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_BUILD_USER_SECRET_ACCESS_KEY }}
+          export AWS_DEFAULT_REGION=eu-west-2
+      - id: authenticate
+        run: echo "::set-output name=password::$(aws ecr get-login-password --region eu-west-2)"
+
   test:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ${{ matrix.os }}
+    needs: authenticate
     strategy:
       max-parallel: 12
       matrix:
@@ -42,7 +61,10 @@ jobs:
           - 6379:6379
 
       portal:
-        image: https://052208718180.dkr.ecr.eu-west-2.amazonaws.com/seclea-portal:latest
+        image: 052208718180.dkr.ecr.eu-west-2.amazonaws.com/seclea-portal:latest
+        credentials:
+          username: AWS
+          password: ${{ needs.authenticate.outputs.password }}
         env:
           ENV_ROLE: production
           DEBUG: _json_'true'
@@ -68,7 +90,10 @@ jobs:
           - 8000:8000
 
       portal-celery:
-        image: https://052208718180.dkr.ecr.eu-west-2.amazonaws.com/seclea-portal-celery:latest
+        image: 052208718180.dkr.ecr.eu-west-2.amazonaws.com/seclea-portal-celery:latest
+        credentials:
+          username: AWS
+          password: ${{ needs.authenticate.outputs.password }}
         env:
           ENV_ROLE: production
           DEBUG: _json_'true'
@@ -92,7 +117,10 @@ jobs:
           AUTH_COOKIE_DOMAIN: ""
 
       auth:
-        image: https://052208718180.dkr.ecr.eu-west-2.amazonaws.com/seclea-account-management:latest
+        image: 052208718180.dkr.ecr.eu-west-2.amazonaws.com/seclea-account-management:latest
+        credentials:
+          username: AWS
+          password: ${{ needs.authenticate.outputs.password }}
         env:
           ENV_ROLE: production
           ENVIRONMENT: account_management
