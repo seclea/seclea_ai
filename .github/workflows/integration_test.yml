@@ -38,9 +38,9 @@ jobs:
         image: postgres:13.2
         options: >-
           --health-cmd "pg_isready -q -d postgres -U app_user"
-          --health-interval: 10s
-          --health-timeout: 10s
-          --health-retries: 5
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 5
         env:
           POSTGRES_DB: app
           POSTGRES_USER: app_user
