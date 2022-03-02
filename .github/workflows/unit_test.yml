@@ -1,8 +1,10 @@
-name: Python Package Testing
+name: Unit Testing
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [dev]
+  workflow_dispatch:
+    branches: [dev, feature/deploy-to-conda]
 
 jobs:
   validate:

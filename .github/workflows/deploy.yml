@@ -1,10 +1,11 @@
-name: Deploy minor version to PyPI
+name: Deploy to PyPI
 
 on:
-  pull_request:
-    types: [closed]
-    branches:
-      - dev
+  push:
+    tags:
+      - "*"
+  workflow_dispatch:
+    branches: [dev, feature/deploy-to-conda]
 
 jobs:
   build-and-upload:
@@ -21,10 +22,13 @@ jobs:
           token: ${{ secrets.TOKEN_AUTOMATION }}
           submodules: "recursive"
 
+      - name: Get the version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+
       - name: Increment version in setup.py
         run: |
-          pip3 install bump2version==1.0.1
-          ./scripts/increment-version.sh patch
+          ./scripts/update-version.sh ${{ steps.get_version.outputs.VERSION }}
 
       - name: Build Sphinx Documentation
         run: |
@@ -58,8 +62,8 @@ jobs:
           pip3 install wheel
           python3 setup.py bdist_wheel
 
-      - name: Upload wheel
-        run: |
-          pip3 install twine
-          twine upload dist/*
-        continue-on-error: false
+#      - name: Upload wheel
+#        run: |
+#          pip3 install twine
+#          twine upload dist/*
+#        continue-on-error: false
