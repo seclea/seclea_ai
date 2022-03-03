@@ -190,6 +190,12 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install -r requirements.txt
+      - name: Create user
+        run: |
+          export DJANGO_SUPERUSER_USERNAME="onespanadmin"
+          export DJANGO_SUPERUSER_PASSWORD="asdf"
+          export DJANGO_SUPERUSER_EMAIL="test@test.tst"
+          docker exec -it auth "python manage.py createsuperuser --no-input
       - name: Run Tests
         run: |
           python -m unittest discover test/test_integration_portal
