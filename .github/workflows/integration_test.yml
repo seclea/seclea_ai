@@ -89,7 +89,7 @@ jobs:
           CELERY_RESULT_BACKEND: "redis://localhost:6379"
           AUTH_COOKIE_SECURE: _json_false
           AUTH_COOKIE_HTTP_ONLY: _json_false
-          AUTH_COOKIE_DOMAIN: ""
+          AUTH_COOKIE_DOMAIN: " "
         ports:
           - 8000:8000
 
@@ -118,7 +118,7 @@ jobs:
           CELERY_RESULT_BACKEND: "redis://localhost:6379"
           AUTH_COOKIE_SECURE: _json_false
           AUTH_COOKIE_HTTP_ONLY: _json_false
-          AUTH_COOKIE_DOMAIN: ""
+          AUTH_COOKIE_DOMAIN: " "
 
       auth:
         image: 052208718180.dkr.ecr.eu-west-2.amazonaws.com/seclea-account-management:latest
@@ -153,7 +153,7 @@ jobs:
           ENABLE_PML_FILE_LOGGING: _json_false
           AUTH_COOKIE_SECURE: _json_false
           AUTH_COOKIE_HTTP_ONLY: _json_false
-          AUTH_COOKIE_DOMAIN: ""
+          AUTH_COOKIE_DOMAIN: " "
         ports:
           - 8010:8010
 
