@@ -120,7 +120,7 @@ jobs:
           SQL_DATABASE: app
           SQL_USER: app_user
           SQL_PASSWORD: postgres
-          SQL_HOST: postgres-portal
+          SQL_HOST: localhost
           SQL_PORT: 5432
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           VERIFY_KEY: ${{ secrets.VERIFY_KEY }}
@@ -153,7 +153,7 @@ jobs:
           SQL_DATABASE: auth
           SQL_USER: app_user
           SQL_PASSWORD: postgres
-          SQL_HOST: postgres-auth
+          SQL_HOST: localhost
           SQL_PORT: 5433
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
