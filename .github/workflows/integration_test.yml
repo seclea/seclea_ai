@@ -152,8 +152,8 @@ jobs:
           SQL_ENGINE: django.db.backends.postgresql
           SQL_DATABASE: auth
           SQL_USER: app_user
-          SQL_PASSWORD: postgres-auth
-          SQL_HOST: localhost
+          SQL_PASSWORD: postgres
+          SQL_HOST: postgres-auth
           SQL_PORT: 5433
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
