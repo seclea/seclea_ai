@@ -60,7 +60,7 @@ jobs:
           POSTGRES_USER: app_user
           POSTGRES_PASSWORD: postgres
         ports:
-          - 5433:5433
+          - 5433:5432
 
       redis:
         image: redis
