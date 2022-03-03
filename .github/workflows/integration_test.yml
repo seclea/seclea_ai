@@ -71,7 +71,7 @@ jobs:
           --health-retries 5
         env:
           ENV_ROLE: development
-          DEBUG: _json_'true'
+          DEBUG: _json_true
           STATIC_URL: static/
           DATABASE: postgres
           SQL_DATABASE: app
@@ -84,11 +84,11 @@ jobs:
           ALLOWED_HOSTS: _json_['"*"']
           API_URL_AUTH: http://localhost:8010
           CORS_ALLOWED_ORIGINS: _json_['"http://localhost:8080"','"http://localhost:8010"','"http://localhost:8000"']
-          CORS_ALLOW_CREDENTIALS: _json_'true'
+          CORS_ALLOW_CREDENTIALS: _json_true
           CELERY_BROKER_URL: "redis://localhost:6379"
           CELERY_RESULT_BACKEND: "redis://localhost:6379"
-          AUTH_COOKIE_SECURE: _json_'false'
-          AUTH_COOKIE_HTTP_ONLY: _json_'false'
+          AUTH_COOKIE_SECURE: _json_false
+          AUTH_COOKIE_HTTP_ONLY: _json_false
           AUTH_COOKIE_DOMAIN: ""
         ports:
           - 8000:8000
@@ -100,7 +100,7 @@ jobs:
           password: ${{ needs.authenticate.outputs.password }}
         env:
           ENV_ROLE: development
-          DEBUG: _json_'true'
+          DEBUG: _json_true
           STATIC_URL: static/
           DATABASE: postgres
           SQL_DATABASE: app
@@ -113,11 +113,11 @@ jobs:
           ALLOWED_HOSTS: _json_['"*"']
           API_URL_AUTH: http://localhost:8010
           CORS_ALLOWED_ORIGINS: _json_['"http://localhost:8080"','"http://localhost:8010"','"http://localhost:8000"']
-          CORS_ALLOW_CREDENTIALS: _json_'true'
+          CORS_ALLOW_CREDENTIALS: _json_true
           CELERY_BROKER_URL: "redis://localhost:6379"
           CELERY_RESULT_BACKEND: "redis://localhost:6379"
-          AUTH_COOKIE_SECURE: _json_'false'
-          AUTH_COOKIE_HTTP_ONLY: _json_'false'
+          AUTH_COOKIE_SECURE: _json_false
+          AUTH_COOKIE_HTTP_ONLY: _json_false
           AUTH_COOKIE_DOMAIN: ""
 
       auth:
@@ -133,7 +133,7 @@ jobs:
         env:
           ENV_ROLE: development
           ENVIRONMENT: account_management
-          DEBUG: _json_'false'
+          DEBUG: _json_false
           DATABASE: postgres
           SQL_ENGINE: django.db.backends.postgresql
           SQL_DATABASE: auth
@@ -147,12 +147,12 @@ jobs:
           ALLOWED_HOSTS: _json_['"*"']
           API_URL: http://localhost:8010
           CORS_ALLOWED_ORIGINS: _json_['"http://localhost:8080"','"http://localhost:8010"','"http://localhost:8000"']
-          CORS_ALLOW_CREDENTIALS: _json_'true'
+          CORS_ALLOW_CREDENTIALS: _json_true
           CELERY_BROKER_URL: "redis://localhost:6379"
           CELERY_RESULT_BACKEND: "redis://localhost:6379"
-          ENABLE_PML_FILE_LOGGING: _json_'false'
-          AUTH_COOKIE_SECURE: _json_'false'
-          AUTH_COOKIE_HTTP_ONLY: _json_'false'
+          ENABLE_PML_FILE_LOGGING: _json_false
+          AUTH_COOKIE_SECURE: _json_false
+          AUTH_COOKIE_HTTP_ONLY: _json_false
           AUTH_COOKIE_DOMAIN: ""
         ports:
           - 8010:8010
