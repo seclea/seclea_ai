@@ -81,9 +81,9 @@ jobs:
           SQL_PORT: 5432
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           VERIFY_KEY: ${{ secrets.VERIFY_KEY }}
-          ALLOWED_HOSTS: _json_['"*"']
+          ALLOWED_HOSTS: _json_["*"]
           API_URL_AUTH: http://localhost:8010
-          CORS_ALLOWED_ORIGINS: _json_['"http://localhost:8080"','"http://localhost:8010"','"http://localhost:8000"']
+          CORS_ALLOWED_ORIGINS: _json_["http://localhost:8080","http://localhost:8010","http://localhost:8000"]
           CORS_ALLOW_CREDENTIALS: _json_true
           CELERY_BROKER_URL: "redis://localhost:6379"
           CELERY_RESULT_BACKEND: "redis://localhost:6379"
@@ -110,9 +110,9 @@ jobs:
           SQL_PORT: 5432
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           VERIFY_KEY: ${{ secrets.VERIFY_KEY }}
-          ALLOWED_HOSTS: _json_['"*"']
+          ALLOWED_HOSTS: _json_["*"]
           API_URL_AUTH: http://localhost:8010
-          CORS_ALLOWED_ORIGINS: _json_['"http://localhost:8080"','"http://localhost:8010"','"http://localhost:8000"']
+          CORS_ALLOWED_ORIGINS: _json_["http://localhost:8080","http://localhost:8010","http://localhost:8000"]
           CORS_ALLOW_CREDENTIALS: _json_true
           CELERY_BROKER_URL: "redis://localhost:6379"
           CELERY_RESULT_BACKEND: "redis://localhost:6379"
@@ -144,9 +144,9 @@ jobs:
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           VERIFY_KEY: ${{ secrets.VERIFY_KEY }}
-          ALLOWED_HOSTS: _json_['"*"']
+          ALLOWED_HOSTS: _json_['*']
           API_URL: http://localhost:8010
-          CORS_ALLOWED_ORIGINS: _json_['"http://localhost:8080"','"http://localhost:8010"','"http://localhost:8000"']
+          CORS_ALLOWED_ORIGINS: _json_["http://localhost:8080","http://localhost:8010","http://localhost:8000"]
           CORS_ALLOW_CREDENTIALS: _json_true
           CELERY_BROKER_URL: "redis://localhost:6379"
           CELERY_RESULT_BACKEND: "redis://localhost:6379"
