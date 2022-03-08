@@ -210,13 +210,6 @@ class SecleaAI:
         # processing the final dataset - make sure it's a DataFrame
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
-        # here we need to ensure that if there is no index that we use the first column as the index.
-        # We always write the index for consistency.
-        try:
-            if metadata["index"] is None:
-                metadata["index"] = 0
-        except KeyError:
-            metadata["index"] = 0
 
         if isinstance(dataset, List):
             dataset = self._aggregate_dataset(dataset, index=metadata["index"])
@@ -590,6 +583,13 @@ class SecleaAI:
 
         # this needs to be here so split is always set.
         metadata = {**metadata, "split": split, "features": list(dataset.columns)}
+
+        # ensure there is always an index.
+        try:
+            if metadata["index"] is None:
+                metadata["index"] = 0
+        except KeyError:
+            metadata["index"] = 0
 
         # upload a dataset - only works for a single transformation.
         if not os.path.exists(self._cache_dir):
