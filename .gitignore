@@ -99,6 +99,7 @@ test/testing/MNIST
 
 # temp files
 **/.seclea
+**/supersized.csv
 
 # Jupyter stuff
 .ipynb_checkpoints

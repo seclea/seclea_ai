@@ -1,5 +1,6 @@
 import os
 import uuid
+from test.test_integration_portal.supersample import sample_to_size
 from unittest import TestCase
 
 import numpy as np
@@ -25,6 +26,16 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
     Workflow to reset db on each test run to be investigated.
     """
+
+    def setUp(self) -> None:
+        try:
+            self.supersized_dataset = pd.read_csv(f"{folder_path}/supersized.csv")
+        except FileNotFoundError:
+            source = pd.read_csv(f"{folder_path}/insurance_claims.csv")
+            supersized = sample_to_size(source, size=10 ** 10)
+            # save to avoid doing every time.
+            supersized.to_csv(f"{folder_path}/supersized.csv")
+            self.supersized_dataset = supersized
 
     def step_0_project_setup(self):
         self.password = "asdf"
@@ -91,7 +102,25 @@ class TestIntegrationSecleaAIPortal(TestCase):
             self.sample_df_2, self.sample_df_2_name, self.sample_df_2_meta
         )
 
-    def step_2_define_transformations(self):
+    def step_2_upload_large_dataset(self):
+        self.supersized_dataset_name = "Census dataset"
+        self.supersized_dataset_meta = {
+            "index": None,
+            "outcome_name": "income-per-year",
+            "continuous_features": [
+                "age",
+                "fnlwgt",
+                "education-num",
+                "capital-gain",
+                "capital-loss",
+                "hours-per-week",
+            ],
+        }
+        self.controller_2.upload_dataset(
+            self.supersized_dataset, self.supersized_dataset_name, self.supersized_dataset_meta
+        )
+
+    def step_3_define_transformations(self):
         def encode_nans(df):
             import numpy as np
 
@@ -298,7 +327,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
         self.sample_df_1_transformed = df
 
-    def step_3_upload_trainingrun(self):
+    def step_4_upload_trainingrun(self):
         # define model
 
         print(
