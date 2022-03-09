@@ -185,13 +185,11 @@ class TestIntegrationSecleaAIPortal(TestCase):
                 StandardScaler,  # for this specific case we will record the output..
             )
 
-            scaler = (
-                StandardScaler()
-            )  # ie. the scaler (as the input to another function) but that's not general..
+            # ie. the scaler (as the input to another function) but that's not general..
+            scaler = StandardScaler()
 
-            scaler.fit(
-                X
-            )  # MAJOR question is. could we identify if they fitted it over the whole dataset... let's test
+            # MAJOR question is. could we identify if they fitted it over the whole dataset... let's test
+            scaler.fit(X)
             return scaler
 
         def scale(X, y, scaler):
