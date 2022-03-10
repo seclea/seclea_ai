@@ -1,4 +1,5 @@
 import os
+import traceback
 import uuid
 from unittest import TestCase
 
@@ -329,4 +330,5 @@ class TestIntegrationSecleaAIPortal(TestCase):
                 step()
                 print("STEP COMPLETE")
             except Exception as e:
+                traceback.print_exc()
                 self.fail(f"{step} failed ({type(e)}: {e})")
