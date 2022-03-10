@@ -192,8 +192,7 @@ jobs:
           pip install -r requirements.txt
       - name: Create user
         run: |
-          export DJANGO_SUPERUSER_PASSWORD="asdf"
-          docker exec $(docker ps | grep account | cut -d ' ' -f1) scripts/load_default_data.sh
+          docker exec $(docker ps | grep account | cut -d ' ' -f1) bash scripts/load_default_data.sh
       - name: Run Tests
         run: |
           python -m unittest discover test/test_integration_portal
