@@ -193,7 +193,7 @@ jobs:
       - name: Create user
         run: |
           export DJANGO_SUPERUSER_PASSWORD="asdf"
-          docker exec $(docker ps | grep account | cut -d ' ' -f1) sh -c "python manage.py createsuperuser --no-input --username onespanadmin --email 'test@test.tst'"
+          docker exec $(docker ps | grep account | cut -d ' ' -f1) ./scripts/load_default_data.sh
       - name: Run Tests
         run: |
           python -m unittest discover test/test_integration_portal
