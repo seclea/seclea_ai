@@ -177,7 +177,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
             scaler = StandardScaler()
 
             scaler.fit(X)
-            X_transformed = scaler.transform(X)
+            X_transformed = X.copy()
+            X_transformed[:] = scaler.transform(X_transformed[:])
             return X_transformed, y, scaler
 
         def fit(X):  # how do we handle these that don't affect directly the dataset..
@@ -195,7 +196,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return scaler
 
         def scale(X, y, scaler):
-            X_transformed = scaler.transform(X)
+            X_transformed = X.copy()
+            X_transformed[:] = scaler.transform(X_transformed[:])
             return X_transformed, y
 
         df = encode_nans(self.sample_df_1)
