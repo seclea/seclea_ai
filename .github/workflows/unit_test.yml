@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [dev]
   workflow_dispatch:
-    branches: [dev, feature/deploy-to-conda]
+    branches: [dev]
 
 jobs:
   validate:
@@ -27,7 +27,7 @@ jobs:
       max-parallel: 12
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        python-version: ["3.7", "3.8", "3.9", "3.10"]
         include:
           - os: ubuntu-latest
             path: ~/.cache/pip

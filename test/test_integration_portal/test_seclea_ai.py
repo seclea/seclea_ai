@@ -177,7 +177,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
             scaler = StandardScaler()
 
             scaler.fit(X)
-            X_transformed = scaler.transform(X)
+            X_transformed = X.copy()
+            X_transformed[:] = scaler.transform(X_transformed[:])
             return X_transformed, y, scaler
 
         def fit(X):  # how do we handle these that don't affect directly the dataset..
@@ -195,7 +196,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return scaler
 
         def scale(X, y, scaler):
-            X_transformed = scaler.transform(X)
+            X_transformed = X.copy()
+            X_transformed[:] = scaler.transform(X_transformed[:])
             return X_transformed, y
 
         df = encode_nans(self.sample_df_1)
@@ -210,14 +212,14 @@ class TestIntegrationSecleaAIPortal(TestCase):
         X, y = get_samples_labels(df, output_col=output_col)
         test_size = 0.2
         random_state = 42
-        X_train, X_test, y_train, self.y_test = get_test_train_splits(
+        X_train, self.X_test, y_train, self.y_test = get_test_train_splits(
             X, y, test_size=test_size, random_state=random_state
         )
         self.X_sm, self.y_sm = smote_balance(X_train, y_train, random_state=random_state)
         # deliberate test of datasnooping.
-        scaler = fit(pd.concat([self.X_sm, X_test], axis=0))
+        scaler = fit(pd.concat([self.X_sm, self.X_test], axis=0))
         self.X_sm_scaled, _ = scale(self.X_sm, self.y_sm, scaler)
-        self.X_test_scaled, _ = scale(X_test, self.y_test, scaler)
+        self.X_test_scaled, _ = scale(self.X_test, self.y_test, scaler)
 
         self.complicated_transformations = [
             DatasetTransformation(encode_nans, {"df": self.sample_df_1}, {}, ["data"]),
@@ -314,11 +316,19 @@ class TestIntegrationSecleaAIPortal(TestCase):
         model.fit(self.X_sm_scaled, self.y_sm)
         # preds = model.predict(self.X_test_scaled)
 
-        self.controller_1.upload_training_run_split(model, X=self.X_sm_scaled, y=self.y_sm)
+        self.controller_1.upload_training_run_split(
+            model,
+            X_train=self.X_sm_scaled,
+            y_train=self.y_sm,
+            X_test=self.X_test_scaled,
+            y_test=self.y_test,
+        )
 
         model1 = RandomForestClassifier(random_state=42)
         model1.fit(self.X_sm, self.y_sm)
-        self.controller_1.upload_training_run_split(model, X=self.X_sm, y=self.y_sm)
+        self.controller_1.upload_training_run_split(
+            model1, X_train=self.X_sm, y_train=self.y_sm, X_test=self.X_test, y_test=self.y_test
+        )
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
