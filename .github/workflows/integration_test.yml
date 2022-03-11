@@ -15,7 +15,7 @@ jobs:
       matrix:
         # only using ubuntu as that is the only OS that supports services. OS support should be fine from dev.
         os: [ubuntu-latest]
-        python-version: [3.7] #, 3.8, 3.9, 3.10] out for testing.
+        python-version: ["3.7"] #, "3.8", "3.9", "3.10"] out for testing.
         include:
           - os: ubuntu-latest
             path: ~/.cache/pip
