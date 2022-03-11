@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-    branches: [dev, feature/deploy-to-conda]
+    branches: [dev]
 
 jobs:
   test:
@@ -15,7 +15,7 @@ jobs:
       matrix:
         # only using ubuntu as that is the only OS that supports services. OS support should be fine from dev.
         os: [ubuntu-latest]
-        python-version: [3.6] #, 3.7, 3.8, 3.9] out for testing.
+        python-version: [3.7] #, 3.8, 3.9, 3.10] out for testing.
         include:
           - os: ubuntu-latest
             path: ~/.cache/pip

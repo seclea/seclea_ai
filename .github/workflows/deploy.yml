@@ -5,7 +5,7 @@ on:
     tags:
       - "*"
   workflow_dispatch:
-    branches: [dev, feature/deploy-to-conda]
+    branches: [dev]
 
 jobs:
   build-and-upload:
