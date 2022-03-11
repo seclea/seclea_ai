@@ -327,7 +327,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
         model1 = RandomForestClassifier(random_state=42)
         model1.fit(self.X_sm, self.y_sm)
         self.controller_1.upload_training_run_split(
-            model, X_train=self.X_sm, y_train=self.y_sm, X_test=self.X_test, y_test=self.y_test
+            model1, X_train=self.X_sm, y_train=self.y_sm, X_test=self.X_test, y_test=self.y_test
         )
 
     def _steps(self):

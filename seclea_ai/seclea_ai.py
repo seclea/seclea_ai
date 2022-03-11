@@ -663,7 +663,7 @@ class SecleaAI:
             obj={
                 "organization": self._organization,
                 "project": self._project,
-                "dataset": dataset_pks,
+                "datasets": dataset_pks,
                 "model": model_pk,
                 "name": training_run_name,
                 "params": params,
