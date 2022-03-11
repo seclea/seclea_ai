@@ -210,13 +210,6 @@ class SecleaAI:
         # processing the final dataset - make sure it's a DataFrame
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
-        # here we need to ensure that if there is no index that we use the first column as the index.
-        # We always write the index for consistency.
-        try:
-            if metadata["index"] is None:
-                metadata["index"] = 0
-        except KeyError:
-            metadata["index"] = 0
 
         if isinstance(dataset, List):
             dataset = self._aggregate_dataset(dataset, index=metadata["index"])
@@ -296,32 +289,66 @@ class SecleaAI:
             transformation=None,
         )
 
-    def upload_training_run_split(self, model, X: DataFrame, y: Union[DataFrame, Series]) -> None:
-        """
-        Takes a model and extracts the necessary data for uploading the training run.
-
-        :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
-
-        :param X: Samples of the dataset that the model is trained on
-
-        :param y: Labels of the dataset that the model is trained on.
-
-        :return: None
-        """
-        dataset = self._assemble_dataset({"X": X, "y": y})
-        self.upload_training_run(model=model, dataset=dataset)
-
-    def upload_training_run(
+    def upload_training_run_split(
         self,
         model,
-        dataset: DataFrame,
+        X_train: DataFrame,
+        y_train: Union[DataFrame, Series],
+        X_test: DataFrame = None,
+        y_test: Union[DataFrame, Series] = None,
+        X_val: Union[DataFrame, Series] = None,
+        y_val: Union[DataFrame, Series] = None,
     ) -> None:
         """
         Takes a model and extracts the necessary data for uploading the training run.
 
         :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
 
-        :param dataset: DataFrame The Dataset that the model is trained on.
+        :param X_train: Samples of the dataset that the model is trained on
+
+        :param y_train: Labels of the dataset that the model is trained on.
+
+        :param X_test: Samples of the dataset that the model is trained on
+
+        :param y_test: Labels of the dataset that the model is trained on.
+
+        :param X_val: Samples of the dataset that the model is trained on
+
+        :param y_val: Labels of the dataset that the model is trained on.
+
+        :return: None
+        """
+        train_dataset = self._assemble_dataset({"X": X_train, "y": y_train})
+        test_dataset = None
+        val_dataset = None
+        if X_test is not None and y_test is not None:
+            test_dataset = self._assemble_dataset({"X": X_test, "y": y_test})
+        if X_val is not None and y_val is not None:
+            val_dataset = self._assemble_dataset({"X": X_val, "y": y_val})
+        self.upload_training_run(
+            model=model,
+            train_dataset=train_dataset,
+            test_dataset=test_dataset,
+            val_dataset=val_dataset,
+        )
+
+    def upload_training_run(
+        self,
+        model,
+        train_dataset: DataFrame,
+        test_dataset: DataFrame = None,
+        val_dataset: DataFrame = None,
+    ) -> None:
+        """
+        Takes a model and extracts the necessary data for uploading the training run.
+
+        :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
+
+        :param train_dataset: DataFrame The Dataset that the model is trained on.
+
+        :param test_dataset: DataFrame The Dataset that the model is trained on.
+
+        :param val_dataset: DataFrame The Dataset that the model is trained on.
 
         :return: None
 
@@ -338,8 +365,13 @@ class SecleaAI:
                 )
         """
         self._auth_service.authenticate(self._transmission)
-        # check the dataset exists prompt if not
-        dataset_pk = str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project))
+
+        # validate the splits? maybe later when we have proper Dataset class to manage these things.
+        dataset_pks = [
+            str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project))
+            for dataset in [train_dataset, test_dataset, val_dataset]
+            if dataset is not None
+        ]
 
         model_name = model.__class__.__name__
 
@@ -374,7 +406,7 @@ class SecleaAI:
         tr_res = self._upload_training_run(
             training_run_name=training_run_name,
             model_pk=model_type_pk,
-            dataset_pk=dataset_pk,
+            dataset_pks=dataset_pks,
             params=params,
         )
         # if the upload was successful, add the new training_run to the list to keep the names updated.
@@ -552,6 +584,13 @@ class SecleaAI:
         # this needs to be here so split is always set.
         metadata = {**metadata, "split": split, "features": list(dataset.columns)}
 
+        # ensure there is always an index.
+        try:
+            if metadata["index"] is None:
+                metadata["index"] = 0
+        except KeyError:
+            metadata["index"] = 0
+
         # upload a dataset - only works for a single transformation.
         if not os.path.exists(self._cache_dir):
             os.makedirs(self._cache_dir)
@@ -578,16 +617,6 @@ class SecleaAI:
         handle_response(
             response, 201, f"There was some issue uploading the dataset: {response.text}"
         )
-
-        # dataset_queryparams = {
-        #     "project": self._project,
-        #     "organization": self._organization,
-        #     "name": dataset_name,
-        #     "metadata": json.dumps(metadata),
-        #     "hash": str(dataset_hash),
-        #     "parent": str(parent_hash) if parent_hash is not None else None,
-        # }
-        # print("Query Params: ", dataset_queryparams)
 
         # upload the transformations
         if response.status_code == 201 and transformation is not None:
@@ -619,7 +648,7 @@ class SecleaAI:
         )
 
     def _upload_training_run(
-        self, training_run_name: str, model_pk: int, dataset_pk: str, params: Dict
+        self, training_run_name: str, model_pk: int, dataset_pks: List[str], params: Dict
     ):
         """
 
@@ -634,7 +663,7 @@ class SecleaAI:
             obj={
                 "organization": self._organization,
                 "project": self._project,
-                "dataset": dataset_pk,
+                "datasets": dataset_pks,
                 "model": model_pk,
                 "name": training_run_name,
                 "params": params,
