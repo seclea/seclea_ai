@@ -14,8 +14,8 @@ jobs:
     steps:
       - id: authenticate
         run: |
-          export AWS_ACCESS_KEY_ID=${{ secrets.AWS_BUILD_USER_ACCESS_KEY }}
-          export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_BUILD_USER_SECRET_ACCESS_KEY }}
+          export AWS_ACCESS_KEY_ID=${{ secrets.AWS_DEV_GITHUB_USER_ACCESS_KEY }}
+          export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_DEV_GITHUB_USER_SECRET_ACCESS_KEY }}
           export AWS_DEFAULT_REGION=eu-west-2
           echo "::set-output name=password::$(aws ecr get-login-password --region eu-west-2)"
 
@@ -74,7 +74,7 @@ jobs:
           - 6379:6379
 
       portal:
-        image: 052208718180.dkr.ecr.eu-west-2.amazonaws.com/seclea-portal:latest
+        image: 738358893625.dkr.ecr.eu-west-2.amazonaws.com/seclea-portal:latest
         credentials:
           username: AWS
           password: ${{ needs.authenticate.outputs.password }}
@@ -108,7 +108,7 @@ jobs:
           - 8000:8000
 
       portal-celery:
-        image: 052208718180.dkr.ecr.eu-west-2.amazonaws.com/seclea-portal-celery:latest
+        image: 738358893625.dkr.ecr.eu-west-2.amazonaws.com/seclea-portal-celery:latest
         credentials:
           username: AWS
           password: ${{ needs.authenticate.outputs.password }}
@@ -135,7 +135,7 @@ jobs:
           AUTH_COOKIE_DOMAIN: " "
 
       auth:
-        image: 052208718180.dkr.ecr.eu-west-2.amazonaws.com/seclea-account-management:latest
+        image: 738358893625.dkr.ecr.eu-west-2.amazonaws.com/seclea-account-management:latest
         credentials:
           username: AWS
           password: ${{ needs.authenticate.outputs.password }}
