@@ -1,0 +1,86 @@
+===============================================================================
+=           S T R U C T U R E D   Q U E R Y   L A N G U A G E (SQL)           =
+-------------------------------------------------------------------------------
+=                               D A T A B A S E                               =
+===============================================================================
+
+
+
+What Does Structured Query Language (SQL) Mean?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  Structured Query Language (SQL) is a programming language that is typically
+  used in relational database or data stream management systems.
+
+  It was developed by IBM in the early 1970s and is now an official standard
+  recognized by the American National Standards Institute (ANSI) and the
+  International Organization for Standardization (ISO).
+
+
+
+Techopedia Explains Structured Query Language (SQL):
+----------------------------------------------------
+  SQL has remained a consistently popular choice for database users over the
+  years primarily due to its ease of use and the highly effective manner in
+  which it queries, manipulates, aggregates data and performs a wide range of
+  other functions to turn massive collections of structured data into usable
+  information.
+
+  For this reason, it has been incorporated into numerous commercial database
+  products, such as MySQL, Oracle, Sybase, SQL Server, Postgres and others. In
+  fact, many non-relational databases like MongoDB and DynamoBD are called
+  NoSQL products due to their lack of SQL programming.
+
+  While different iterations of SQL may utilize different syntax for key
+  operations, in general, basic commands like select, insert, update and create
+  are common to all SQL releases. This makes it very easy for someone with a
+  basic knowledge of SQL to work in many different environments and perform a
+  wide variety of tasks.
+
+
+
+Four Categories of SQL Commands:
+--------------------------------
+  Data Definition Language (DDL):
+    This includes CREATE (tables, views, objects, etc.), ALTER and DROP
+    (delete).
+
+  Data Manipulation Language (DML):
+    SELECT, INSERT, UPDATE, DELETE of records within tables.
+
+  Data Control Language (DCL):
+    GRANT and/or REVOKE user privileges, etc.
+
+  Database Indexing:
+    CREATE INDEX and DROP INDEX statements are used to create and delete
+    indexes in tables.
+
+
+
+Streamlining Search and Other Functions:
+----------------------------------------
+  SQL also allows users to build constraints onto tables or columns to restrict
+  the type of data they contain. This helps ensure data accuracy and relevancy,
+  and simplifies overall database management by streamlining search and other
+  functions. Some examples of SQL constraints include:
+
+  NOT NULL: Which prevents columns from having a null value.
+
+  UNIQUE: To ensure all values are different. In addition, DBAs can use SQL to
+  |       build integrity into the database by preventing the creation of
+  |       duplicate rows, allowing only the entry of valid data, forbidding
+  |       deletion of data tied to multiple records, and other functions. At
+  |       the same time, however, SQL provides a number of normalization tools
+  |       designed to streamline data dependencies and in general reduce the
+  |       size and scope of the database to make it operationally effective and
+  |       resource efficient. Obviously, SQL is not the best choice for all
+  |       database applications, otherwise there would be no alternatives. For
+  |       one thing, while SQL had been effective at data scales up through the
+  |       1990s and beyond, the implementation and relational database
+  |       management systems (rather than the language itself) started to
+  |       falter at the hyperscale levels at the turn of the century. Some
+  |       users also complain of its sharding limitations, which hamper the
+  |       ability to break large databases into smaller, more manageable ones.
+  |       These drawbacks, in fact, are what led to the creation of NoSQL and
+  |       the more recent NewSQL, which attempts to enhance traditional SQL’s
+  |       scalability without sacrificing its inherent atomicity, consistency,
+  |       isolation and durability (ACID).

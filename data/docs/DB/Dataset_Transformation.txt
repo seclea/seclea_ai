@@ -1,0 +1,62 @@
+
+Importance of Data Transformation:
+----------------------------------
+
+  Improved data quality. Data transformation aims to increase quality of data
+  as required by business use-case. Efficient data management. Data can be well
+  organized and stored when transformed. Redundancy is eliminated during data
+  transformation and only quality and useful data is stored. Increases data
+  consistency. Data transformation standardizes data from different source
+  systems to a common dataset with transformations defined by business rules.
+  Quicker access to good data and faster decision making from the transformed
+  data.
+
+
+
+Types of Data Transformation:
+-----------------------------
+
+  Batch data transformation. This involves applying bulk data transformation
+  process to data. Real-time data transformation. With emerging trend in
+  real-time analytics real-time data integration and transformation is key in
+  making the data available in real-time for analytics. Interactive data
+  transformation. This involves using low-code no-code tools to perform data
+  transformation. This technique allows users with less technical skills to
+  perform ad-hoc transformation of their data for analysis.
+
+
+
+Data Transformation Process:
+----------------------------
+
+  Data Discovery. This involves extracting and profiling the data to
+  determine its structure and inform the initial transformations required.
+  Data Mapping. Data mapping defines how individual fields should be modified
+  and which operations and aggregation rules can be applied. Different
+  operations can be defined here such as filter, split, join, remove
+  duplicates etc. Code Generation. The process of data transformation
+  involves defining rules for manipulating the data and results in creating
+  of code (depending on the language used e.g. SQL, Python etc.) that needs
+  to be executed to convert the data. Code Execution. This is the process of
+  running the transformation code created to produce the output dataset. The
+  execution process is usually integrated in the transformation (ETL/ELT)
+  tool or the data storage engine such as database. Data Review. This
+  involves checking if the transformation rules have been applied
+  successfully.
+
+
+
+Data Transformation Tools:
+--------------------------
+
+  Data Transformation process can be expensive, resource-intensive and complex.
+  Careful consideration needs to be taken into place when planning for this
+  process. Manual data transformation. This only applies when the data is too
+  small, the business logic is too complex to automate or not available
+  out-of-the-box from the transformation tool. Programming Languages.
+  Programming languages such as SQL, Python, Java etc. are very powerful in
+  data transformation and allows for definition of complex and custom functions
+  easily. ETL/ELT Tools. At the core of ETL/ELT tools is the transformation
+  capabilities. Most ETL/ELT tools comes with numerous transformation functions
+  and capabilities. Check our previous here to learn about data integration.
+  ETL/ELT tools can be classified into real-time or batch tools.

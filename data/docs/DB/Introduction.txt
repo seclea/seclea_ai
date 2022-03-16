@@ -1,0 +1,136 @@
+===============================================================================
+=                           I N T R O D U C T I O N                           =
+-------------------------------------------------------------------------------
+=                               D A T A B A S E                               =
+===============================================================================
+
+
+
+Introduction:
+-------------
+  In a small operation, the network admins or developers double up as database
+  admins (DBAs). In larger businesses, there might be dozens of DBAs
+  specializing in the many different facets from design and architecture, to
+  maintenance, development, etc. No matter what part of IT you work in, you
+  have to store data at one point or another, and it doesn't hurt for just
+  about everybody to have some knowledge of databases and how they work.
+  The goal of this tutorial is to provide this basic introduction. We're going
+  to explain the basics of what a database actually is, look at the history,
+  understand relational databases, get into some fundamental concepts from
+  columns and rows on up, touch on other types of databases, get versed on some
+  additional concepts to understand, and wrap it all up with a quick review of
+  the major commercial systems on the market today.
+
+
+  What Is a Database?
+  ~~~~~~~~~~~~~~~~~~~
+
+    A database, in the most general sense, is an organized collection of data.
+    More specifically, a database is an electronic system that allows data to
+    be easily accessed, manipulated and updated.
+    In other words, a database is used by an organization as an electronic way
+    to store, manage and retrieve information. The database is one of the
+    cornerstones of enterprise IT, and its ability to organize, process and
+    manage information in a structured and controlled manner is the key to many
+    aspects of modern business efficiency.
+    However, databases go way beyond simply storing data. As we’ll see later,
+    the inherent logic and efficiency in how the data is stored and retrieved
+    can provide an incredibly powerful business tool to an organization. This
+    is especially true when databases are properly exploited for their
+    reporting and business intelligence capabilities.
+
+
+
+The Use and Importance of Databases in Today’s World:
+-----------------------------------------------------
+  So what kinds of organization requires a database and can benefit from its
+  use? Well, the short answer is any business or organization that needs to
+  keep track of large numbers of customers or products. By "large" we mean more
+  than can be stored by a human brain - a lot more.
+  At this point, a skeptic might still argue that there are countless
+  mom-and-pop stores whose owners keep track of inventory and profit/ loss
+  using the trusty ledger and calculator, and are doing OK. That’s true, but
+  the use of an electronic database can still pay off, even for very small
+  businesses. For instance, a ledger cannot run a simulation to extrapolate
+  profits if say, the shop were to increase the price of ballpoint pens by 2
+  cents. A database can do that. The ledger cannot run a report tracking down
+  re-order levels for all items to show the store owner which items should be
+  restocked at what times during the year. A database can do that too. A
+  database can even automatically alert the business owner via email or text
+  message.
+  The most significant benefit of databases, however, is still limited to large
+  organizations with customers and products numbering in the hundreds of
+  thousands, millions, or tens of millions, and the need to store large numbers
+  of individual data items for customers. For instance, a commercial bank needs
+  the personal details of all of its millions of customers, such as name, date
+  of birth, address, Social Security number, etc. Each customer in turn spawns
+  another collection of data depending on the products he or she has signed up
+  for, such as account type, account number, account balance, mortgage amount,
+  credit card loan, repayment period and so on. A third collection of data
+  relates to the customer’s specific transactions, such as the time of
+  transaction, amount, balance left, bank charges, loan amount left to repay,
+  etc.
+  Clearly, a single customer can generate a huge amount of data in a very short
+  time. Multiply this by millions of customers, and it’s easy to see why having
+  an efficient data storage and retrieval medium is not only a good idea, but
+  is also absolutely essential in preventing the bank’s operations from
+  grinding to a halt.
+  But wait. Organizations managed just fine before the advent of computers and
+  these new-fangled databases, didn’t they? Sure. But if you’re not unconvinced
+  of the power of databases based on the ability to increase efficiency and
+  transaction speed, consider this: Your competitors will be more efficient and
+  offer better service than you do as a result of their use of database
+  systems.
+  Commercial banks are a prime example of the use of databases in today’s
+  organizations. Other industries whose operations are heavily reliant on
+  databases are insurance companies, hospitals and health care, schools and
+  colleges, manufacturing, telecommunications companies, and hotels and the
+  hospitality industry.
+  Databases are indeed what the term says - the base or pool of (related) data
+  upon which an organization’s data systems should be built. Indeed, it is not
+  a stretch to say that without databases, the computer in the workplace would
+  be little more than a more efficient typewriter!
+
+
+
+History of Databases:
+---------------------
+  It is important to first realize that the organized, systematic methodology
+  of storing records we know and heavily depend on in databases is not a recent
+  invention. What is recent is the computerization of this methodology
+  beginning in the 1960s. Note that even paper-based records, including
+  ledger-based bookkeeping, are (technically) all forms of a database. That is,
+  a database does not necessarily have to be computerized. Computerization only
+  produced a database management system (DBMS), which is obviously several
+  orders of magnitude more powerful, accurate and capable than what a humble
+  ledger or a puny human brain can achieve. And although we are mostly using
+  the term "database" to refer to the DBMS, the two are not the same thing; all
+  thumbs (DBMSs) are fingers (databases), but not all fingers are thumbs.
+  The ancient Egyptians used elaborate record-keeping systems to keep stock of
+  grain harvests. The Library of Alexandria employed a sophisticated method to
+  keep track of huge numbers of books and scrolls. These were all early
+  examples of databases, although of course their capabilities would be
+  laughable compared to the hugely capable computerized DBMSs of the 21st
+  century.
+  But even way back in time, back when the entire field of computing was still
+  in its single-celled-organism stage (the 1960s), many people could already
+  visualize that computers would be truly useful if they could provide a way of
+  reliably storing and retrieving data. The development of databases therefore
+  occurred almost in perfect step with the general development and growth of
+  the computing capabilities of the day. As disk capacity and processor speed
+  grew, so did the storage capacity and feature sets of the contemporary
+  database offerings. One important leap that occurred in the mid-1960s was the
+  switch from tape-based storage to direct access storage, or disks. This
+  change allowed multitasking interactive data access, as opposed to the
+  single-operator, batch-type processing necessitated by tapes.
+  The earliest database systems were navigational in nature. This means that
+  applications processed and read data by using pointers embedded in the data
+  itself. The pointer led to the next data item and could be doubly linked,
+  allowing linkage to both the previous and next data items. This is similar to
+  how hyperlinks work on a Web page by leading the reader to a related Web page
+  from the current one. The two main data models at this time were the
+  hierarchical model epitomized by IBM's IMS system, and the Codasyl, or
+  network, model. But all these were bested and reduced to mere interesting
+  footnotes in history by the emergence of the relational model by a brilliant
+  computer scientist by the name of E.F. Codd.
+

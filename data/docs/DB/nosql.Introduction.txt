@@ -1,0 +1,144 @@
+===============================================================================
+=                                  N O S Q L                                  =
+-------------------------------------------------------------------------------
+=                               D A T A B A S E                               =
+===============================================================================
+==                                                                           ==
+||  For many years, relational databases have dominated database             ||
+||  management. But not anymore. Today, non-relational, or NoSQL, databases  ||
+||  have become a prominent alternative model for database managers. Why?    ||
+||  They're cheaper, they're more flexible, they require less management     ||
+||  and they're more scalable (something that's becoming increasingly        ||
+||  important with the growth of big data).                                  ||
+===============================================================================
+
+
+
+What Does NoSQL Mean?
+~~~~~~~~~~~~~~~~~~~~~
+  NoSQL is a class of database management systems (DBMS) that do not follow all
+  of the rules of a relational DBMS and cannot use traditional SQL to query
+  data. The term is somewhat misleading when interpreted as "No SQL," and most
+  translate it as "Not Only SQL," as this type of database is not generally a
+  replacement but, rather, a complementary addition to RDBMSs and SQL.
+
+  NoSQL-based systems are typically used in very large databases, which are
+  particularly prone to performance problems caused by the limitations of SQL
+  and the relational model of databases. Many think of NoSQL as the modern
+  database of choice that scales with Web requirements. Some notable
+  implementations of NoSQL are Facebook's Cassandra database, Google's BigTable
+  and Amazon's SimpleDB and Dynamo.
+
+
+
+Techopedia Explains NoSQL:
+--------------------------
+  A NoSQL database does not necessarily follow the strict rules that govern
+  transactions in relational databases. These violated rules are known by the
+  acronym ACID (Atomicity, Consistency, Integrity, Durability). For example,
+  NoSQL databases do not use fixed schema structures and SQL joins.
+
+  In a traditional RDBMS, the basic operations are reads and writes. Reads may
+  be scaled by replicating data to multiple machines, thus load-balancing read
+  requests. However, this affects writes because data consistency must be
+  maintained. Writes only may be scaled by partitioning the data. This affects
+  reads, as distributed joins are usually slow and hard to implement.
+  Additionally, to maintain ACID properties, databases must lock data. This
+  means that when one user opens a data item, no other user should be able to
+  make changes to the same item. This restriction has serious implications on
+  performance.
+
+  These limitations have not been a major problem in the past. However, with
+  the advent of social networking and big data, a number of massive databases
+  that emerged were forced to serve the tens, or even hundreds, of millions of
+  clients throughout the world with several thousand reads and writes every
+  minute. Traditional RDBMSs simply do not meet this need because they can only
+  "scale up," or increase the resources on a central server. A NoSQL
+  implementation, on the other hand, can "scale out," or distribute the
+  database load across more servers.
+
+  NoSQL databases are focused on particular classes of problems - from being
+  more flexible about stored data (document stores), to targeting use cases,
+  like relationships (graph databases) and aggregating data (column databases)
+  or just simplifying the idea of a database down to something that stores a
+  value (key/value stores).
+
+  NoSQL databases offer the advantages of rapid scalability, much better
+  performance, and a simpler structure compared to RDBMSs. However, they also
+  suffer from being a relatively new and unproven technology, and they cannot
+  provide RDBMS' rich reporting and analytical functionality.
+
+
+
+Some Background on Database Management:
+---------------------------------------
+  A database is a collection of data records in an organized form. In order to
+  store, access and manipulate this data, we need a structure. This structure
+  can be anything from a simple file system to a sophisticated database
+  management system (DBMS). Both have their own set of advantages and
+  disadvantages, but a DBMS is usually preferred for reasons like:
+
+    * A DBMS can manage extensive amounts of data.
+  |
+    * System backup, recovery and data-restore functionality is often not
+      supported in a file system.
+  |
+    * Redundancy of data is well taken care of in a DBMS, which prevents the
+      misuse of memory.
+  |
+    * A database can be better equipped with security measures to preserve the
+      state and integrity of the data stored.
+  |
+    * A DBMS supports multi-user access and takes care of the concurrency
+      issues.
+  |
+    * A DBMS provides multiple user views along with several layers of
+      abstraction.
+  |
+    * A DBMS maintains the core ACID properties in the retrieval and updation
+      of data.
+
+  Most modern database systems are relational database management systems
+  (RDBMS), in which data resides in tables with minimum duplication. As the
+  name implies, a relational database establishes relationships between data
+  and allows the same data to be extracted from and viewed in the databases in
+  many different ways. However, this control comes at a cost. (For more
+  background reading, check out An Introduction to Databases.)
+
+
+
+What Is NoSQL?
+~~~~~~~~~~~~~~
+  NoSQL is a type of database that does not adhere to the widely used
+  relational database management model. In other words, NoSQL databases are not
+  primarily built on tables, and unlike a RDBMS, they do not use SQL to
+  manipulate data – hence the name. NoSQL was created as a support for SQL, not
+  as its replacement. It is based on a model that is less stringent and does
+  not essentially follow a fixed schema. It also may not stick to the ACID
+  properties, and there is no concept like JOIN, unlike in most of the RDBMSs.
+  A great definition of NoSQL comes from nosql-database.org, which defines the
+  term as: Next generation databases mostly addressing some of the following
+  points: being non-relational, distributed, open-source and horizontally
+  scalable. The original intention has been modern web-scale databases. Often
+  more characteristics apply such as: schema-free, easy replication support,
+  simple API, eventually consistent / BASE (not ACID), a huge amount of data
+  and more.
+
+
+
+The Bottom Line on NoSQL:
+-------------------------
+  Following in the footsteps of internet giants, many companies and
+  organizations that deal with massive chunks of data are using NoSQL along
+  with their existing DBMSs for higher performance and efficiency. If you are
+  dealing with high-volume web applications, you'll probably need a strong
+  understanding of NoSQL.
+
+  For smaller organizations, the value of NoSQL isn't quite as strong,
+  especially since there are serious challenges in terms of implementing it,
+  including lack of support, expertise, administration, analytics and business
+  intelligence. The fact of the matter is that the average small business isn't
+  generating petabytes of data every day. That said, NoSQL's popularity is
+  growing, and is likely to continue to be an increasingly important tool and
+  skill for database managers, so it doesn't hurt to at least know the basics.
+
