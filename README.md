@@ -9,12 +9,12 @@
 > their behaviour and decisions to ordinary users.” To answer the question,
 > Seclea’s co-founders carried out a joint project that led to the formation of
 > the Seclea.
-
+>
 > The work carried out at Smart Card Centre, Royal Holloway, University of
 > London led us to the ICURe programme. The programme supported the refinement
 > of Seclea’s features and how they can be deployed to overcome these AI trust
 > and user empowerment challenges.
-
+>
 > Seclea is now supported by UKRI InnovateUK and RSE Enterprise Fellowship to
 > bring its technology to market. Next chapter of our story is to change
 > society to be fairer, more transparent and accountable through a diverse
