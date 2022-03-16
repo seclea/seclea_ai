@@ -1,3 +1,4 @@
+import traceback
 from getpass import getpass
 
 from requests import Response
@@ -52,7 +53,11 @@ class AuthenticationService:
 
         print(self._transmission.cookies)
 
-        response = self._transmission.send_json(url_path=self._path_token_verify, obj={})
+        try:
+            response = self._transmission.send_json(url_path=self._path_token_verify, obj={})
+        except TypeError:
+            traceback.print_exc()
+            return
         return response.status_code == 200
 
     def refresh_token(self) -> bool:
