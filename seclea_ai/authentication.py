@@ -98,7 +98,9 @@ class AuthenticationService:
         else:
             credentials = {"username": username, "password": password}
         response = self._transmission.send_json(url_path=self._path_token_obtain, obj=credentials)
-        print(f"Initial Tokens - Status: {response.status_code} - content {response.content}")
+        print(
+            f"Initial Tokens - Status: {response.status_code} - content {response.content} - cookies - {response.cookies}"
+        )
         if response.status_code != 200:
             raise AuthenticationError(f"status:{response.status_code}, content:{response.content}")
         self._save_response_tokens(response)
