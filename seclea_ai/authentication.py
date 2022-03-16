@@ -51,7 +51,7 @@ class AuthenticationService:
         """
         self._transmission.cookies = {self._key_token_access: self._db.get(self._key_token_access)}
 
-        print(self._transmission.cookies)
+        print(f"Cookies: {self._transmission.cookies}")
 
         try:
             response = self._transmission.send_json(url_path=self._path_token_verify, obj={})
