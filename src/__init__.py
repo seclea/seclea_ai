@@ -33,5 +33,3 @@ from src.__version__ import (
     # The package description
     __doc__,
 )
-
-from .core import scelea_ai as Seclea_AI

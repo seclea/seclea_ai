@@ -145,7 +145,14 @@ import numpy as np
 from pandas import DataFrame, Series
 
 #
-# TODO: Write introduction to requests Response
+# When one makes a request to a URI, it returns a response. This Response
+# object in terms of python is returned by requests.method(), method being –
+# get, post, put, etc. Response is a powerful object with lots of functions and
+# attributes that assist in normalizing data or creating ideal portions of
+# code. For example, response.status_code returns the status code from the
+# headers itself, and one can check if the request was processed successfully
+# or not. Response object can be used to imply lots of features, methods, and
+# functionalities.
 #
 from requests import Response
 
@@ -184,13 +191,16 @@ class SecleaAI:
         password: str = None,
     ):
         """
-        Create a SecleaAI object to manage a session. Requires a project name and framework.
+        Create a SecleaAI object to manage a session. Requires a project name
+        and framework.
 
-        :param project_name: The name of the project
+        :param  project_name: The name of the project
 
-        :param platform_url: The url of the platform server. Default: "https://platform.seclea.com"
+        :param  platform_url: The url of the platform server. Default:
+                "https://platform.seclea.com"
 
-        :param auth_url: The url of the auth server. Default: "https://auth.seclea.com"
+        :param  auth_url: The url of the auth server. Default:
+            "https://auth.seclea.com"
 
         :param username: seclea username
 
@@ -220,8 +230,11 @@ class SecleaAI:
 
     def login(self, username=None, password=None) -> None:
         """
-        Override login, this also overwrites the stored credentials in ~/.seclea/config.
-        Note. In some circumstances the password will be echoed to stdin. This is not a problem in Jupyter Notebooks
+        Override login, this also overwrites the stored credentials in
+        ~/.seclea/config.
+
+        Note. In some circumstances the password will be echoed to stdin. This
+        is not a problem in Jupyter Notebooks
         but may appear in scripting usage.
 
         :return: None
@@ -266,8 +279,10 @@ class SecleaAI:
 
         :param transformations: A list of DatasetTransformation's.
 
-                        If your Dataset is large try and call this function more often with less DatasetTransformations
-                        as the function currently requires (no. DatasetTransformations x Dataset size) memory.
+                        If your Dataset is large try and call this function
+                        more often with less DatasetTransformations
+                        as the function currently requires (no.
+                        DatasetTransformations x Dataset size) memory.
 
                         See DatasetTransformation for more details.
 
@@ -299,13 +314,18 @@ class SecleaAI:
 
         :param dataset_name: The name of the dataset.
 
-        :param metadata: Any metadata about the dataset. Note that if using a Path or list of Paths then if there is an
-            index that you use when loading the data, it must be specified in the metadata.
+        :param metadata: Any metadata about the dataset. Note that if using a
+                         Path or list of Paths then if there is an
+                         index that you use when loading the data, it must be
+                         specified in the metadata.
 
         :param transformations: A list of DatasetTransformation's.
 
-                        If your Dataset is large try call this function more often with less DatasetTransformations
-                        as the function currently requires no. DatasetTransformations x Dataset size memory to function.
+                        If your Dataset is large try call this function more
+                        often with less DatasetTransformations
+                        as the function currently requires no.
+                        DatasetTransformations x Dataset size memory to
+                        function.
 
                         See DatasetTransformation for more details.
 

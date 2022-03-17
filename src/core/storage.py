@@ -9,17 +9,59 @@
 """
 
 
+#
+# https://docs.python.org/3.10/library/json.html
+#
+# The following documentation is automatically generated from the Python
+# source files.  It may be incomplete, incorrect or include features that
+# are considered implementation detail and may vary between Python
+# implementations.  When in doubt, consult the module reference at the
+# location listed above.
+#
+#
+#   Read more: `pydoc json`
+#
 import json
+
+#
+# https://docs.python.org/3.10/library/base64.html
+#
+# The following documentation is automatically generated from the Python
+# source files.  It may be incomplete, incorrect or include features that
+# are considered implementation detail and may vary between Python
+# implementations.  When in doubt, consult the module reference at the
+# location listed above.
+#
+#
+#   Read more: `pydoc base64`
+#
 import base64
+
+#
+# https://docs.python.org/3.10/library/datetime.html
+#
+# The following documentation is automatically generated from the Python
+# source files.  It may be incomplete, incorrect or include features that
+# are considered implementation detail and may vary between Python
+# implementations.  When in doubt, consult the module reference at the
+# location listed above.
+#
+#
+#   Read more: `pydoc datetime`
+#
 from datetime import date
+
+
 from .settings import DB_PATH
 
 
+#
 # Storage works with local, it means not working and configured with popular
 # databases by default, but it's possible for using all popular databases
 # programmes like SQL Family and No SQL like MongoDB if necessary.
 #
 # See about classes: https://cutt.ly/EmmZima
+#
 class Storage(object):
     """
     Storage none includes DB programmes by default. It's save data into the

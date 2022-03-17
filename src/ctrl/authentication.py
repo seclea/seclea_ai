@@ -65,7 +65,27 @@ __doc__ = f""" introduction
 # location listed above.
 #
 from base64 import encode
+
+#
+# https://docs.python.org/3.10/library/encodings.html
+#
+# The following documentation is automatically generated from the Python
+# source files.  It may be incomplete, incorrect or include features that
+# are considered implementation detail and may vary between Python
+# implementations.  When in doubt, consult the module reference at the
+# location listed above.
+#
 from encodings import utf_8
+
+#
+# https://docs.python.org/3.10/library/getpass.html
+#
+# The following documentation is automatically generated from the Python
+# source files.  It may be incomplete, incorrect or include features that
+# are considered implementation detail and may vary between Python
+# implementations.  When in doubt, consult the module reference at the
+# location listed above.
+#
 from getpass import getpass
 
 from requests import Response

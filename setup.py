@@ -39,17 +39,6 @@ See:
 
 
 #
-# https://docs.python.org/3.10/library/pathlib.html
-#
-# The following documentation is automatically generated from the Python
-# source files.  It may be incomplete, incorrect or include features that
-# are considered implementation detail and may vary between Python
-# implementations.  When in doubt, consult the module reference at the
-# location listed above.
-#
-import pathlib
-
-#
 # Always prefer setuptools over distutils
 #
 # Return a list all Python packages found within directory 'where'
@@ -126,36 +115,21 @@ setup(
     # https://packaging.python.org/specifications/core-metadata/#summary
     #
     # Optional
-    description=""" \vThis is an example:
+    description=""" \v Description
 
-    Websites are designed to cater to people's strengths. Humans have an
-    incredible ability to take visual information, combine it with our
-    experiences to derive meaning, and then act on that meaning. It's why you
-    can look at a form on a website and know that the little box with the
-    phrase "First Name" above it means you are supposed to type in the word you
-    use to informally identify yourself.
+    Seclea Platform provides tools to explain both the machine learning model
+    state and its individual decisions. This enables data scientists, engineers
+    and project managers to focus on the business challenges they are trying to
+    solve rather than trying to explain the models they develop. They can
+    design and evaluate advanced machine learning algorithms and let Seclea
+    provide the explanation of their model.
 
-    Yet, what happens when you face a very time-intensive task, like copying
-    the contact info for a thousand customers from one site to another? You
-    would love to delegate this work to a computer so it can be done quickly
-    and accurately. Unfortunately, the characteristics that make websites
-    optimal for humans make them difficult for computers to use.
-
-    The solution is an API. An API is the tool that makes a website's data
-    digestible for a computer. Through it, a computer can view and edit data,
-    just like a person can by loading pages and submitting forms.
-
-    When talking about APIs, a lot of the conversation focuses on abstract
-    concepts. To anchor ourselves, let's start with something that is physical:
-    the server. A server is nothing more than a big computer. It has all the
-    same parts as the laptop or desktop you use for work, it’s just faster and
-    more powerful. Typically, servers don't have a monitor, keyboard, or mouse,
-    which makes them look unapproachable. The reality is that IT folks connect
-    to them remotely — think remote desktop-style — to work on them.
-
-    Servers are used for all sorts of things. Some store data; others send
-    email. The kind people interact with the most are web servers. These are
-    the servers that give you a web page when you visit a website.
+    Seclea is unique in that it enables full transparency of your ML model.
+    Concerned stakeholders can examine the model evolution and important
+    factors that led to a particular decision. Seclea also enables data
+    scientists, engineers and project managers to tailor explanations to each
+    stakeholder’s requirements. This helps to improve their understanding and
+    allows them to gain confidence in the AI application.
     """,
 
     # This is an optional longer description of your project that represents
