@@ -1,0 +1,75 @@
+===============================================================================
+=               B U S I N E S S   I N T E L L I G E N C E  (BI)               =
+-------------------------------------------------------------------------------
+=                               D A T A B A S E                               =
+===============================================================================
+
+
+
+What Does Business Intelligence (BI) Mean?
+------------------------------------------
+  Business intelligence (BI) is the use of computing technologies for the
+  identification, discovery and analysis of business data - like sales revenue,
+  products, costs and incomes.
+
+  BI technologies provide current, historical and predictive views of
+  internally structured data for products and departments by establishing more
+  effective decision-making and strategic operational insights through
+  functions like online analytical processing (OLAP), reporting, predictive
+  analytics, data/text mining, benchmarking and Business Performance Management
+  (BPM). These technologies and functions are often referred to as information
+  management.
+
+
+
+Techopedia Explains Business Intelligence (BI):
+-----------------------------------------------
+  Developed in the mid-1980s, modern BI evolved from 1960s-era decision support
+  systems (DSS), which, with help of computer-aided models, assisted with
+  planning and decision-making, leading to executive information systems (EIS),
+  data warehouses (DW), OLAP and BI. BI did not achieve widespread acceptance
+  until the late 1990s.
+
+  BI software applications are used to gather data from data warehouses or data
+  marts, which are separate yet linked BI architectural stack segments used for
+  the preparation and use of data.
+
+  BI is used for multiple business purposes, including:
+  |
+    * Measurement of performance and benchmarking progress toward business
+      goals
+  |
+    * Quantitative analysis through predictive analytics, predictive modeling,
+      business process modeling and statistical analysis
+  |
+    * Reporting of departmental/divisional and enterprise perspectives of data
+      visualization, EISs and OLAP
+  |
+    * Collaborative programs that allow internal and external business
+      entities to collaborate through electronic data interchange (EDI) and
+      data sharing
+  |
+    * Use of knowledge management programs to identify and create insights and
+      experiences for learning management and regulatory compliance
+
+  BI also involves specific methodologies and procedures for implementing such
+  interactive information gathering techniques, including:
+  |
+    * Identifying interview teams
+    * Researching organizations
+    * Selecting and preparing interviewees
+    * Developing interview questions
+    * Scheduling and sequencing interviews
+
+  BI and its subset, competitive intelligence (CI), are considered synonymous.
+  Like CI, BI is considered a decision support system (DSS). CI manages
+  information focused on business competitors, whereas BI manages these
+  functions (and more) by focusing on internal business products and
+  departments.
+
+  Studies by Merrill Lynch indicate that 85 percent of all business information
+  is made up of unstructured or semi-structured data, including emails, news,
+  reports, Web pages, presentations, phone conversation notes, image files,
+  video files and marketing information. In the IT industry, management of such
+  data is considered a major unsolved problem.
+

@@ -1,0 +1,32 @@
+===============================================================================
+=             A R T I F I C I A L   I N T E L L I G E N C E (AI)              =
+-------------------------------------------------------------------------------
+=                               S E C L E A                                   =
+===============================================================================
+==                                                                           ==
+||  Artificial intelligence leverages computers and machines to mimic the    ||
+||  problem-solving and decision-making capabilities of the human mind.      ||
+||                                                                           ||
+===============================================================================
+
+
+
+About:
+------
+  We started our journey as an EPSRC project, focusing on empowering users
+  manage and control how organisations collect and consume their data. This
+  project led us to the data consumed by Machine Learning and Deep Learning
+  Algorithms with a clear question “how can such advanced algorithms explain
+  their behaviour and decisions to ordinary users.” To answer the question,
+  Seclea’s co-founders carried out a joint project that led to the formation
+  of the Seclea.
+
+  The work carried out at Smart Card Centre, Royal Holloway, University of
+  London led us to the ICURe programme. The programme supported the refinement
+  of Seclea’s features and how they can be deployed to overcome these AI trust
+  and user empowerment challenges.
+
+  Seclea is now supported by UKRI InnovateUK and RSE Enterprise Fellowship to
+  bring its technology to market. Next chapter of our story is to change
+  society to be fairer, more transparent and accountable through a diverse
+  range of applications based on AI technologies.

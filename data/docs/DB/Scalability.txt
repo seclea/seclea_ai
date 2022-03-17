@@ -1,0 +1,29 @@
+===============================================================================
+=                            S C A L A B I L I T Y                            =
+-------------------------------------------------------------------------------
+=                               D A T A B A S E                               =
+===============================================================================
+
+
+
+What Does Scalability Mean?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  Scalability is an attribute that describes the ability of a process, network,
+  software or organization to grow and manage increased demand. A system,
+  business or software that is described as scalable has an advantage because
+  it is more adaptable to the changing needs or demands of its users or
+  clients. Scalability is often a sign of stability and competitiveness, as it
+  means the network, system, software or organization is ready to handle the
+  influx of demand, increased productivity, trends, changing needs and even
+  presence or introduction of new competitors.
+
+
+
+Techopedia Explains Scalability:
+--------------------------------
+  To further understand scalability, here are two examples. First, a basic
+  anti-virus program can become premium and be used by enterprises through
+  downloading certain add-ons or paying for subscription. Because more
+  resources may be added to it, it is considered scalable. On the other hand,
+  more computers and servers can be added to a network in order to increase
+  throughput or intensify security. This makes the network scalable.
