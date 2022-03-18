@@ -1,0 +1,347 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
+  <title>Tutorial &mdash; Seclea AI 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/js/favicon.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="API Reference" href="seclea_ai.html" />
+    <link rel="prev" title="seclea-ai" href="readme.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home"> Seclea AI
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="readme.html">seclea-ai</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Tutorial</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#usage-guide">Usage Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#example-usage">Example Usage</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="seclea_ai.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Seclea AI</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+        
+      <li>Tutorial</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+          
+            <a href="_sources/tutorial.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <section id="tutorial">
+<h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+<section id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>The seclea-ai package is used for tracking ML model development. This means that most of the
+functions are designed to record and upload activities or data associated with your modelling.</p>
+</section>
+<section id="usage-guide">
+<h2>Usage Guide<a class="headerlink" href="#usage-guide" title="Permalink to this headline">¶</a></h2>
+<p>There are two main steps to using the package:</p>
+<ul class="simple">
+<li><p>Before you begin modelling you will need to upload the dataset that you are working with. This will currently need to be a csv, a Pandas DataFrame or a list of csv’s.</p></li>
+<li><p>After each time you train a new model you will upload it using <code class="docutils literal notranslate"><span class="pre">SecleaAI.upload_training_run()</span></code>.</p></li>
+</ul>
+</section>
+<section id="example-usage">
+<h2>Example Usage<a class="headerlink" href="#example-usage" title="Permalink to this headline">¶</a></h2>
+<p>Example of a simple Jupyter Notebook for a project using seclea_ai:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">seclea_ai</span> <span class="k">import</span> <span class="n">SecleaAI</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+
+<span class="n">seclea</span> <span class="o">=</span> <span class="n">SecleaAI</span><span class="p">(</span><span class="n">project_name</span><span class="o">=</span><span class="s2">&quot;Test Project&quot;</span><span class="p">,</span> <span class="n">organization</span><span class="o">=</span><span class="s2">&quot;Test Org&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">dataset</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;/content/dataset.csv&quot;</span><span class="p">)</span>
+
+<span class="n">dataset_metadata</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;outcome_name&quot;</span><span class="p">:</span> <span class="s2">&quot;fraud_reported&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;continuous_features&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="s2">&quot;total_claim_amount&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;policy_annual_premium&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;capital-gains&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;capital-loss&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;injury_claim&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;property_claim&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;vehicle_claim&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;incident_hour_of_the_day&quot;</span><span class="p">,</span>
+        <span class="p">],</span>
+    <span class="p">}</span>
+
+<span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Test Dataset&quot;</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">dataset_metadata</span>
+
+<span class="c1"># Alternative - using a file instead of a loaded DataFrame.</span>
+<span class="c1"># seclea.upload_dataset(&quot;/content/dataset.csv&quot;, dataset_name=&quot;Test Dataset&quot;, metadata=dataset_metadata)</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">remove_correlated_features</span><span class="p">(</span><span class="n">dataframe</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span> <span class="n">keep</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DataFrame</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot; Remove strongly correlated features &quot;&quot;&quot;</span>
+
+    <span class="c1"># Absolute value correlation matrix</span>
+    <span class="n">corr_matrix</span> <span class="o">=</span> <span class="n">dataframe</span><span class="p">[</span><span class="n">dataframe</span><span class="p">[</span><span class="s2">&quot;isFraud&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">notnull</span><span class="p">()]</span><span class="o">.</span><span class="n">corr</span><span class="p">()</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span>
+
+    <span class="c1"># Getting the upper triangle of correlations</span>
+    <span class="n">upper</span> <span class="o">=</span> <span class="n">corr_matrix</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">triu</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">corr_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">),</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">))</span>
+
+    <span class="c1"># Select columns with correlations above threshold</span>
+    <span class="n">to_drop</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span> <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">upper</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">upper</span><span class="p">[</span><span class="n">column</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">threshold</span><span class="p">)</span> <span class="ow">and</span> <span class="n">column</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">keep</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">dataframe</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">to_drop</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">encode_categorical</span><span class="p">(</span><span class="n">dataframe</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DataFrame</span><span class="p">:</span>
+    <span class="c1"># encode all the categorical features into numerical (ie. [1, 4, 6] -&gt; [0, 1, 2] or [&quot;lights&quot;, &quot;signs&quot;, &quot;&quot;]</span>
+    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">dataframe</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">dataframe</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="s2">&quot;object&quot;</span> <span class="ow">or</span> <span class="n">dataframe</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="s2">&quot;object&quot;</span><span class="p">:</span>
+            <span class="n">lbl</span> <span class="o">=</span> <span class="n">LabelEncoder</span><span class="p">()</span>
+            <span class="n">lbl</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">dataframe</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">))</span>
+            <span class="n">dataframe</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">lbl</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">dataframe</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">dataframe</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">xgboost</span> <span class="k">as</span> <span class="nn">xgb</span>
+
+<span class="n">threshold</span> <span class="o">=</span> <span class="mf">0.98</span>
+
+<span class="n">keep</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;TransactionAmt_to_mean_card4&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;TransactionAmt_to_std_card4&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;D15_to_mean_card4&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;D15_to_std_card4&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;Hours&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+
+<span class="n">dataset_cleaned</span> <span class="o">=</span> <span class="n">remove_correlated_features</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">keep</span><span class="p">,</span> <span class="n">threshold</span><span class="p">)</span>
+
+<span class="n">dataset_cleaned</span> <span class="o">=</span> <span class="n">encode_categorical</span><span class="p">(</span><span class="n">dataset_cleaned</span><span class="p">)</span>
+
+<span class="c1"># load to XGBoost format</span>
+<span class="n">dtrain</span> <span class="o">=</span> <span class="n">xgb</span><span class="o">.</span><span class="n">DMatrix</span><span class="p">(</span>
+                     <span class="n">data</span><span class="o">=</span><span class="n">dataset_cleaned</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s2">&quot;isFraud&quot;</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+                     <span class="n">label</span><span class="o">=</span><span class="n">dataset_cleaned</span><span class="p">[</span><span class="s2">&quot;isFraud&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                     <span class="p">)</span>
+
+<span class="c1"># setup training params</span>
+<span class="n">params</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">max_depth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">eta</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">objective</span><span class="o">=</span><span class="s2">&quot;binary:logistic&quot;</span><span class="p">,</span> <span class="n">nthread</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">eval_metric</span><span class="o">=</span><span class="s2">&quot;auc&quot;</span><span class="p">)</span>
+<span class="n">num_rounds</span> <span class="o">=</span> <span class="mi">5</span>
+
+<span class="c1"># train model</span>
+<span class="n">booster</span> <span class="o">=</span> <span class="n">xgb</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span> <span class="n">dtrain</span><span class="o">=</span><span class="n">dtrain</span><span class="p">,</span> <span class="n">num_boost_round</span><span class="o">=</span><span class="n">num_rounds</span><span class="p">)</span>
+
+<span class="n">transformations</span> <span class="o">=</span> <span class="p">[</span><span class="n">DatasetTransformation</span><span class="p">(</span>
+                                        <span class="n">remove_correlated_features</span><span class="p">,</span>
+                                        <span class="n">data_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;dataframe&quot;</span><span class="p">:</span> <span class="n">dataset</span><span class="p">},</span>
+                                        <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;keep&quot;</span><span class="p">:</span> <span class="n">keep</span><span class="p">,</span> <span class="s2">&quot;threshold&quot;</span><span class="p">:</span> <span class="n">threshold</span><span class="p">},</span>
+                                        <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;dataframe&quot;</span><span class="p">]</span>
+                                        <span class="p">),</span>
+                   <span class="n">DatasetTransformation</span><span class="p">(</span>
+                                        <span class="n">encode_categorical</span><span class="p">,</span>
+                                        <span class="n">data_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;dataframe&quot;</span><span class="p">:</span> <span class="n">inherit</span><span class="p">},</span>
+                                        <span class="n">kwargs</span><span class="o">=</span><span class="p">{},</span>
+                                        <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;dataframe&quot;</span><span class="p">]</span>
+                                        <span class="p">)]</span>
+
+<span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span>
+    <span class="n">dataset_cleaned</span><span class="p">,</span>
+    <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Test Dataset Cleaned&quot;</span><span class="p">,</span>
+    <span class="n">metadata</span><span class="o">=</span><span class="n">dataset_metadata</span><span class="p">,</span>
+    <span class="n">transformations</span><span class="o">=</span><span class="n">transformations</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># upload model state and data</span>
+<span class="n">seclea</span><span class="o">.</span><span class="n">upload_training_run</span><span class="p">(</span>
+    <span class="n">booster</span><span class="p">,</span>
+    <span class="n">dataset</span><span class="o">=</span><span class="n">dataset_cleaned</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+           
+          </div>
+          <footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+        <a href="seclea_ai.html" class="btn btn-neutral float-right" title="API Reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="readme.html" class="btn btn-neutral float-left" title="seclea-ai" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &#169; Copyright 2021, Seclea.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
