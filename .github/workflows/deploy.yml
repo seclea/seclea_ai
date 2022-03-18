@@ -1,0 +1,71 @@
+name: Deploy to PyPI
+
+on:
+  push:
+    tags:
+      - "*"
+  workflow_dispatch:
+    branches: [dev]
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged
+    env:
+      TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+      TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+
+    steps:
+      - name: Checkout repo - including submodules
+        uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.TOKEN_AUTOMATION }}
+          submodules: "recursive"
+
+      - name: Get the version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+
+      - name: Increment version in setup.py
+        run: |
+          ./scripts/update-version.sh ${{ steps.get_version.outputs.VERSION }}
+
+      - name: Build Sphinx Documentation
+        run: |
+          pip3 install -r requirements.txt
+          ./scripts/run_make_doc.sh
+
+      - name: Commit changes to dev.
+        uses: EndBug/add-and-commit@v7 # You can change this to use a specific version
+        with:
+          add: "."
+          author_email: rogermilroy@users.noreply.github.com
+          branch: dev
+          # Determines the way the action fills missing author name and email. Three options are available:
+          # - github_actor -> UserName <UserName@users.noreply.github.com>
+          # - user_info -> Your Display Name <your-actual@email.com>
+          # - github_actions -> github-actions <email associated with the github logo>
+          # Default:
+          default_author: github_actions
+          message: "Update version number in setup.py on merge."
+          # The flag used on the pull strategy. Use NO-PULL to avoid the action pulling at all.
+          # Default: '--no-rebase'
+          pull: "NO-PULL"
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+
+      - name: Build wheel
+        run: |
+          pip3 install wheel
+          python3 setup.py bdist_wheel
+          ls dist
+          ls build
+
+#      - name: Upload wheel
+#        run: |
+#          pip3 install twine
+#          twine upload dist/*
+#        continue-on-error: false
