@@ -3,14 +3,13 @@ name: Deploy to PyPI
 on:
   push:
     tags:
-      - "*"
+      - "v*"
   workflow_dispatch:
     branches: [dev, feature/deploy-to-conda]
 
 jobs:
   build-and-upload:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged
     env:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
