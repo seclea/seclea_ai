@@ -61,6 +61,8 @@ jobs:
         run: |
           pip3 install wheel
           python3 setup.py bdist_wheel
+          ls dist
+          ls build
 
 #      - name: Upload wheel
 #        run: |
