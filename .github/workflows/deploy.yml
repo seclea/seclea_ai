@@ -27,7 +27,7 @@ jobs:
 
       - name: Increment version in setup.py
         run: |
-          ./scripts/update-version.sh $( ${{ steps.get_version.outputs.VERSION }} | cut -c 2- )
+          ./scripts/update-version.sh $( echo ${{ steps.get_version.outputs.VERSION }} | cut -c 2- )
 
       - name: Build Sphinx Documentation
         run: |
