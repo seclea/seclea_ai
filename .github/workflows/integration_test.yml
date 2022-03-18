@@ -1,10 +1,10 @@
 name: Integration Testing
 
 on:
-  pull_request:
-    branches: [main]
+  #  pull_request:
+  #    branches: [main]
   workflow_dispatch:
-    branches: [dev, feature/deploy-to-conda]
+    branches: [dev]
 
 jobs:
   authenticate:
@@ -159,7 +159,7 @@ jobs:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           VERIFY_KEY: ${{ secrets.VERIFY_KEY }}
           ALLOWED_HOSTS: _json_["*"]
-          API_URL: http://localhost:8010
+          API_URL: http://localhost:8000
           CORS_ALLOWED_ORIGINS: _json_["http://localhost:8080","http://localhost:8010","http://localhost:8000"]
           CORS_ALLOW_CREDENTIALS: _json_true
           CELERY_BROKER_URL: "redis://redis:6379"
