@@ -1,3 +1,4 @@
+import traceback
 from getpass import getpass
 
 from requests import Response
@@ -50,7 +51,13 @@ class AuthenticationService:
         """
         self._transmission.cookies = {self._key_token_access: self._db.get(self._key_token_access)}
 
-        response = self._transmission.send_json(url_path=self._path_token_verify, obj={})
+        print(f"Cookies: {self._transmission.cookies}")
+
+        try:
+            response = self._transmission.send_json(url_path=self._path_token_verify, obj={})
+        except TypeError:
+            traceback.print_exc()
+            return False
         return response.status_code == 200
 
     def refresh_token(self) -> bool:
@@ -91,6 +98,9 @@ class AuthenticationService:
         else:
             credentials = {"username": username, "password": password}
         response = self._transmission.send_json(url_path=self._path_token_obtain, obj=credentials)
+        print(
+            f"Initial Tokens - Status: {response.status_code} - content {response.content} - cookies - {response.cookies}"
+        )
         if response.status_code != 200:
             raise AuthenticationError(f"status:{response.status_code}, content:{response.content}")
         self._save_response_tokens(response)

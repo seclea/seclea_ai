@@ -1,15 +1,28 @@
 name: Integration Testing
 
 on:
-  pull_request:
-    branches: [main]
+  #  pull_request:
+  #    branches: [main]
   workflow_dispatch:
     branches: [dev]
 
 jobs:
+  authenticate:
+    runs-on: ubuntu-latest
+    outputs:
+      password: ${{ steps.authenticate.outputs.password }}
+    steps:
+      - id: authenticate
+        run: |
+          export AWS_ACCESS_KEY_ID=${{ secrets.AWS_DEV_GITHUB_USER_ACCESS_KEY }}
+          export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_DEV_GITHUB_USER_SECRET_ACCESS_KEY }}
+          export AWS_DEFAULT_REGION=eu-west-2
+          echo "::set-output name=password::$(aws ecr get-login-password --region eu-west-2)"
+
   test:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ${{ matrix.os }}
+    needs: authenticate
     strategy:
       max-parallel: 12
       matrix:
@@ -21,14 +34,33 @@ jobs:
             path: ~/.cache/pip
 
     services:
-      postgres:
+      postgres-portal:
         image: postgres:13.2
+        options: >-
+          --health-cmd "pg_isready -q -d postgres -U app_user"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
         env:
           POSTGRES_DB: app
           POSTGRES_USER: app_user
           POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
+
+      postgres-auth:
+        image: postgres:13.2
+        options: >-
+          --health-cmd "pg_isready -q -d postgres -U app_user"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        env:
+          POSTGRES_DB: auth
+          POSTGRES_USER: app_user
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
 
       redis:
         image: redis
@@ -42,81 +74,100 @@ jobs:
           - 6379:6379
 
       portal:
-        image: https://052208718180.dkr.ecr.eu-west-2.amazonaws.com/seclea-portal:latest
+        image: 738358893625.dkr.ecr.eu-west-2.amazonaws.com/seclea-portal:latest
+        credentials:
+          username: AWS
+          password: ${{ needs.authenticate.outputs.password }}
+        options: >-
+          --health-cmd "curl localhost:8000"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 2
         env:
-          ENV_ROLE: production
-          DEBUG: _json_'true'
+          ENV_ROLE: development
+          DEBUG: _json_true
           STATIC_URL: static/
           DATABASE: postgres
           SQL_DATABASE: app
           SQL_USER: app_user
           SQL_PASSWORD: postgres
-          SQL_HOST: localhost
+          SQL_HOST: postgres-portal
           SQL_PORT: 5432
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           VERIFY_KEY: ${{ secrets.VERIFY_KEY }}
-          ALLOWED_HOSTS: _json_['"*"']
+          ALLOWED_HOSTS: _json_["*"]
           API_URL_AUTH: http://localhost:8010
-          CORS_ALLOWED_ORIGINS: _json_['"http://localhost:8080"','"http://localhost:8010"','"http://localhost:8000"']
-          CORS_ALLOW_CREDENTIALS: _json_'true'
-          CELERY_BROKER_URL: "redis://localhost:6379"
-          CELERY_RESULT_BACKEND: "redis://localhost:6379"
-          AUTH_COOKIE_SECURE: _json_'false'
-          AUTH_COOKIE_HTTP_ONLY: _json_'false'
-          AUTH_COOKIE_DOMAIN: ""
+          CORS_ALLOWED_ORIGINS: _json_["http://localhost:8080","http://localhost:8010","http://localhost:8000"]
+          CORS_ALLOW_CREDENTIALS: _json_true
+          CELERY_BROKER_URL: "redis://redis:6379"
+          CELERY_RESULT_BACKEND: "redis://redis:6379"
+          AUTH_COOKIE_SECURE: _json_false
+          AUTH_COOKIE_HTTP_ONLY: _json_false
+          AUTH_COOKIE_DOMAIN: " "
         ports:
           - 8000:8000
 
       portal-celery:
-        image: https://052208718180.dkr.ecr.eu-west-2.amazonaws.com/seclea-portal-celery:latest
+        image: 738358893625.dkr.ecr.eu-west-2.amazonaws.com/seclea-portal-celery:latest
+        credentials:
+          username: AWS
+          password: ${{ needs.authenticate.outputs.password }}
         env:
-          ENV_ROLE: production
-          DEBUG: _json_'true'
+          ENV_ROLE: development
+          DEBUG: _json_true
           STATIC_URL: static/
           DATABASE: postgres
           SQL_DATABASE: app
           SQL_USER: app_user
           SQL_PASSWORD: postgres
-          SQL_HOST: localhost
+          SQL_HOST: postgres-portal
           SQL_PORT: 5432
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           VERIFY_KEY: ${{ secrets.VERIFY_KEY }}
-          ALLOWED_HOSTS: _json_['"*"']
+          ALLOWED_HOSTS: _json_["*"]
           API_URL_AUTH: http://localhost:8010
-          CORS_ALLOWED_ORIGINS: _json_['"http://localhost:8080"','"http://localhost:8010"','"http://localhost:8000"']
-          CORS_ALLOW_CREDENTIALS: _json_'true'
-          CELERY_BROKER_URL: "redis://localhost:6379"
-          CELERY_RESULT_BACKEND: "redis://localhost:6379"
-          AUTH_COOKIE_SECURE: _json_'false'
-          AUTH_COOKIE_HTTP_ONLY: _json_'false'
-          AUTH_COOKIE_DOMAIN: ""
+          CORS_ALLOWED_ORIGINS: _json_["http://localhost:8080","http://localhost:8010","http://localhost:8000"]
+          CORS_ALLOW_CREDENTIALS: _json_true
+          CELERY_BROKER_URL: "redis://redis:6379"
+          CELERY_RESULT_BACKEND: "redis://redis:6379"
+          AUTH_COOKIE_SECURE: _json_false
+          AUTH_COOKIE_HTTP_ONLY: _json_false
+          AUTH_COOKIE_DOMAIN: " "
 
       auth:
-        image: https://052208718180.dkr.ecr.eu-west-2.amazonaws.com/seclea-account-management:latest
+        image: 738358893625.dkr.ecr.eu-west-2.amazonaws.com/seclea-account-management:latest
+        credentials:
+          username: AWS
+          password: ${{ needs.authenticate.outputs.password }}
+        options: >-
+          --health-cmd "curl localhost:8010"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 2
         env:
-          ENV_ROLE: production
+          ENV_ROLE: development
           ENVIRONMENT: account_management
-          DEBUG: _json_'false'
+          DEBUG: _json_false
           DATABASE: postgres
           SQL_ENGINE: django.db.backends.postgresql
           SQL_DATABASE: auth
           SQL_USER: app_user
           SQL_PASSWORD: postgres
-          SQL_HOST: localhost
+          SQL_HOST: postgres-auth
           SQL_PORT: 5432
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           VERIFY_KEY: ${{ secrets.VERIFY_KEY }}
-          ALLOWED_HOSTS: _json_['"*"']
-          API_URL: http://localhost:8010
-          CORS_ALLOWED_ORIGINS: _json_['"http://localhost:8080"','"http://localhost:8010"','"http://localhost:8000"']
-          CORS_ALLOW_CREDENTIALS: _json_'true'
-          CELERY_BROKER_URL: "redis://localhost:6379"
-          CELERY_RESULT_BACKEND: "redis://localhost:6379"
-          ENABLE_PML_FILE_LOGGING: _json_'false'
-          AUTH_COOKIE_SECURE: _json_'false'
-          AUTH_COOKIE_HTTP_ONLY: _json_'false'
-          AUTH_COOKIE_DOMAIN: ""
+          ALLOWED_HOSTS: _json_["*"]
+          API_URL: http://localhost:8000
+          CORS_ALLOWED_ORIGINS: _json_["http://localhost:8080","http://localhost:8010","http://localhost:8000"]
+          CORS_ALLOW_CREDENTIALS: _json_true
+          CELERY_BROKER_URL: "redis://redis:6379"
+          CELERY_RESULT_BACKEND: "redis://redis:6379"
+          ENABLE_PML_FILE_LOGGING: _json_false
+          AUTH_COOKIE_SECURE: _json_false
+          AUTH_COOKIE_HTTP_ONLY: _json_false
+          AUTH_COOKIE_DOMAIN: " "
         ports:
           - 8010:8010
 
@@ -139,6 +190,9 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install -r requirements.txt
+      - name: Create user
+        run: |
+          docker exec $(docker ps | grep account | cut -d ' ' -f1) bash scripts/load_default_data.sh
       - name: Run Tests
         run: |
           python -m unittest discover test/test_integration_portal
