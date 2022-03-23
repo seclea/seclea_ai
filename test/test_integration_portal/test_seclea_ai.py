@@ -323,7 +323,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
             y_test=self.y_test,
         )
 
-        model1 = RandomForestClassifier(random_state=42)
+        model1 = RandomForestClassifier(random_state=42, n_estimators=32)
         model1.fit(self.X_sm, self.y_sm)
         self.controller_1.upload_training_run_split(
             model1, X_train=self.X_sm, y_train=self.y_sm, X_test=self.X_test, y_test=self.y_test
