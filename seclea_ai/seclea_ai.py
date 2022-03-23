@@ -574,12 +574,19 @@ class SecleaAI:
                     "Parent Dataset does not exist on the Platform. Please check your arguments and "
                     "that you have uploaded the parent dataset already"
                 )
-
+            parent = res.json()
             # deal with the splits - take the set one by default but inherit from parent if None
             if transformation.split is None:
                 # check the parent split - inherit split
-                parent = res.json()
                 split = parent["metadata"]["split"]
+            try:
+                if metadata["outcome_name"] is None:
+                    pass
+            except KeyError:
+                try:
+                    metadata["outcome_name"] = parent["metadata"]["outcome_name"]
+                except KeyError:
+                    metadata["outcome_name"] = None
 
         # this needs to be here so split is always set.
         metadata = {**metadata, "split": split, "features": list(dataset.columns)}
