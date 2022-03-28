@@ -54,6 +54,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
         )
 
     def step_1_upload_dataset(self):
+        # TODO this should be failing due to vehile clain not being in dataframe.
         self.sample_df_1 = pd.read_csv(f"{folder_path}/insurance_claims.csv")
         self.sample_df_1_name = "Insurance Fraud Dataset"
         self.sample_df_1_meta = {
@@ -66,7 +67,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
                 "capital-loss",
                 "injury_claim",
                 "property_claim",
-                "vehicle_claim",
+                # "vehicle_claim",
                 "incident_hour_of_the_day",
             ],
         }
