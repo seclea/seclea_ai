@@ -1,4 +1,7 @@
-# <a href="https://seclea.com/"><img alt="Seclea" src="docs/media/logo.png" height="60"></a>
+<a href="https://seclea.com/">
+  <img src="docs/media/logo-light.png#gh-light-mode-only" height="80" alt="Seclea"/>
+  <img src="docs/media/logo-dark.png#gh-dark-mode-only" height="80" alt="Seclea"/>
+</a>
 
 [![pypi](https://img.shields.io/pypi/v/seclea-ai.svg)](https://pypi.python.org/pypi/wandb)
 
