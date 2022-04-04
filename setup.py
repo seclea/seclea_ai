@@ -23,5 +23,11 @@ setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.7",
-    install_requires=["pandas>=1.1.0", "pickleDB>=0.9.2"],
+    install_requires=[
+        "dill>=0.3.4",
+        "pandas>=1.3.0",
+        "pickleDB>=0.9.2",
+        "requests>=2.0.0",
+        "zstandard>=0.15.2",
+    ],
 )
