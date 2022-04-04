@@ -28,8 +28,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
     """
 
     def step_0_project_setup(self):
-        self.password = "asdf"
-        self.username = "onespanadmin"
+        self.password = "asdf"  # nosec
+        self.username = "onespanadmin"  # nosec
         self.organization = "Onespan"
         self.project_name_1 = f"test-project-{uuid.uuid4()}"
         self.project_name_2 = f"test-project-{uuid.uuid4()}"
