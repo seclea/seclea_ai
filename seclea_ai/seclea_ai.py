@@ -14,14 +14,14 @@ from requests import Response
 
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
-from seclea_ai.seclea_utils.core import (
+from seclea_ai.lib.seclea_utils.core import (
     CompressionFactory,
     RequestWrapper,
     decode_func,
     encode_func,
     save_object,
 )
-from seclea_ai.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
+from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
 
 from .svc.api.collection.dataset import post_dataset
