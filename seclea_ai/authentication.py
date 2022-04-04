@@ -4,7 +4,7 @@ from getpass import getpass
 from requests import Response
 
 from seclea_ai.exceptions import AuthenticationError
-from seclea_ai.seclea_utils.core import Transmission
+from seclea_ai.lib.seclea_utils.core import Transmission
 
 from .storage import Storage
 
@@ -25,11 +25,17 @@ class AuthenticationService:
     def __init__(self, transmission: Transmission):
         self._transmission = transmission
         self._db = Storage(db_name="auth_service", root="." if IN_COLAB else None)
-        self._path_token_obtain = "/api/token/obtain/"
-        self._path_token_refresh = "/api/token/refresh/"
-        self._path_token_verify = "/api/token/verify/"
-        self._key_token_access = "access_token"
-        self._key_token_refresh = "refresh_token"
+        self._path_token_obtain = (
+            "/api/token/obtain/"  # nosec - bandit thinks this is a pw or key..
+        )
+        self._path_token_refresh = (
+            "/api/token/refresh/"  # nosec - bandit thinks this is a pw or key..
+        )
+        self._path_token_verify = (
+            "/api/token/verify/"  # nosec - bandit thinks this is a pw or key..
+        )
+        self._key_token_access = "access_token"  # nosec - bandit thinks this is a pw or key..
+        self._key_token_refresh = "refresh_token"  # nosec - bandit thinks this is a pw or key..
 
     def authenticate(self, transmission: Transmission = None, username=None, password=None):
         """

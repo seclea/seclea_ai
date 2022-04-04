@@ -38,7 +38,7 @@ jobs:
         uses: EndBug/add-and-commit@v7 # You can change this to use a specific version
         with:
           add: "."
-          author_email: rogermilroy@users.noreply.github.com
+          author_email: automation@seclea.com
           branch: dev
           # Determines the way the action fills missing author name and email. Three options are available:
           # - github_actor -> UserName <UserName@users.noreply.github.com>
