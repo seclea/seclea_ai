@@ -1,4 +1,4 @@
-from seclea_ai.seclea_utils.core.transmission import Transmission
+from seclea_ai.lib.seclea_utils.core.transmission import Transmission
 
 from ..errors import throws_api_err
 
