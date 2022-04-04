@@ -2,7 +2,6 @@ name: Deploy to PyPI
 
 on:
   workflow_dispatch:
-    branches: [main]
     input:
       tag:
         description: "Release tag - in the format vX.X.X where X are numbers"
@@ -39,10 +38,7 @@ jobs:
           # - github_actions -> github-actions <email associated with the github logo>
           # Default:
           default_author: github_actions
-          message: "Update version number in setup.py on merge."
-          # The flag used on the pull strategy. Use NO-PULL to avoid the action pulling at all.
-          # Default: '--no-rebase'
-          pull: "NO-PULL"
+          message: "Update version number in setup.py."
 
       - name: Checkout main - including submodules
         uses: actions/checkout@v2
@@ -71,10 +67,9 @@ jobs:
           # - github_actions -> github-actions <email associated with the github logo>
           # Default:
           default_author: github_actions
-          message: "Update version number in setup.py on merge."
+          message: "Update version number in setup.py."
           # The flag used on the pull strategy. Use NO-PULL to avoid the action pulling at all.
           # Default: '--no-rebase'
-          pull: "NO-PULL"
           tag: ${{ github.event.inputs.tag }}
 
       - name: Set up Python
