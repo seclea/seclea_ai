@@ -2,7 +2,7 @@ name: Deploy to PyPI
 
 on:
   workflow_dispatch:
-    input:
+    inputs:
       tag:
         description: "Release tag - in the format vX.X.X where X are numbers"
         required: true
