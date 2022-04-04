@@ -4,7 +4,7 @@ from getpass import getpass
 from requests import Response
 
 from seclea_ai.exceptions import AuthenticationError
-from seclea_ai.seclea_utils.core import Transmission
+from seclea_ai.lib.seclea_utils.core import Transmission
 
 from .storage import Storage
 
