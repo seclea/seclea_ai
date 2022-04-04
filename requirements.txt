@@ -2,6 +2,7 @@ certifi==2021.5.30
 chardet==3.0.4
 dill>=0.3.4
 idna==2.8
+imblearn==0.0
 jupyter==1.0.0
 lightgbm==3.2.1
 numpy>=1.19.0
@@ -15,7 +16,6 @@ setuptools>=49.2.1
 sklearn==0.0
 Sphinx==4.1.1
 sphinx-rtd-theme==0.5.2
-ujson>=4.0.2
 urllib3==1.25.11
 xgboost>=1.5.2
 zstandard>=0.15.1

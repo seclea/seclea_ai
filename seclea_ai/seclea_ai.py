@@ -14,14 +14,14 @@ from requests import Response
 
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
-from seclea_ai.seclea_utils.core import (
+from seclea_ai.lib.seclea_utils.core import (
     CompressionFactory,
     RequestWrapper,
     decode_func,
     encode_func,
     save_object,
 )
-from seclea_ai.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
+from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
 
 from .svc.api.collection.dataset import post_dataset
@@ -574,12 +574,19 @@ class SecleaAI:
                     "Parent Dataset does not exist on the Platform. Please check your arguments and "
                     "that you have uploaded the parent dataset already"
                 )
-
+            parent = res.json()
             # deal with the splits - take the set one by default but inherit from parent if None
             if transformation.split is None:
                 # check the parent split - inherit split
-                parent = res.json()
                 split = parent["metadata"]["split"]
+            try:
+                if metadata["outcome_name"] is None:
+                    pass
+            except KeyError:
+                try:
+                    metadata["outcome_name"] = parent["metadata"]["outcome_name"]
+                except KeyError:
+                    metadata["outcome_name"] = None
 
         # this needs to be here so split is always set.
         metadata = {**metadata, "split": split, "features": list(dataset.columns)}
