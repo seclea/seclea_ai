@@ -1,4 +1,4 @@
-# <p><source srcset="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logo-dark.png" media="(prefers-color-scheme: dark)"><img src="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logo-light.png" height="80" alt="Seclea"/></p>
+# <picture><source srcset="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logo-dark.png" media="(prefers-color-scheme: dark)"><img src="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logo-light.png" height="80" alt="Seclea"/></picture>
 
 [![pypi](https://img.shields.io/pypi/v/seclea-ai.svg)](https://pypi.python.org/pypi/wandb)
 
