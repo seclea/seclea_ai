@@ -3,7 +3,7 @@ region: ams
 static_sites:
   - environment_slug: html
     github:
-      branch: main
+      branch: dev
       deploy_on_push: true
       repo: seclea/seclea_ai
     name: seclea-ai
