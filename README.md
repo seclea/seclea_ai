@@ -1,7 +1,4 @@
-<p>
-  <img src="docs/media/logo-light.png#gh-light-mode-only" height="80" alt="Seclea"/>
-  <img src="docs/media/logo-dark.png#gh-dark-mode-only" height="80" alt="Seclea"/>
-</p>
+# <p><source srcset="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logo-dark.png" media="(prefers-color-scheme: dark)"><img src="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logo-light.png" height="80" alt="Seclea"/></p>
 
 [![pypi](https://img.shields.io/pypi/v/seclea-ai.svg)](https://pypi.python.org/pypi/wandb)
 
@@ -31,8 +28,10 @@ $ conda install seclea_ai
 
 Use this package to record your data science development work.
 
-```shell
+```
+from seclea_ai import SecleaAI
 
+seclea = SecleaAI(project_name="My Project", organization="My Org")
 ```
 
 ## Maintainers
@@ -52,4 +51,4 @@ to improve the security and privacy of this project!
 
 The code in this repository is provided under the following License.
 
-[LICENSE](LICENSE.txt) © Seclea Ltd.
+[LICENSE](https://github.com/seclea/seclea_ai/blob/dev/LICENSE.txt) © Seclea Ltd.
