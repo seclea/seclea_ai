@@ -1,4 +1,6 @@
-# <picture><source srcset="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logo-dark.png" media="(prefers-color-scheme: dark)"><img src="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logo-light.png#gh-light-mode-only" height="100" alt="Seclea"><span style="display: none"><img alt="Seclea" src="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logo-dark.png#gh-dark-mode-only" height="100"></span></picture>
+<picture><source srcset="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logo-dark.png" media="(prefers-color-scheme: dark)"><img src="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logo-light.png#gh-light-mode-only" height="100" alt="Seclea"><span style="display: none"><img alt="Seclea" src="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logo-dark.png#gh-dark-mode-only" height="100"></span></picture>
+
+# Seclea AI
 
 [![pypi](https://img.shields.io/pypi/v/seclea-ai.svg)](https://pypi.python.org/pypi/wandb)
 
