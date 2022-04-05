@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="seclea_ai",
-    version="0.0.44",
+    version="0.0.45",
     author="octavio",
     author_email="octavio.delser@gmail.com",
     description="Seclea integration.",
