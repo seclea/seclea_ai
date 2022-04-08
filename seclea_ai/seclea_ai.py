@@ -568,9 +568,9 @@ class SecleaAI:
     def _ensure_required_metadata(metadata: Dict, defaults_spec: Dict) -> Dict:
         """
         Ensures that required metadata that can be specified by the user are filled.
-        @param metadata:
+        @param metadata: The metadata dict
         @param defaults_spec:
-        @return:
+        @return: metadata
         """
         for required_key, default in defaults_spec.items():
             try:
@@ -584,28 +584,13 @@ class SecleaAI:
     def _add_required_metadata(metadata: Dict, required_spec: Dict) -> Dict:
         """
         Adds required - non user specified fields to the metadata
-        @param metadata:
+        @param metadata: The metadata dict
         @param required_spec:
-        @return:
+        @return: metadata
         """
         for required_key, default in required_spec.items():
             metadata[required_key] = default
         return metadata
-
-    # @staticmethod
-    # def _check_features(dataset, metadata, parent_metadata) -> Dict:
-    #     # get the features
-    #     cols = list(dataset.columns)
-    #
-    #     if len(cols) != len(parent_metadata["features"]):
-    #         # column added or removed TODO complete
-    #         pass
-    #
-    #     # check if the features are the same - there's probably a better way
-    #     if not set(cols).issubset(parent_metadata["features"]) and not set(parent_metadata["features"]).issubset(cols):
-    #         # the features have been lost
-    #         metadata["feature_map"] = {old: new for new, old in zip(cols, parent_metadata["features"])}
-    #     return metadata
 
     def _upload_dataset(
         self,
@@ -641,9 +626,6 @@ class SecleaAI:
                     metadata["outcome_name"] = parent_metadata["outcome_name"]
                 except KeyError:
                     metadata["outcome_name"] = None
-            # features and continuous features
-            # this one is complicated
-            # self._check_features(dataset=dataset, metadata=metadata, parent_metadata=parent_metadata)
 
         # ensure that required keys are present in metadata and have meaningful defaults.
         # outcome name is here in case there are no transformations. It still needs to be set.
@@ -656,6 +638,7 @@ class SecleaAI:
         try:
             features = dataset.columns.drop(metadata["outcome_name"])
         except KeyError:
+            # this means outcome was set to None
             features = dataset.columns
 
         required = dict(
