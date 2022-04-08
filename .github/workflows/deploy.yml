@@ -1,55 +1,77 @@
 name: Deploy to PyPI
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
-    branches: [dev]
+    inputs:
+      tag:
+        description: "Release tag - in the format vX.X.X where X are numbers"
+        required: true
+        type: string
 
 jobs:
   build-and-upload:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
 
     steps:
-      - name: Checkout repo - including submodules
+      - name: Checkout dev - including submodules
         uses: actions/checkout@v2
         with:
+          ref: dev
           token: ${{ secrets.TOKEN_AUTOMATION }}
           submodules: "recursive"
 
-      - name: Get the version
-        id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
-
       - name: Increment version in setup.py
         run: |
-          ./scripts/update-version.sh $( echo ${{ steps.get_version.outputs.VERSION }} | cut -c 2- )
+          ./scripts/update-version.sh $( echo ${{ github.event.inputs.tag }} | cut -c 2- )
 
       - name: Build Sphinx Documentation
         run: |
-          pip3 install -r requirements.txt
+          pip3 install sphinx sphinx-rtd-theme myst_parser numpy pandas
           ./scripts/run_make_doc.sh
 
       - name: Commit changes to dev.
-        uses: EndBug/add-and-commit@v7 # You can change this to use a specific version
+        uses: EndBug/add-and-commit@v9 # You can change this to use a specific version
         with:
           add: "."
-          author_email: rogermilroy@users.noreply.github.com
-          branch: dev
+          author_email: automation@seclea.com
           # Determines the way the action fills missing author name and email. Three options are available:
           # - github_actor -> UserName <UserName@users.noreply.github.com>
           # - user_info -> Your Display Name <your-actual@email.com>
           # - github_actions -> github-actions <email associated with the github logo>
           # Default:
           default_author: github_actions
-          message: "Update version number in setup.py on merge."
+          message: "Update version number in setup.py."
+
+      - name: Checkout main - including submodules
+        uses: actions/checkout@v2
+        with:
+          ref: main
+          token: ${{ secrets.TOKEN_AUTOMATION }}
+          submodules: "recursive"
+
+      - name: Increment version in setup.py
+        run: |
+          ./scripts/update-version.sh $( echo ${{ github.event.inputs.tag }} | cut -c 2- )
+
+      - name: Commit changes to main.
+        uses: EndBug/add-and-commit@v9 # You can change this to use a specific version
+        with:
+          add: "."
+          author_email: automation@seclea.com
+          # Determines the way the action fills missing author name and email. Three options are available:
+          # - github_actor -> UserName <UserName@users.noreply.github.com>
+          # - user_info -> Your Display Name <your-actual@email.com>
+          # - github_actions -> github-actions <email associated with the github logo>
+          # Default:
+          default_author: github_actions
+          message: "Update version number in setup.py."
           # The flag used on the pull strategy. Use NO-PULL to avoid the action pulling at all.
           # Default: '--no-rebase'
-          pull: "NO-PULL"
+          tag: ${{ github.event.inputs.tag }}
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -59,7 +81,7 @@ jobs:
       - name: Build wheel
         run: |
           pip3 install wheel
-          python3 setup.py bdist_wheel
+          python3 setup.py bdist_wheel sdist
 
       - name: Upload wheel
         run: |
