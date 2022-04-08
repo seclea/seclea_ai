@@ -10,7 +10,7 @@ Welcome to Seclea AI's documentation!
 .. toctree::
    :maxdepth: 2
 
-   readme.rst
+   README.md
    tutorial.rst
    seclea_ai.rst
    changelog.rst
