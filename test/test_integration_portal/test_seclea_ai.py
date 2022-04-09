@@ -201,15 +201,21 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return X_transformed, y
 
         df = encode_nans(self.sample_df_1)
+
         corr_thresh = 0.97
         df = drop_correlated(df, corr_thresh)
+
         null_thresh = 0.9
         df = drop_nulls(df, threshold=null_thresh)
+
         df = encode_categorical(df)
+
         na_values = {"collision_type": -1, "property_damage": -1}
         df = fill_na_by_col(df, na_values)
+
         output_col = "fraud_reported"
         X, y = get_samples_labels(df, output_col=output_col)
+
         test_size = 0.2
         random_state = 42
         X_train, self.X_test, y_train, self.y_test = get_test_train_splits(
