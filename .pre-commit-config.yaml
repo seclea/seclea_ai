@@ -18,6 +18,7 @@ repos:
         exclude: ^docs/
       - id: requirements-txt-fixer
       - id: mixed-line-ending
+        exclude: ^docs/build/
         args: [--fix=no]
   - repo: https://github.com/pycqa/flake8
     rev: 4.0.1
