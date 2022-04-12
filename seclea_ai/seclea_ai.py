@@ -632,6 +632,7 @@ class SecleaAI:
         defaults_spec = dict(
             continuous_features=[],
             outcome_name=None,
+            num_samples=len(dataset),
         )
         metadata = self._ensure_required_metadata(metadata=metadata, defaults_spec=defaults_spec)
 
