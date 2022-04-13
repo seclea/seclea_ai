@@ -637,7 +637,9 @@ class SecleaAI:
         metadata = self._ensure_required_metadata(metadata=metadata, defaults_spec=defaults_spec)
 
         try:
-            features = dataset.columns.drop(metadata["outcome_name"])
+            features = (
+                dataset.columns
+            )  # TODO - drop the outcome name but requires changes on frontend.
         except KeyError:
             # this means outcome was set to None
             features = dataset.columns
