@@ -4,6 +4,7 @@
 # from unittest import mock
 # from unittest.mock import mock_open, patch
 #
+# import pandas as pd
 # import responses
 #
 # from seclea_ai import SecleaAI
@@ -15,6 +16,26 @@
 #
 #
 # class TestSecleaAI(unittest.TestCase):
+#
+#     def test_check_features_different_names(self):
+#         parent_metadata = {
+#             "features": ["months_as_customer", "age", "policy_number", "policy_bind_date"]
+#         }
+#         test_dataset = pd.DataFrame([[3, 34, 339203, 34], [7, 32, 339103, 3]], columns=[1, 2, 3, 4])
+#         metadata = {}
+#         metadata = SecleaAI._check_features(dataset=test_dataset, metadata=metadata, parent_metadata=parent_metadata)
+#         print(metadata)
+#
+#     def test_check_features_different_names_different_len(self):
+#         parent_metadata = {
+#             "features": ["months_as_customer", "age", "policy_number", "policy_bind_date"]
+#         }
+#         test_dataset = pd.DataFrame([[3, 34, 339203, 34], [7, 32, 339103, 3]], columns=[1, 2, 3, 4])
+#         metadata = {}
+#         metadata = SecleaAI._check_features(dataset=test_dataset, metadata=metadata, parent_metadata=parent_metadata)
+#         print(metadata)
+#
+
 #     @responses.activate
 #     @mock.patch("seclea_ai.authentication.getpass", return_value="test_pass")
 #     @mock.patch("builtins.input", autospec=True, return_value="test_user")
@@ -140,6 +161,7 @@
 #                 platform_url="http://localhost:8000",
 #                 auth_url="http://localhost:8010",
 #             )
+#
 #
 #
 # if __name__ == "__main__":
