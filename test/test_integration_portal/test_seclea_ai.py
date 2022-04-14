@@ -5,6 +5,9 @@ from unittest import TestCase
 
 import numpy as np
 import pandas as pd
+from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 from seclea_ai import SecleaAI
 from seclea_ai.transformations import DatasetTransformation
@@ -91,7 +94,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
     def step_2_define_transformations(self):
         def encode_nans(df):
-            import numpy as np
 
             new_df = df.copy(deep=True)
             # dealing with special character
@@ -105,7 +107,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return new_df
 
         def drop_correlated(data, thresh):
-            import numpy as np
 
             # calculate correlations
             corr_matrix = data.corr().abs()
@@ -123,7 +124,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return df.drop(columns=cols)
 
         def encode_categorical(df):
-            from sklearn.preprocessing import LabelEncoder
 
             cat_cols = df.select_dtypes(include=["object"]).columns.tolist()
 
@@ -144,7 +144,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return X, y
 
         def get_test_train_splits(X, y, test_size, random_state):
-            from sklearn.model_selection import train_test_split
 
             return train_test_split(
                 X, y, test_size=test_size, stratify=y, random_state=random_state
@@ -152,7 +151,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
             # returns X_train, X_test, y_train, y_test
 
         def smote_balance(X, y, random_state):
-            from imblearn.over_sampling import SMOTE
 
             sm = SMOTE(random_state=random_state)
 
@@ -170,7 +168,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
             # returns X, y
 
         def fit_and_scale(X, y):
-            from sklearn.preprocessing import StandardScaler
 
             scaler = StandardScaler()
 
@@ -180,9 +177,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return X_transformed, y, scaler
 
         def fit(X):  # how do we handle these that don't affect directly the dataset..
-            from sklearn.preprocessing import (
-                StandardScaler,  # for this specific case we will record the output..
-            )
 
             # ie. the scaler (as the input to another function) but that's not general..
             scaler = StandardScaler()
@@ -197,15 +191,23 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return X_transformed, y
 
         df = encode_nans(self.sample_df_1)
+
         corr_thresh = 0.97
         df = drop_correlated(df, corr_thresh)
+
         null_thresh = 0.9
         df = drop_nulls(df, threshold=null_thresh)
+
         df = encode_categorical(df)
+
         na_values = {"collision_type": -1, "property_damage": -1}
         df = fill_na_by_col(df, na_values)
+
+        ##############################
+
         output_col = "fraud_reported"
         X, y = get_samples_labels(df, output_col=output_col)
+
         test_size = 0.2
         random_state = 42
         X_train, self.X_test, y_train, self.y_test = get_test_train_splits(
@@ -218,7 +220,9 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.X_test_scaled, _ = scale(self.X_test, self.y_test, scaler)
 
         self.complicated_transformations = [
-            DatasetTransformation(encode_nans, {"df": self.sample_df_1}, {}, ["data"]),
+            DatasetTransformation(
+                encode_nans, data_kwargs={"df": self.sample_df_1}, kwargs={}, outputs=["data"]
+            ),
             DatasetTransformation(
                 drop_correlated, {"data": "inherit"}, {"thresh": corr_thresh}, ["df"]
             ),
