@@ -592,7 +592,7 @@ class SecleaAI:
             metadata[required_key] = default
         return metadata
 
-    def _upload_dataset(
+    def _upload_dataset(  # noqa C901 TODO refactor to be less complex.
         self,
         dataset: DataFrame,
         dataset_name: str,
@@ -615,6 +615,9 @@ class SecleaAI:
             parent_metadata = res.json()["metadata"]
             # deal with the splits - take the set one by default but inherit from parent if None
 
+            metadata["favourable_outcome"] = parent_metadata["favourable_outcome"]
+            metadata["unfavourable_outcome"] = parent_metadata["unfavourable_outcome"]
+
             if transformation.split is None:
                 # check the parent split - inherit split
                 metadata["split"] = parent_metadata["split"]
@@ -626,6 +629,18 @@ class SecleaAI:
                     metadata["outcome_name"] = parent_metadata["outcome_name"]
                 except KeyError:
                     metadata["outcome_name"] = None
+        # no parent dataset
+        else:
+            try:
+                if metadata["favourable_outcome"] is None:
+                    raise ValueError("favourable_outcome must be specified in the metadata")
+            except KeyError:
+                raise ValueError("favourable_outcome must be specified in the metadata")
+            try:
+                if metadata["unfavourable_outcome"] is None:
+                    raise ValueError("unfavourable_outcome must be specified in the metadata")
+            except KeyError:
+                raise ValueError("unfavourable_outcome must be specified in the metadata")
 
         # ensure that required keys are present in metadata and have meaningful defaults.
         # outcome name is here in case there are no transformations. It still needs to be set.
