@@ -1,3 +1,6 @@
 [submodule "seclea_ai/seclea_ai/seclea_utils"]
 	path = seclea_ai/lib/seclea_utils
 	url = git@github.com:seclea/seclea_utils
+[submodule "seclea_ai/cbe_sklearn/submodule/seclea_scikit_learn"]
+	path = seclea_ai/cbe_sklearn/submodule/seclea_scikit_learn
+	url = git@github.com:seclea/seclea_scikit_learn.git
