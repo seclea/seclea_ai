@@ -61,6 +61,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.sample_df_1_name = "Insurance Fraud Dataset"
         self.sample_df_1_meta = {
             "outcome_name": "fraud_reported",
+            "favourable_outcome": "N",
+            "unfavourable_outcome": "Y",
             "continuous_features": [
                 "total_claim_amount",
                 "policy_annual_premium",
@@ -79,6 +81,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.sample_df_2_name = "Census dataset"
         self.sample_df_2_meta = {
             "outcome_name": "income-per-year",
+            "favourable_outcome": ">50k",
+            "unfavourable_outcome": "<=50k",
             "continuous_features": [
                 "age",
                 "fnlwgt",
