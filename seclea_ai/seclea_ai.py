@@ -221,11 +221,32 @@ class SecleaAI:
 
         if transformations is not None:
 
+            parent = self._assemble_dataset(transformations[0].raw_data_kwargs)
+
+            #####
+            # Validate parent exists and get metadata - can factor out
+            #####
+            parent_hash = hash(pd.util.hash_pandas_object(parent).sum() + self._project)
+            # check parent exists - throw an error if not.
+            res = self._transmission.get(
+                url_path=f"/collection/datasets/{parent_hash}",
+                query_params={"project": self._project, "organization": self._organization},
+            )
+            if not res.status_code == 200:
+                raise AssertionError(
+                    "Parent Dataset does not exist on the Platform. Please check your arguments and "
+                    "that you have uploaded the parent dataset already"
+                )
+            parent_metadata = res.json()["metadata"]
+            #####
+
             upload_queue = self._generate_intermediate_datasets(
                 transformations=transformations,
                 dataset_name=dataset_name,
                 dataset_hash=dataset_hash,
                 user_metadata=metadata,
+                parent=parent,
+                parent_metadata=parent_metadata,
             )
 
             # check for duplicates
@@ -244,6 +265,33 @@ class SecleaAI:
             return
 
         # this only happens if this has no transformations ie. it is a Raw Dataset.
+        metadata_defaults_spec = dict(
+            continuous_features=[],
+            outcome_name=None,
+            num_samples=len(dataset),
+        )
+        try:
+            features = (
+                dataset.columns
+            )  # TODO - drop the outcome name but requires changes on frontend.
+        except KeyError:
+            # this means outcome was set to None
+            features = dataset.columns
+
+        automatic_metadata = dict(
+            index=0 if dataset.index.name is None else dataset.index.name,
+            split=None,
+            features=list(features),
+        )
+
+        required_metadata = ["favourable_outcome", "unfavourable_outcome"]
+
+        self._ensure_required_user_spec_metadata(metadata=metadata, required_spec=required_metadata)
+        metadata = self._ensure_required_metadata(
+            metadata=metadata, defaults_spec=metadata_defaults_spec
+        )
+        metadata = self._add_required_metadata(metadata=metadata, required_spec=automatic_metadata)
+
         self._upload_dataset(
             dataset=dataset,
             dataset_name=dataset_name,
@@ -253,14 +301,13 @@ class SecleaAI:
         )
 
     def _generate_intermediate_datasets(
-        self, transformations, dataset_name, dataset_hash, user_metadata
+        self, transformations, dataset_name, dataset_hash, user_metadata, parent, parent_metadata
     ):
-        # to check that the parent exists on platform - using the hash. See _upload_dataset
-        parent = self._assemble_dataset(transformations[0].raw_data_kwargs)
-
         # setup for generating datasets.
         last = len(transformations) - 1
         upload_queue = list()
+        parent_mdata = parent_metadata
+        parent_dset = parent
 
         output = dict()
         # iterate over transformations, assembling intermediate datasets
@@ -270,7 +317,45 @@ class SecleaAI:
 
             # construct the generated dataset from outputs
             dset = self._assemble_dataset(output)
+
             dset_metadata = copy.deepcopy(user_metadata)
+            # validate and ensure required metadata
+            metadata_defaults_spec = dict(
+                continuous_features=[],
+                outcome_name=None,
+                num_samples=len(dset),
+            )
+            try:
+                features = (
+                    dset.columns
+                )  # TODO - drop the outcome name but requires changes on frontend.
+            except KeyError:
+                # this means outcome was set to None
+                features = dset.columns
+
+            automatic_metadata = dict(
+                index=0 if dset.index.name is None else dset.index.name,
+                split=trans.split if trans is not None else parent_mdata["split"],
+                features=list(features),
+                favourable_outcome=parent_mdata["favourable_outcome"],
+                unfavourable_outcome=parent_mdata["unfavourable_outcome"],
+            )
+
+            dset_metadata = self._ensure_required_metadata(
+                metadata=dset_metadata, defaults_spec=metadata_defaults_spec
+            )
+            dset_metadata = self._add_required_metadata(
+                metadata=dset_metadata, required_spec=automatic_metadata
+            )
+
+            # constraints
+            if not set(dset_metadata["continuous_features"]).issubset(
+                set(dset_metadata["features"])
+            ):
+                raise ValueError(
+                    "Continuous features must be a subset of features. Please check and try again."
+                )
+
             dset_name = f"{dataset_name}-{trans.func.__name__}"  # TODO improve this.
 
             # handle the final dataset - check generated = passed in.
@@ -291,13 +376,17 @@ class SecleaAI:
                 "dataset": copy.deepcopy(dset),  # TODO change keys
                 "dataset_name": copy.deepcopy(dset_name),
                 "metadata": dset_metadata,
-                "parent_hash": pd.util.hash_pandas_object(parent).sum(),
+                "parent_hash": str(
+                    hash(pd.util.hash_pandas_object(parent_dset).sum()) + self._project
+                ),
                 "transformation": copy.deepcopy(trans),
             }
             # update the parent dataset - these chained transformations only make sense if they are pushing the
             # same dataset through multiple transformations.
-            parent = copy.deepcopy(dset)
+            parent_dset = copy.deepcopy(dset)
+            parent_mdata = copy.deepcopy(dset_metadata)
             upload_queue.append(upload_kwargs)
+
         return upload_queue
 
     def upload_training_run_split(
@@ -581,6 +670,22 @@ class SecleaAI:
         return metadata
 
     @staticmethod
+    def _ensure_required_user_spec_metadata(metadata: Dict, required_spec: List) -> None:
+        """
+        Ensures that required metadata that can be specified by the user are filled.
+        @param metadata: The metadata dict
+        @param defaults_spec:
+        @return: None
+        @raise ValueError if any are missing.
+        """
+        for required_key in required_spec:
+            try:
+                if metadata[required_key] is None:
+                    raise ValueError(f"{required_key} must be specified in the metadata")
+            except KeyError:
+                raise ValueError(f"{required_key} must be specified in the metadata")
+
+    @staticmethod
     def _add_required_metadata(metadata: Dict, required_spec: Dict) -> Dict:
         """
         Adds required - non user specified fields to the metadata
@@ -592,7 +697,7 @@ class SecleaAI:
             metadata[required_key] = default
         return metadata
 
-    def _upload_dataset(  # noqa C901 TODO refactor to be less complex.
+    def _upload_dataset(
         self,
         dataset: DataFrame,
         dataset_name: str,
@@ -600,78 +705,6 @@ class SecleaAI:
         parent_hash: Union[int, None],
         transformation: Union[DatasetTransformation, None],
     ):
-        if parent_hash is not None:
-            parent_hash = hash(parent_hash + self._project)
-            # check parent exists - throw an error if not.
-            res = self._transmission.get(
-                url_path=f"/collection/datasets/{parent_hash}",
-                query_params={"project": self._project, "organization": self._organization},
-            )
-            if not res.status_code == 200:
-                raise AssertionError(
-                    "Parent Dataset does not exist on the Platform. Please check your arguments and "
-                    "that you have uploaded the parent dataset already"
-                )
-            parent_metadata = res.json()["metadata"]
-            # deal with the splits - take the set one by default but inherit from parent if None
-
-            metadata["favourable_outcome"] = parent_metadata["favourable_outcome"]
-            metadata["unfavourable_outcome"] = parent_metadata["unfavourable_outcome"]
-
-            if transformation.split is None:
-                # check the parent split - inherit split
-                metadata["split"] = parent_metadata["split"]
-            try:
-                if metadata["outcome_name"] is None:
-                    pass
-            except KeyError:
-                try:
-                    metadata["outcome_name"] = parent_metadata["outcome_name"]
-                except KeyError:
-                    metadata["outcome_name"] = None
-        # no parent dataset
-        else:
-            try:
-                if metadata["favourable_outcome"] is None:
-                    raise ValueError("favourable_outcome must be specified in the metadata")
-            except KeyError:
-                raise ValueError("favourable_outcome must be specified in the metadata")
-            try:
-                if metadata["unfavourable_outcome"] is None:
-                    raise ValueError("unfavourable_outcome must be specified in the metadata")
-            except KeyError:
-                raise ValueError("unfavourable_outcome must be specified in the metadata")
-
-        # ensure that required keys are present in metadata and have meaningful defaults.
-        # outcome name is here in case there are no transformations. It still needs to be set.
-        defaults_spec = dict(
-            continuous_features=[],
-            outcome_name=None,
-            num_samples=len(dataset),
-        )
-        metadata = self._ensure_required_metadata(metadata=metadata, defaults_spec=defaults_spec)
-
-        try:
-            features = (
-                dataset.columns
-            )  # TODO - drop the outcome name but requires changes on frontend.
-        except KeyError:
-            # this means outcome was set to None
-            features = dataset.columns
-
-        required = dict(
-            index=0 if dataset.index.name is None else dataset.index.name,
-            split=transformation.split if transformation is not None else None,
-            features=list(features),
-        )
-        metadata = self._add_required_metadata(metadata=metadata, required_spec=required)
-
-        # constraints
-        if not set(metadata["continuous_features"]).issubset(set(metadata["features"])):
-            raise ValueError(
-                "Continuous features must be a subset of features. Please check and try again."
-            )
-
         # upload a dataset - only works for a single transformation.
         if not os.path.exists(self._cache_dir):
             os.makedirs(self._cache_dir)
