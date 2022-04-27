@@ -241,7 +241,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
             X=X,
             y=y,
             dataset_name=f"{self.sample_df_1_name} - Cleaned",
-            metadata=self.sample_df_1_meta,
+            metadata={"favourable_outcome": 1, "unfavourable_outcome": 0},
             transformations=self.complicated_transformations,
         )
 
