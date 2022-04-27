@@ -324,6 +324,8 @@ class SecleaAI:
                 continuous_features=[],
                 outcome_name=None,
                 num_samples=len(dset),
+                favourable_outcome=parent_mdata["favourable_outcome"],
+                unfavourable_outcome=parent_mdata["unfavourable_outcome"],
             )
             try:
                 features = (
@@ -337,8 +339,6 @@ class SecleaAI:
                 index=0 if dset.index.name is None else dset.index.name,
                 split=trans.split if trans is not None else parent_mdata["split"],
                 features=list(features),
-                favourable_outcome=parent_mdata["favourable_outcome"],
-                unfavourable_outcome=parent_mdata["unfavourable_outcome"],
             )
 
             dset_metadata = self._ensure_required_metadata(
