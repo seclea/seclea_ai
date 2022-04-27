@@ -204,9 +204,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
         df = encode_categorical(df)
 
-        na_values = {"collision_type": -1, "property_damage": -1}
-        df = fill_na_by_col(df, na_values)
-
         ##############################
 
         output_col = "fraud_reported"
@@ -273,7 +270,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
             X=self.X_sm_scaled,
             y=self.y_sm,
             dataset_name=f"{self.sample_df_1_name} Train - Balanced - Scaled",
-            metadata=self.sample_df_1_meta,
+            metadata={},
             transformations=self.complicated_transformations_train,
         )
 
@@ -298,7 +295,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
             X=self.X_test_scaled,
             y=self.y_test,
             dataset_name=f"{self.sample_df_1_name} Test - Scaled",
-            metadata=self.sample_df_1_meta,
+            metadata={},
             transformations=self.complicated_transformations_test,
         )
 
