@@ -3,6 +3,7 @@ Description for seclea_ai.py
 """
 import copy
 import inspect
+import json
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Union
@@ -278,27 +279,35 @@ class SecleaAI:
             # this means outcome was set to None
             features = dataset.columns
 
-        automatic_metadata = dict(
-            index=0 if dataset.index.name is None else dataset.index.name,
-            split=None,
-            features=list(features),
-        )
-
         required_metadata = ["favourable_outcome", "unfavourable_outcome"]
 
         self._ensure_required_user_spec_metadata(metadata=metadata, required_spec=required_metadata)
         metadata = self._ensure_required_metadata(
             metadata=metadata, defaults_spec=metadata_defaults_spec
         )
+        automatic_metadata = dict(
+            index=0 if dataset.index.name is None else dataset.index.name,
+            split=None,
+            features=list(features),
+            categorical_features=list(
+                set(list(features))
+                - set(metadata["continuous_features"]).intersection(set(list(features)))
+            ),
+        )
         metadata = self._add_required_metadata(metadata=metadata, required_spec=automatic_metadata)
+
+        metadata["categorical_values"] = [
+            {col: dataset[col].unique().tolist()} for col in metadata["categorical_features"]
+        ]
 
         self._upload_dataset(
             dataset=dataset,
             dataset_name=dataset_name,
-            metadata=metadata,
+            metadata={},
             parent_hash=None,
             transformation=None,
         )
+        self._update_dataset_metadata(dataset_hash=dataset_hash, metadata=metadata)
 
     def _generate_intermediate_datasets(
         self, transformations, dataset_name, dataset_hash, user_metadata, parent, parent_metadata
@@ -886,3 +895,23 @@ class SecleaAI:
             return ModelManagers.SKLEARN
         else:
             return ModelManagers.NOT_IMPORTED
+
+    def _update_dataset_metadata(self, dataset_hash, metadata):
+        """
+        Update the dataset's metadata. For use when the metadata is too large to encode in the url.
+        @param dataset_hash:
+        @param metadata:
+        @return:
+        """
+        res = self._transmission.send_json(
+            url_path=f"/collection/datasets/{dataset_hash}",
+            obj={
+                "organization": self._organization,
+                "project": self._project,
+                "metadata": json.dumps(metadata),
+            },
+            query_params={"organization": self._organization, "project": self._project},
+        )
+        return handle_response(
+            res, expected=201, msg=f"There was an issue uploading the model: {res.text}"
+        )
