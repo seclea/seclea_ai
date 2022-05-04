@@ -3,7 +3,6 @@ Description for seclea_ai.py
 """
 import copy
 import inspect
-import json
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Union
@@ -303,11 +302,10 @@ class SecleaAI:
         self._upload_dataset(
             dataset=dataset,
             dataset_name=dataset_name,
-            metadata={},
+            metadata=metadata,
             parent_hash=None,
             transformation=None,
         )
-        self._update_dataset_metadata(dataset_hash=dataset_hash, metadata=metadata)
 
     def _generate_intermediate_datasets(
         self, transformations, dataset_name, dataset_hash, user_metadata, parent, parent_metadata
@@ -336,6 +334,9 @@ class SecleaAI:
                 favourable_outcome=parent_mdata["favourable_outcome"],
                 unfavourable_outcome=parent_mdata["unfavourable_outcome"],
             )
+            dset_metadata = self._ensure_required_metadata(
+                metadata=dset_metadata, defaults_spec=metadata_defaults_spec
+            )
             try:
                 features = (
                     dset.columns
@@ -348,14 +349,19 @@ class SecleaAI:
                 index=0 if dset.index.name is None else dset.index.name,
                 split=trans.split if trans is not None else parent_mdata["split"],
                 features=list(features),
+                categorical_features=list(
+                    set(list(features))
+                    - set(dset_metadata["continuous_features"]).intersection(set(list(features)))
+                ),
             )
 
-            dset_metadata = self._ensure_required_metadata(
-                metadata=dset_metadata, defaults_spec=metadata_defaults_spec
-            )
             dset_metadata = self._add_required_metadata(
                 metadata=dset_metadata, required_spec=automatic_metadata
             )
+
+            dset_metadata["categorical_values"] = [
+                {col: dset[col].unique().tolist()} for col in dset_metadata["categorical_features"]
+            ]
 
             # constraints
             if not set(dset_metadata["continuous_features"]).issubset(
@@ -733,7 +739,7 @@ class SecleaAI:
             project_pk=self._project,
             organization_pk=self._organization,
             name=dataset_name,
-            metadata=metadata,
+            metadata={},
             dataset_hash=str(dataset_hash),
             parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
             delete=True,
@@ -743,12 +749,14 @@ class SecleaAI:
         )
 
         # upload the transformations
-        if response.status_code == 201 and transformation is not None:
-            # upload transformations.
-            self._upload_transformation(
-                transformation=transformation,
-                dataset_pk=str(dataset_hash),
-            )
+        if response.status_code == 201:
+            self._update_dataset_metadata(dataset_hash=dataset_hash, metadata=metadata)
+            if transformation is not None:
+                # upload transformations.
+                self._upload_transformation(
+                    transformation=transformation,
+                    dataset_pk=str(dataset_hash),
+                )
 
     def _upload_model(self, model_name: str, framework: ModelManagers):
         """
@@ -903,15 +911,13 @@ class SecleaAI:
         @param metadata:
         @return:
         """
-        res = self._transmission.send_json(
+        res = self._transmission.patch(
             url_path=f"/collection/datasets/{dataset_hash}",
             obj={
-                "organization": self._organization,
-                "project": self._project,
-                "metadata": json.dumps(metadata),
+                "metadata": metadata,
             },
             query_params={"organization": self._organization, "project": self._project},
         )
         return handle_response(
-            res, expected=201, msg=f"There was an issue uploading the model: {res.text}"
+            res, expected=200, msg=f"There was an issue updating the metadata: {res.text}"
         )
