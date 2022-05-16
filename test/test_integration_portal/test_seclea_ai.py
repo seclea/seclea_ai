@@ -1,9 +1,13 @@
 import os
+import traceback
 import uuid
 from unittest import TestCase
 
 import numpy as np
 import pandas as pd
+from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 from seclea_ai import SecleaAI
 from seclea_ai.transformations import DatasetTransformation
@@ -27,8 +31,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
     """
 
     def step_0_project_setup(self):
-        self.password = "asdf"
-        self.username = "onespanadmin"
+        self.password = "asdf"  # nosec
+        self.username = "onespanadmin"  # nosec
         self.organization = "Onespan"
         self.project_name_1 = f"test-project-{uuid.uuid4()}"
         self.project_name_2 = f"test-project-{uuid.uuid4()}"
@@ -56,7 +60,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.sample_df_1 = pd.read_csv(f"{folder_path}/insurance_claims.csv")
         self.sample_df_1_name = "Insurance Fraud Dataset"
         self.sample_df_1_meta = {
-            "index": None,
             "outcome_name": "fraud_reported",
             "continuous_features": [
                 "total_claim_amount",
@@ -65,7 +68,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
                 "capital-loss",
                 "injury_claim",
                 "property_claim",
-                "vehicle_claim",
                 "incident_hour_of_the_day",
             ],
         }
@@ -76,7 +78,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.sample_df_2 = pd.read_csv(f"{folder_path}/adult_data.csv")
         self.sample_df_2_name = "Census dataset"
         self.sample_df_2_meta = {
-            "index": None,
             "outcome_name": "income-per-year",
             "continuous_features": [
                 "age",
@@ -93,7 +94,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
     def step_2_define_transformations(self):
         def encode_nans(df):
-            import numpy as np
 
             new_df = df.copy(deep=True)
             # dealing with special character
@@ -107,7 +107,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return new_df
 
         def drop_correlated(data, thresh):
-            import numpy as np
 
             # calculate correlations
             corr_matrix = data.corr().abs()
@@ -125,7 +124,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return df.drop(columns=cols)
 
         def encode_categorical(df):
-            from sklearn.preprocessing import LabelEncoder
 
             cat_cols = df.select_dtypes(include=["object"]).columns.tolist()
 
@@ -146,7 +144,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return X, y
 
         def get_test_train_splits(X, y, test_size, random_state):
-            from sklearn.model_selection import train_test_split
 
             return train_test_split(
                 X, y, test_size=test_size, stratify=y, random_state=random_state
@@ -154,7 +151,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
             # returns X_train, X_test, y_train, y_test
 
         def smote_balance(X, y, random_state):
-            from imblearn.over_sampling import SMOTE
 
             sm = SMOTE(random_state=random_state)
 
@@ -172,55 +168,61 @@ class TestIntegrationSecleaAIPortal(TestCase):
             # returns X, y
 
         def fit_and_scale(X, y):
-            from sklearn.preprocessing import StandardScaler
 
             scaler = StandardScaler()
 
             scaler.fit(X)
-            X_transformed = scaler.transform(X)
+            X_transformed = X.copy()
+            X_transformed[:] = scaler.transform(X_transformed[:])
             return X_transformed, y, scaler
 
         def fit(X):  # how do we handle these that don't affect directly the dataset..
-            from sklearn.preprocessing import (
-                StandardScaler,  # for this specific case we will record the output..
-            )
 
-            scaler = (
-                StandardScaler()
-            )  # ie. the scaler (as the input to another function) but that's not general..
+            # ie. the scaler (as the input to another function) but that's not general..
+            scaler = StandardScaler()
 
-            scaler.fit(
-                X
-            )  # MAJOR question is. could we identify if they fitted it over the whole dataset... let's test
+            # MAJOR question is. could we identify if they fitted it over the whole dataset... let's test
+            scaler.fit(X)
             return scaler
 
         def scale(X, y, scaler):
-            X_transformed = scaler.transform(X)
+            X_transformed = X.copy()
+            X_transformed[:] = scaler.transform(X_transformed[:])
             return X_transformed, y
 
         df = encode_nans(self.sample_df_1)
+
         corr_thresh = 0.97
         df = drop_correlated(df, corr_thresh)
+
         null_thresh = 0.9
         df = drop_nulls(df, threshold=null_thresh)
+
         df = encode_categorical(df)
+
         na_values = {"collision_type": -1, "property_damage": -1}
         df = fill_na_by_col(df, na_values)
+
+        ##############################
+
         output_col = "fraud_reported"
         X, y = get_samples_labels(df, output_col=output_col)
+
         test_size = 0.2
         random_state = 42
-        X_train, X_test, y_train, self.y_test = get_test_train_splits(
+        X_train, self.X_test, y_train, self.y_test = get_test_train_splits(
             X, y, test_size=test_size, random_state=random_state
         )
         self.X_sm, self.y_sm = smote_balance(X_train, y_train, random_state=random_state)
         # deliberate test of datasnooping.
-        scaler = fit(pd.concat([self.X_sm, X_test], axis=0))
+        scaler = fit(pd.concat([self.X_sm, self.X_test], axis=0))
         self.X_sm_scaled, _ = scale(self.X_sm, self.y_sm, scaler)
-        self.X_test_scaled, _ = scale(X_test, self.y_test, scaler)
+        self.X_test_scaled, _ = scale(self.X_test, self.y_test, scaler)
 
         self.complicated_transformations = [
-            DatasetTransformation(encode_nans, {"df": self.sample_df_1}, {}, ["data"]),
+            DatasetTransformation(
+                encode_nans, data_kwargs={"df": self.sample_df_1}, kwargs={}, outputs=["data"]
+            ),
             DatasetTransformation(
                 drop_correlated, {"data": "inherit"}, {"thresh": corr_thresh}, ["df"]
             ),
@@ -314,11 +316,19 @@ class TestIntegrationSecleaAIPortal(TestCase):
         model.fit(self.X_sm_scaled, self.y_sm)
         # preds = model.predict(self.X_test_scaled)
 
-        self.controller_1.upload_training_run_split(model, X=self.X_sm_scaled, y=self.y_sm)
+        self.controller_1.upload_training_run_split(
+            model,
+            X_train=self.X_sm_scaled,
+            y_train=self.y_sm,
+            X_test=self.X_test_scaled,
+            y_test=self.y_test,
+        )
 
-        model1 = RandomForestClassifier(random_state=42)
+        model1 = RandomForestClassifier(random_state=42, n_estimators=32)
         model1.fit(self.X_sm, self.y_sm)
-        self.controller_1.upload_training_run_split(model, X=self.X_sm, y=self.y_sm)
+        self.controller_1.upload_training_run_split(
+            model1, X_train=self.X_sm, y_train=self.y_sm, X_test=self.X_test, y_test=self.y_test
+        )
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
@@ -331,4 +341,5 @@ class TestIntegrationSecleaAIPortal(TestCase):
                 step()
                 print("STEP COMPLETE")
             except Exception as e:
+                traceback.print_exc()
                 self.fail(f"{step} failed ({type(e)}: {e})")

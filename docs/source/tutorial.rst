@@ -3,14 +3,14 @@ Tutorial
 ********
 
 Introduction
-########
+############
 
 The seclea-ai package is used for tracking ML model development. This means that most of the
 functions are designed to record and upload activities or data associated with your modelling.
 
 
 Usage Guide
-#######
+###########
 
 There are two main steps to using the package:
 
@@ -19,7 +19,7 @@ There are two main steps to using the package:
 - After each time you train a new model you will upload it using ``SecleaAI.upload_training_run()``.
 
 Example Usage
-########
+#############
 
 Example of a simple Jupyter Notebook for a project using seclea_ai::
 

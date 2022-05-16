@@ -3,11 +3,9 @@ Description for seclea_ai.py
 """
 import copy
 import inspect
-import json
 import os
-import uuid
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Union
 
 import numpy as np
 import pandas as pd
@@ -17,14 +15,14 @@ from requests import Response
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
 from seclea_ai.internal.backend import Backend
-from seclea_ai.seclea_utils.core import (
+from seclea_ai.lib.seclea_utils.core import (
     CompressionFactory,
     RequestWrapper,
     decode_func,
     encode_func,
     save_object,
 )
-from seclea_ai.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
+from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
 
 from .svc.api.collection.dataset import post_dataset
@@ -185,11 +183,8 @@ class SecleaAI:
         dataset: Union[str, List[str], DataFrame],
         dataset_name: str,
         metadata: Dict,
-        parent_dataset: DataFrame = None,
-        transformations: List[
-            Union[Callable, Tuple[Callable, Optional[List], Optional[Dict]]]
-        ] = None,
-    ):
+        transformations: List[DatasetTransformation] = None,
+    ) -> None:
         """
         Uploads a dataset.
 
@@ -202,14 +197,12 @@ class SecleaAI:
         :param metadata: Any metadata about the dataset. Note that if using a Path or list of Paths then if there is an
             index that you use when loading the data, it must be specified in the metadata.
 
-        :param parent_dataset: DataFrame The parent dataset this one derives from
+        :param transformations: A list of DatasetTransformation's.
 
-        :param transformations: List[Callable] The list of transformations applied to the parent dataset to get this dataset.
+                        If your Dataset is large try call this function more often with less DatasetTransformations
+                        as the function currently requires no. DatasetTransformations x Dataset size memory to function.
 
-            If your Dataset is large try call this function more often with less DatasetTransformations
-            as the function currently requires no. DatasetTransformations x Dataset size memory to function.
-
-            See DatasetTransformation for more details.
+                        See DatasetTransformation for more details.
 
         :return: None
 
@@ -232,41 +225,11 @@ class SecleaAI:
             >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
             >>> seclea.upload_dataset(dataset=files, dataset_name="Multifile Dataset", metadata=dataset_metadata)
 
+
         """
-        temp = False
-        temp_path = None
-        if isinstance(dataset, str):
-            dataset = [dataset]
-        elif isinstance(dataset, DataFrame):
-            if not os.path.exists(self._settings["cache_dir"]):
-                os.makedirs(self._settings["cache_dir"])
-            temp_path = os.path.join(
-                self._settings["cache_dir"], f"temp_dataset_{uuid.uuid4()}.csv"
-            )
-            dataset.to_csv(temp_path, index=False)
-            temp = True
-
-        # TODO check for already uploaded - show a warning but don't throw an exception
-
-        dataset_record = {
-            "name": dataset_name,
-            "metadata": json.dumps(metadata),
-            "parent": pd.util.hash_pandas_object(parent_dataset).sum(),
-            "transformations": transformations,
-            "files": [temp_path] if temp else dataset,
-        }
-        self._backend.record_q.put(dataset_record)
-
         # processing the final dataset - make sure it's a DataFrame
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
-        # here we need to ensure that if there is no index that we use the first column as the index.
-        # We always write the index for consistency.
-        try:
-            if metadata["index"] is None:
-                metadata["index"] = 0
-        except KeyError:
-            metadata["index"] = 0
 
         if isinstance(dataset, List):
             dataset = self._aggregate_dataset(dataset, index=metadata["index"])
@@ -277,50 +240,12 @@ class SecleaAI:
 
         if transformations is not None:
 
-            # check that the parent exists on platform
-            parent = self._assemble_dataset(transformations[0].raw_data_kwargs)
-
-            # setup for generating datasets.
-            last = len(transformations) - 1
-            upload_queue = list()
-
-            output = dict()
-            # iterate over transformations, assembling intermediate datasets
-            # TODO address memory issue of keeping all datasets
-            for idx, trans in enumerate(transformations):
-                output = trans(output)
-
-                # construct the generated dataset from outputs
-                dset = self._assemble_dataset(output)
-                dset_metadata = {}
-                dset_name = f"{dataset_name}-{trans.func.__name__}"
-
-                # handle the final dataset - check generated = passed in.
-                if idx == last:
-                    if (
-                        pd.util.hash_pandas_object(dset).sum() != dataset_hash
-                    ):  # TODO create or find better exception
-                        raise AssertionError(
-                            """Generated Dataset does not match the Dataset passed in.
-                                         Please check your DatasetTransformation definitions and try again.
-                                         Try using less DatasetTransformations if you are having persistent problems"""
-                        )
-                    else:
-                        dset_metadata = metadata
-                        dset_name = dataset_name
-
-                # add data to queue to upload later after final dataset checked
-                upload_kwargs = {
-                    "dataset": copy.deepcopy(dset),  # TODO change keys
-                    "dataset_name": copy.deepcopy(dset_name),
-                    "metadata": copy.deepcopy(dset_metadata),
-                    "parent_hash": pd.util.hash_pandas_object(parent).sum(),
-                    "transformation": copy.deepcopy(trans),
-                }
-                # update the parent dataset - these chained transformations only make sense if they are pushing the
-                # same dataset through multiple transformations.
-                parent = copy.deepcopy(dset)
-                upload_queue.append(upload_kwargs)
+            upload_queue = self._generate_intermediate_datasets(
+                transformations=transformations,
+                dataset_name=dataset_name,
+                dataset_hash=dataset_hash,
+                user_metadata=metadata,
+            )
 
             # check for duplicates
             for up_kwargs in upload_queue:
@@ -346,32 +271,114 @@ class SecleaAI:
             transformation=None,
         )
 
-    def upload_training_run_split(self, model, X: DataFrame, y: Union[DataFrame, Series]) -> None:
-        """
-        Takes a model and extracts the necessary data for uploading the training run.
+    def _generate_intermediate_datasets(
+        self, transformations, dataset_name, dataset_hash, user_metadata
+    ):
+        # to check that the parent exists on platform - using the hash. See _upload_dataset
+        parent = self._assemble_dataset(transformations[0].raw_data_kwargs)
 
-        :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
+        # setup for generating datasets.
+        last = len(transformations) - 1
+        upload_queue = list()
 
-        :param X: Samples of the dataset that the model is trained on
+        output = dict()
+        # iterate over transformations, assembling intermediate datasets
+        # TODO address memory issue of keeping all datasets
+        for idx, trans in enumerate(transformations):
+            output = trans(output)
 
-        :param y: Labels of the dataset that the model is trained on.
+            # construct the generated dataset from outputs
+            dset = self._assemble_dataset(output)
+            dset_metadata = copy.deepcopy(user_metadata)
+            dset_name = f"{dataset_name}-{trans.func.__name__}"  # TODO improve this.
 
-        :return: None
-        """
-        dataset = self._assemble_dataset({"X": X, "y": y})
-        self.upload_training_run(model=model, dataset=dataset)
+            # handle the final dataset - check generated = passed in.
+            if idx == last:
+                if (
+                    pd.util.hash_pandas_object(dset).sum() != dataset_hash
+                ):  # TODO create or find better exception
+                    raise AssertionError(
+                        """Generated Dataset does not match the Dataset passed in.
+                                     Please check your DatasetTransformation definitions and try again.
+                                     Try using less DatasetTransformations if you are having persistent problems"""
+                    )
+                else:
+                    dset_name = dataset_name
 
-    def upload_training_run(
+            # add data to queue to upload later after final dataset checked
+            upload_kwargs = {
+                "dataset": copy.deepcopy(dset),  # TODO change keys
+                "dataset_name": copy.deepcopy(dset_name),
+                "metadata": dset_metadata,
+                "parent_hash": pd.util.hash_pandas_object(parent).sum(),
+                "transformation": copy.deepcopy(trans),
+            }
+            # update the parent dataset - these chained transformations only make sense if they are pushing the
+            # same dataset through multiple transformations.
+            parent = copy.deepcopy(dset)
+            upload_queue.append(upload_kwargs)
+        return upload_queue
+
+    def upload_training_run_split(
         self,
         model,
-        dataset: DataFrame,
+        X_train: DataFrame,
+        y_train: Union[DataFrame, Series],
+        X_test: DataFrame = None,
+        y_test: Union[DataFrame, Series] = None,
+        X_val: Union[DataFrame, Series] = None,
+        y_val: Union[DataFrame, Series] = None,
     ) -> None:
         """
         Takes a model and extracts the necessary data for uploading the training run.
 
         :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
 
-        :param dataset: DataFrame The Dataset that the model is trained on.
+        :param X_train: Samples of the dataset that the model is trained on
+
+        :param y_train: Labels of the dataset that the model is trained on.
+
+        :param X_test: Samples of the dataset that the model is trained on
+
+        :param y_test: Labels of the dataset that the model is trained on.
+
+        :param X_val: Samples of the dataset that the model is trained on
+
+        :param y_val: Labels of the dataset that the model is trained on.
+
+        :return: None
+        """
+        train_dataset = self._assemble_dataset({"X": X_train, "y": y_train})
+        test_dataset = None
+        val_dataset = None
+        if X_test is not None and y_test is not None:
+            test_dataset = self._assemble_dataset({"X": X_test, "y": y_test})
+        if X_val is not None and y_val is not None:
+            val_dataset = self._assemble_dataset({"X": X_val, "y": y_val})
+        self.upload_training_run(
+            model=model,
+            train_dataset=train_dataset,
+            test_dataset=test_dataset,
+            val_dataset=val_dataset,
+        )
+
+    def upload_training_run(
+        self,
+        model,
+        train_dataset: DataFrame,
+        test_dataset: DataFrame = None,
+        val_dataset: DataFrame = None,
+    ) -> None:
+        """
+        Takes a model and extracts the necessary data for uploading the training run.
+
+        :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
+
+        :param train_dataset: DataFrame The Dataset that the model is trained on.
+
+        :param test_dataset: DataFrame The Dataset that the model is trained on.
+
+        :param val_dataset: DataFrame The Dataset that the model is trained on.
 
         :return: None
 
@@ -388,8 +395,13 @@ class SecleaAI:
                 )
         """
         self._auth_service.authenticate(self._transmission)
-        # check the dataset exists prompt if not
-        dataset_pk = str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project))
+
+        # validate the splits? maybe later when we have proper Dataset class to manage these things.
+        dataset_pks = [
+            str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project))
+            for dataset in [train_dataset, test_dataset, val_dataset]
+            if dataset is not None
+        ]
 
         model_name = model.__class__.__name__
 
@@ -424,7 +436,7 @@ class SecleaAI:
         tr_res = self._upload_training_run(
             training_run_name=training_run_name,
             model_pk=model_type_pk,
-            dataset_pk=dataset_pk,
+            dataset_pks=dataset_pks,
             params=params,
         )
         # if the upload was successful, add the new training_run to the list to keep the names updated.
@@ -571,6 +583,34 @@ class SecleaAI:
             model_pk = resp.json()[0]["id"]
         return model_pk
 
+    @staticmethod
+    def _ensure_required_metadata(metadata: Dict, defaults_spec: Dict) -> Dict:
+        """
+        Ensures that required metadata that can be specified by the user are filled.
+        @param metadata: The metadata dict
+        @param defaults_spec:
+        @return: metadata
+        """
+        for required_key, default in defaults_spec.items():
+            try:
+                if metadata[required_key] is None:
+                    metadata[required_key] = default
+            except KeyError:
+                metadata[required_key] = default
+        return metadata
+
+    @staticmethod
+    def _add_required_metadata(metadata: Dict, required_spec: Dict) -> Dict:
+        """
+        Adds required - non user specified fields to the metadata
+        @param metadata: The metadata dict
+        @param required_spec:
+        @return: metadata
+        """
+        for required_key, default in required_spec.items():
+            metadata[required_key] = default
+        return metadata
+
     def _upload_dataset(
         self,
         dataset: DataFrame,
@@ -579,7 +619,6 @@ class SecleaAI:
         parent_hash: Union[int, None],
         transformation: Union[DatasetTransformation, None],
     ):
-        split = transformation.split if transformation is not None else None
         if parent_hash is not None:
             parent_hash = hash(parent_hash + self._project)
             # check parent exists - throw an error if not.
@@ -592,20 +631,56 @@ class SecleaAI:
                     "Parent Dataset does not exist on the Platform. Please check your arguments and "
                     "that you have uploaded the parent dataset already"
                 )
-
+            parent_metadata = res.json()["metadata"]
             # deal with the splits - take the set one by default but inherit from parent if None
+
             if transformation.split is None:
                 # check the parent split - inherit split
-                parent = res.json()
-                split = parent["metadata"]["split"]
+                metadata["split"] = parent_metadata["split"]
+            try:
+                if metadata["outcome_name"] is None:
+                    pass
+            except KeyError:
+                try:
+                    metadata["outcome_name"] = parent_metadata["outcome_name"]
+                except KeyError:
+                    metadata["outcome_name"] = None
 
-        # this needs to be here so split is always set.
-        metadata = {**metadata, "split": split, "features": list(dataset.columns)}
+        # ensure that required keys are present in metadata and have meaningful defaults.
+        # outcome name is here in case there are no transformations. It still needs to be set.
+        defaults_spec = dict(
+            continuous_features=[],
+            outcome_name=None,
+            num_samples=len(dataset),
+        )
+        metadata = self._ensure_required_metadata(metadata=metadata, defaults_spec=defaults_spec)
+
+        try:
+            features = (
+                dataset.columns
+            )  # TODO - drop the outcome name but requires changes on frontend.
+        except KeyError:
+            # this means outcome was set to None
+            features = dataset.columns
+
+        required = dict(
+            index=0 if dataset.index.name is None else dataset.index.name,
+            split=transformation.split if transformation is not None else None,
+            features=list(features),
+        )
+        metadata = self._add_required_metadata(metadata=metadata, required_spec=required)
+
+        # constraints
+        if not set(metadata["continuous_features"]).issubset(set(metadata["features"])):
+            raise ValueError(
+                "Continuous features must be a subset of features. Please check and try again."
+            )
 
         # upload a dataset - only works for a single transformation.
         if not os.path.exists(self._cache_dir):
             os.makedirs(self._cache_dir)
 
+        # TODO refactor to make multithreading safe.
         dataset_path = os.path.join(self._cache_dir, "tmp.csv")
         dataset.to_csv(dataset_path, index=True)
         comp_path = os.path.join(self._cache_dir, "compressed")
@@ -628,16 +703,6 @@ class SecleaAI:
         handle_response(
             response, 201, f"There was some issue uploading the dataset: {response.text}"
         )
-
-        # dataset_queryparams = {
-        #     "project": self._project,
-        #     "organization": self._organization,
-        #     "name": dataset_name,
-        #     "metadata": json.dumps(metadata),
-        #     "hash": str(dataset_hash),
-        #     "parent": str(parent_hash) if parent_hash is not None else None,
-        # }
-        # print("Query Params: ", dataset_queryparams)
 
         # upload the transformations
         if response.status_code == 201 and transformation is not None:
@@ -669,7 +734,7 @@ class SecleaAI:
         )
 
     def _upload_training_run(
-        self, training_run_name: str, model_pk: int, dataset_pk: str, params: Dict
+        self, training_run_name: str, model_pk: int, dataset_pks: List[str], params: Dict
     ):
         """
 
@@ -684,7 +749,7 @@ class SecleaAI:
             obj={
                 "organization": self._organization,
                 "project": self._project,
-                "dataset": dataset_pk,
+                "datasets": dataset_pks,
                 "model": model_pk,
                 "name": training_run_name,
                 "params": params,
