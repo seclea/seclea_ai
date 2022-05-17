@@ -38,6 +38,7 @@ We may also use it for circuit breaker pattern - but we can also use memory I th
 
 Need to decide whether to use cron or on restart for clean up of incomplete/failed requests.
 
+Some wait for background to complete in the User Thread but should have timeout.
 
 ## Data logging process
 ```mermaid
@@ -70,61 +71,59 @@ All the Record subclasses are optional - we can start with more generic Record a
 if they make sense for validation etc.
 ```mermaid
     classDiagram
-    
-    Record --|> DatasetRecord
-    Record --|> ModelStateRecord
-    Record --|> TrainingRunRecord
-    Record --|> DatasetTransformationRecord
-    Record --|> ModelRecord
-    Record --|> ProjectRecord
+
+    Record <|-- DatasetRecord
+    Record <|-- ModelStateRecord
+    Record <|-- TrainingRunRecord
+    Record <|-- DatasetTransformationRecord
+    Record <|-- ModelRecord
+    Record <|-- ProjectRecord
     RecordStatus *-- Record
-    
+
     class RecordStatus {
         record: Record
         status: Saving | Transmitting | Failed | Completed
         error: str
         retries: int 
     }
-    
+
     class Record {
         file_path: str
         size: int
     }
-    
+
     class DatasetRecord {
         file_path: str
         size: int
         intermediate: bool
         metadata: dict (to str for sqlite)
     }
-    
+
     class ModelStateRecord {
         file_path: str
         size: int
         metadata: dict (to str for sqlite)
     }
-    
+
     class DatasetTransformationRecord {
     
     }
-    
+
     class TrainingRunRecord {
     
     }
-    
+
     class ModelRecord {
     
     }
-    
+
     class ProjectRecord {
     
     }
 ```
 
 ## External classes
-```mermaid
-
-```
+We will also have classes for Users to use in their code. These will be added here.
 
 ## Network failure modes
 ```mermaid
