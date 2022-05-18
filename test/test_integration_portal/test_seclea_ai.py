@@ -130,7 +130,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return new_data
 
         # drop columns that are too closely correlated
-        correlation_threshold = 0.9
+        correlation_threshold = 0.95
         df4 = drop_correlated(df3, correlation_threshold)
 
         # define the updates to the metadata - empty as there are no changes
