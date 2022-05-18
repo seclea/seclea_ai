@@ -5,9 +5,6 @@ from unittest import TestCase
 
 import numpy as np
 import pandas as pd
-from imblearn.over_sampling import SMOTE
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 from seclea_ai import SecleaAI
 from seclea_ai.transformations import DatasetTransformation
@@ -57,8 +54,10 @@ class TestIntegrationSecleaAIPortal(TestCase):
         )
 
     def step_1_upload_dataset(self):
-        self.sample_df_1 = pd.read_csv(f"{folder_path}/insurance_claims.csv")
-        self.sample_df_1_name = "Insurance Fraud Dataset"
+        self.sample_df_1 = pd.read_csv(
+            f"{folder_path}/insurance_claims.csv", index_col="policy_number"
+        )
+        self.sample_df_1_name = "Auto Insurance Fraud"
         self.sample_df_1_meta = {
             "outcome_name": "fraud_reported",
             "favourable_outcome": "N",
@@ -97,20 +96,27 @@ class TestIntegrationSecleaAIPortal(TestCase):
         )
 
     def step_2_define_transformations(self):
-        def encode_nans(df):
 
-            new_df = df.copy(deep=True)
-            # dealing with special character
-            new_df["collision_type"] = df["collision_type"].replace("?", np.NaN, inplace=False)
-            new_df["property_damage"] = df["property_damage"].replace("?", np.NaN, inplace=False)
-            new_df["police_report_available"] = df["police_report_available"].replace(
-                "?",
-                "NO",
-                inplace=False,
-            )  # default to no police report present if previously ?
-            return new_df
+        # Create a copy to isolate the original dataset
+        df1 = self.sample_df_1.copy(deep=True)
+
+        def encode_nans(df):
+            # convert the special characters to nans
+            return df.replace("?", np.NaN)
+
+        df2 = encode_nans(df1)
+
+        # Drop the the columns which are more than some proportion NaN values
+        def drop_nulls(df, threshold):
+            cols = [x for x in df.columns if df[x].isnull().sum() / df.shape[0] > threshold]
+            return df.drop(columns=cols)
+
+        # We choose 95% as our threshold
+        null_thresh = 0.95
+        df3 = drop_nulls(df2, threshold=null_thresh)
 
         def drop_correlated(data, thresh):
+            import numpy as np
 
             # calculate correlations
             corr_matrix = data.corr().abs()
@@ -120,26 +126,123 @@ class TestIntegrationSecleaAIPortal(TestCase):
             # columns with correlation above threshold
             redundant = [column for column in upper.columns if any(upper[column] >= thresh)]
             print(f"Columns to drop with correlation > {thresh}: {redundant}")
-            data.drop(columns=redundant, inplace=True)
-            return data
+            new_data = data.drop(columns=redundant)
+            return new_data
 
-        def drop_nulls(df, threshold):
-            cols = [x for x in df.columns if df[x].isnull().sum() / df.shape[0] > threshold]
-            return df.drop(columns=cols)
+        # drop columns that are too closely correlated
+        correlation_threshold = 0.9
+        df4 = drop_correlated(df3, correlation_threshold)
 
-        def encode_categorical(df):
+        # define the updates to the metadata - empty as there are no changes
+        processed_metadata = {}
 
-            cat_cols = df.select_dtypes(include=["object"]).columns.tolist()
+        # 🔀 define the transformations - note the arguments
+        cleaning_transformations = [
+            DatasetTransformation(encode_nans, data_kwargs={"df": df1}, kwargs={}, outputs=["df"]),
+            DatasetTransformation(
+                drop_nulls,
+                data_kwargs={"df": "inherit"},
+                kwargs={"threshold": null_thresh},
+                outputs=["data"],
+            ),
+            DatasetTransformation(
+                drop_correlated,
+                data_kwargs={"data": "inherit"},
+                kwargs={"thresh": correlation_threshold},
+                outputs=["df"],
+            ),
+        ]
 
+        # ⬆️ upload the cleaned datasets
+        self.controller_1.upload_dataset(
+            dataset=df4,
+            dataset_name="Auto Insurance Fraud - Cleaned",
+            metadata=processed_metadata,
+            transformations=cleaning_transformations,
+        )
+
+        def fill_nan_const(df, val):
+            """Fill NaN values in the dataframe with a constant value"""
+            return df.replace(["None", np.nan], val)
+
+        # Fill nans in 1st dataset with -1
+        const_val = -1
+        df_const = fill_nan_const(df4, const_val)
+
+        def fill_nan_mode(df, columns):
+            """
+            Fills nans in specified columns with the mode of that column
+            Note that we want to make sure to not modify the dataset we passed in but to
+            return a new copy.
+            We do that by making a copy and specifying deep=True.
+            """
+            new_df = df.copy(deep=True)
+            for col in df.columns:
+                if col in columns:
+                    new_df[col] = df[col].fillna(df[col].mode()[0])
+            return new_df
+
+        nan_cols = ["collision_type", "property_damage", "police_report_available"]
+        df_mode = fill_nan_mode(df4, nan_cols)
+
+        # find columns with categorical data for both dataset
+        cat_cols = df_const.select_dtypes(include=["object"]).columns.tolist()
+
+        def encode_categorical(df, cat_cols):
+            from sklearn.preprocessing import LabelEncoder
+
+            new_df = df.copy(deep=True)
             for col in cat_cols:
                 if col in df.columns:
                     le = LabelEncoder()
                     le.fit(list(df[col].astype(str).values))
-                    df[col] = le.transform(list(df[col].astype(str).values))
-            return df
+                    new_df[col] = le.transform(list(df[col].astype(str).values))
+            return new_df
 
-        def fill_na_by_col(df, fill_values: dict):
-            return df.fillna(fill_values)
+        df_const = encode_categorical(df_const, cat_cols)
+        df_mode = encode_categorical(df_mode, cat_cols)
+
+        # 🔀 define the transformations - for the constant fill dataset
+        const_processed_transformations = [
+            DatasetTransformation(
+                fill_nan_const, data_kwargs={"df": df4}, kwargs={"val": const_val}, outputs=["df"]
+            ),
+            DatasetTransformation(
+                encode_categorical,
+                data_kwargs={"df": "inherit"},
+                kwargs={"cat_cols": cat_cols},
+                outputs=["df"],
+            ),
+        ]
+
+        # ⬆️ upload the constant fill dataset
+        self.controller_1.upload_dataset(
+            dataset=df_const,
+            dataset_name="Auto Insurance Fraud - Const Fill",
+            metadata=processed_metadata,
+            transformations=const_processed_transformations,
+        )
+
+        # 🔀 define the transformations - for the mode fill dataset
+        mode_processed_transformations = [
+            DatasetTransformation(
+                fill_nan_mode, data_kwargs={"df": df4}, kwargs={"columns": nan_cols}, outputs=["df"]
+            ),
+            DatasetTransformation(
+                encode_categorical,
+                data_kwargs={"df": "inherit"},
+                kwargs={"cat_cols": cat_cols},
+                outputs=["df"],
+            ),
+        ]
+
+        # ⬆️ upload the mode fill dataset
+        self.controller_1.upload_dataset(
+            dataset=df_mode,
+            dataset_name="Auto Insurance Fraud - Mode Fill",
+            metadata=processed_metadata,
+            transformations=mode_processed_transformations,
+        )
 
         def get_samples_labels(df, output_col):
             X = df.drop(output_col, axis=1)
@@ -147,14 +250,114 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
             return X, y
 
+        # split the datasets into samples and labels ready for modelling.
+        self.X_const, self.y_const = get_samples_labels(df_const, "fraud_reported")
+        self.X_mode, self.y_mode = get_samples_labels(df_mode, "fraud_reported")
+
         def get_test_train_splits(X, y, test_size, random_state):
+            from sklearn.model_selection import train_test_split
 
             return train_test_split(
                 X, y, test_size=test_size, stratify=y, random_state=random_state
             )
             # returns X_train, X_test, y_train, y_test
 
+        # split into test and train sets
+        (
+            self.X_train_const,
+            self.X_test_const,
+            self.y_train_const,
+            self.y_test_const,
+        ) = get_test_train_splits(self.X_const, self.y_const, test_size=0.2, random_state=42)
+        (
+            self.X_train_mode,
+            self.X_test_mode,
+            self.y_train_mode,
+            self.y_test_mode,
+        ) = get_test_train_splits(self.X_mode, self.y_mode, test_size=0.2, random_state=42)
+
+        # 🔀 define the transformations - for the constant fill training set
+        const_train_transformations = [
+            DatasetTransformation(
+                get_test_train_splits,
+                data_kwargs={"X": self.X_const, "y": self.y_const},
+                kwargs={"test_size": 0.2, "random_state": 42},
+                outputs=["X_train_const", None, "y_train_const", None],
+                split="train",
+            ),
+        ]
+
+        # ⬆️ upload the const fill training set
+        self.controller_1.upload_dataset_split(
+            X=self.X_train_const,
+            y=self.y_train_const,
+            dataset_name="Auto Insurance Fraud - Const Fill - Train",
+            metadata=processed_metadata,
+            transformations=const_train_transformations,
+        )
+
+        # 🔀 define the transformations - for the constant fill test set
+        const_test_transformations = [
+            DatasetTransformation(
+                get_test_train_splits,
+                data_kwargs={"X": self.X_const, "y": self.y_const},
+                kwargs={"test_size": 0.2, "random_state": 42},
+                outputs=[None, "X_test_const", None, "y_test_const"],
+                split="test",
+            ),
+        ]
+
+        # ⬆️ upload the const fill test set
+        self.controller_1.upload_dataset_split(
+            X=self.X_test_const,
+            y=self.y_test_const,
+            dataset_name="Auto Insurance Fraud - Const Fill - Test",
+            metadata=processed_metadata,
+            transformations=const_test_transformations,
+        )
+
+        # 🔀 define the transformations - for the mode fill training set
+        mode_train_transformations = [
+            DatasetTransformation(
+                get_test_train_splits,
+                data_kwargs={"X": self.X_mode, "y": self.y_mode},
+                kwargs={"test_size": 0.2, "random_state": 42},
+                outputs=["X_train_mode", None, "y_train_mode", None],
+                split="train",
+            ),
+        ]
+
+        # ⬆️ upload the mode fill train set
+        self.controller_1.upload_dataset_split(
+            X=self.X_train_mode,
+            y=self.y_train_mode,
+            dataset_name="Auto Insurance Fraud - Mode Fill - Train",
+            metadata=processed_metadata,
+            transformations=mode_train_transformations,
+        )
+
+        # 🔀 define the transformations - for the mode fill test set
+        mode_test_transformations = [
+            DatasetTransformation(
+                get_test_train_splits,
+                data_kwargs={"X": self.X_mode, "y": self.y_mode},
+                kwargs={"test_size": 0.2, "random_state": 42},
+                outputs=[None, "X_test_mode", None, "y_test_mode"],
+                split="test",
+            ),
+        ]
+
+        # ⬆️ upload the mode fill test set
+        self.controller_1.upload_dataset_split(
+            X=self.X_test_mode,
+            y=self.y_test_mode,
+            dataset_name="Auto Insurance Fraud - Mode Fill - Test",
+            metadata=processed_metadata,
+            transformations=mode_test_transformations,
+        )
+
         def smote_balance(X, y, random_state):
+            from imblearn.over_sampling import SMOTE
 
             sm = SMOTE(random_state=random_state)
 
@@ -171,165 +374,118 @@ class TestIntegrationSecleaAIPortal(TestCase):
             return X_sm, y_sm
             # returns X, y
 
-        def fit_and_scale(X, y):
-
-            scaler = StandardScaler()
-
-            scaler.fit(X)
-            X_transformed = X.copy()
-            X_transformed[:] = scaler.transform(X_transformed[:])
-            return X_transformed, y, scaler
-
-        def fit(X):  # how do we handle these that don't affect directly the dataset..
-
-            # ie. the scaler (as the input to another function) but that's not general..
-            scaler = StandardScaler()
-
-            # MAJOR question is. could we identify if they fitted it over the whole dataset... let's test
-            scaler.fit(X)
-            return scaler
-
-        def scale(X, y, scaler):
-            X_transformed = X.copy()
-            X_transformed[:] = scaler.transform(X_transformed[:])
-            return X_transformed, y
-
-        df = encode_nans(self.sample_df_1)
-
-        corr_thresh = 0.97
-        df = drop_correlated(df, corr_thresh)
-
-        null_thresh = 0.9
-        df = drop_nulls(df, threshold=null_thresh)
-
-        df = encode_categorical(df)
-
-        ##############################
-
-        output_col = "fraud_reported"
-        X, y = get_samples_labels(df, output_col=output_col)
-
-        test_size = 0.2
-        random_state = 42
-        X_train, self.X_test, y_train, self.y_test = get_test_train_splits(
-            X, y, test_size=test_size, random_state=random_state
+        # balance the training sets - creating new training sets for comparison
+        self.X_train_const_smote, self.y_train_const_smote = smote_balance(
+            self.X_train_const, self.y_train_const, random_state=42
         )
-        self.X_sm, self.y_sm = smote_balance(X_train, y_train, random_state=random_state)
-        # deliberate test of datasnooping.
-        scaler = fit(pd.concat([self.X_sm, self.X_test], axis=0))
-        self.X_sm_scaled, _ = scale(self.X_sm, self.y_sm, scaler)
-        self.X_test_scaled, _ = scale(self.X_test, self.y_test, scaler)
-
-        self.complicated_transformations = [
-            DatasetTransformation(
-                encode_nans, data_kwargs={"df": self.sample_df_1}, kwargs={}, outputs=["data"]
-            ),
-            DatasetTransformation(
-                drop_correlated, {"data": "inherit"}, {"thresh": corr_thresh}, ["df"]
-            ),
-            DatasetTransformation(
-                drop_nulls, {"df": "inherit"}, {"threshold": null_thresh}, ["df"]
-            ),
-            DatasetTransformation(encode_categorical, {"df": "inherit"}, {}, ["df"]),
-        ]
-
-        # upload dataset here
-        self.controller_1.upload_dataset_split(
-            X=X,
-            y=y,
-            dataset_name=f"{self.sample_df_1_name} - Cleaned",
-            metadata={"favourable_outcome": 1, "unfavourable_outcome": 0},
-            transformations=self.complicated_transformations,
+        self.X_train_mode_smote, self.y_train_mode_smote = smote_balance(
+            self.X_train_mode, self.y_train_mode, random_state=42
         )
 
-        self.complicated_transformations_train = [
-            DatasetTransformation(
-                get_test_train_splits,
-                {"X": X, "y": y},
-                {
-                    "test_size": 0.2,
-                    "random_state": 42,
-                    # this becomes v important bc we are re-running functions for uploading different branches...
-                },
-                ["X", None, "y", None],
-                split="train",
-            ),
+        # 🔀 define the transformations - for the constant fill balanced train set
+        const_smote_transformations = [
             DatasetTransformation(
                 smote_balance,
-                {"X": "inherit", "y": "inherit"},
-                {"random_state": random_state},
-                ["X", "y"],
-            ),
-            DatasetTransformation(
-                scale, {"X": "inherit", "y": "inherit"}, {"scaler": scaler}, ["X", "y", None]
+                data_kwargs={"X": self.X_train_const, "y": self.y_train_const},
+                kwargs={"random_state": 42},
+                outputs=["X", "y"],
             ),
         ]
 
-        # upload dataset here
+        # ⬆️ upload the constant fill balanced train set
         self.controller_1.upload_dataset_split(
-            X=self.X_sm_scaled,
-            y=self.y_sm,
-            dataset_name=f"{self.sample_df_1_name} Train - Balanced - Scaled",
-            metadata={},
-            transformations=self.complicated_transformations_train,
+            X=self.X_train_const_smote,
+            y=self.y_train_const_smote,
+            dataset_name="Auto Insurance Fraud - Const Fill - Smote Train",
+            metadata=processed_metadata,
+            transformations=const_smote_transformations,
         )
 
-        self.complicated_transformations_test = [
+        # 🔀 define the transformations - for the mode fill balanced train set
+        mode_smote_transformations = [
             DatasetTransformation(
-                get_test_train_splits,
-                {"X": X, "y": y},
-                {
-                    "test_size": 0.2,
-                    "random_state": 42,
-                },
-                [None, "X", None, "y"],
-                split="test",
-            ),
-            DatasetTransformation(
-                scale, {"X": "inherit", "y": "inherit"}, {"scaler": scaler}, ["X", "y"]
+                smote_balance,
+                data_kwargs={"X": self.X_train_mode, "y": self.y_train_mode},
+                kwargs={"random_state": 42},
+                outputs=["X", "y"],
             ),
         ]
 
-        # upload dataset here
+        # ⬆️ upload the mode fill balanced train set
         self.controller_1.upload_dataset_split(
-            X=self.X_test_scaled,
-            y=self.y_test,
-            dataset_name=f"{self.sample_df_1_name} Test - Scaled",
-            metadata={},
-            transformations=self.complicated_transformations_test,
+            X=self.X_train_mode_smote,
+            y=self.y_train_mode_smote,
+            dataset_name="Auto Insurance Fraud - Mode Fill - Smote Train",
+            metadata=processed_metadata,
+            transformations=mode_smote_transformations,
         )
 
-        self.sample_df_1_transformed = df
-
-    def step_3_upload_trainingrun(self):
+    def step_3_upload_training_runs(self):
         # define model
 
-        print(
-            f"""% Positive class in Train = {np.round(self.y_sm.value_counts(normalize=True)[1] * 100, 2)}
-            % Positive class in Test  = {np.round(self.y_test.value_counts(normalize=True)[1] * 100, 2)}"""
-        )
+        from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+        from sklearn.metrics import accuracy_score
+        from sklearn.model_selection import cross_val_score
+        from sklearn.tree import DecisionTreeClassifier
 
-        from sklearn.ensemble import RandomForestClassifier
+        classifiers = {
+            "RandomForestClassifier": RandomForestClassifier(),
+            "DecisionTreeClassifier": DecisionTreeClassifier(),
+            "GradientBoostingClassifier": GradientBoostingClassifier(),
+        }
 
-        # from sklearn.metrics import accuracy_score
-        # Train
-        model = RandomForestClassifier(random_state=42)
-        model.fit(self.X_sm_scaled, self.y_sm)
-        # preds = model.predict(self.X_test_scaled)
+        datasets = [
+            (
+                "Const Fill",
+                (self.X_train_const, self.X_test_const, self.y_train_const, self.y_test_const),
+            ),
+            (
+                "Mode Fill",
+                (self.X_train_mode, self.X_test_mode, self.y_train_mode, self.y_test_mode),
+            ),
+            (
+                "Const Fill Smote",
+                (
+                    self.X_train_const_smote,
+                    self.X_test_const,
+                    self.y_train_const_smote,
+                    self.y_test_const,
+                ),
+            ),
+            (
+                "Mode Fill Smote",
+                (
+                    self.X_train_mode_smote,
+                    self.X_test_mode,
+                    self.y_train_mode_smote,
+                    self.y_test_mode,
+                ),
+            ),
+        ]
 
-        self.controller_1.upload_training_run_split(
-            model,
-            X_train=self.X_sm_scaled,
-            y_train=self.y_sm,
-            X_test=self.X_test_scaled,
-            y_test=self.y_test,
-        )
+        for name, (X_train, X_test, y_train, y_test) in datasets:
 
-        model1 = RandomForestClassifier(random_state=42, n_estimators=32)
-        model1.fit(self.X_sm, self.y_sm)
-        self.controller_1.upload_training_run_split(
-            model1, X_train=self.X_sm, y_train=self.y_sm, X_test=self.X_test, y_test=self.y_test
-        )
+            for key, classifier in classifiers.items():
+                # cross validate to get an idea of generalisation.
+                training_score = cross_val_score(classifier, X_train, y_train, cv=5)
+
+                # train on the full training set
+                classifier.fit(X_train, y_train)
+
+                # ⬆️ upload the fully trained model
+                self.controller_1.upload_training_run_split(
+                    model=classifier, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test
+                )
+
+                # test accuracy
+                y_preds = classifier.predict(X_test)
+                test_score = accuracy_score(y_test, y_preds)
+                print(
+                    f"Classifier: {classifier.__class__.__name__} has a training score of {round(training_score.mean(), 3) * 100}% accuracy score on {name}"
+                )
+                print(
+                    f"Classifier: {classifier.__class__.__name__} has a test score of {round(test_score, 3) * 100}% accuracy score on {name}"
+                )
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
