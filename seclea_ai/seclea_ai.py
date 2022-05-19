@@ -328,7 +328,7 @@ class SecleaAI:
             dset_metadata = copy.deepcopy(user_metadata)
             # validate and ensure required metadata
             metadata_defaults_spec = dict(
-                continuous_features=[],
+                continuous_features=parent_mdata["continuous_features"],
                 outcome_name=parent_mdata["outcome_name"],
                 num_samples=len(dset),
                 favourable_outcome=parent_mdata["favourable_outcome"],
