@@ -54,13 +54,13 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
 
 class SecleaAI:
     def __init__(
-            self,
-            project_name: str,
-            organization: str,
-            platform_url: str = "https://platform.seclea.com",
-            auth_url: str = "https://auth.seclea.com",
-            username: str = None,
-            password: str = None,
+        self,
+        project_name: str,
+        organization: str,
+        platform_url: str = "https://platform.seclea.com",
+        auth_url: str = "https://auth.seclea.com",
+        username: str = None,
+        password: str = None,
     ):
         """
         Create a SecleaAI object to manage a session. Requires a project name and framework.
@@ -122,12 +122,12 @@ class SecleaAI:
             raise AuthenticationError("Failed to login.")
 
     def upload_dataset_split(
-            self,
-            X: Union[DataFrame, np.ndarray],
-            y: Union[DataFrame, np.ndarray],
-            dataset_name: str,
-            metadata: Dict,
-            transformations: List[DatasetTransformation] = None,
+        self,
+        X: Union[DataFrame, np.ndarray],
+        y: Union[DataFrame, np.ndarray],
+        dataset_name: str,
+        metadata: Dict,
+        transformations: List[DatasetTransformation] = None,
     ) -> None:
         """
         Uploads a dataset.
@@ -161,11 +161,11 @@ class SecleaAI:
         self.upload_dataset(dataset, dataset_name, metadata, transformations)
 
     def upload_dataset(
-            self,
-            dataset: Union[str, List[str], DataFrame],
-            dataset_name: str,
-            metadata: Dict,
-            transformations: List[DatasetTransformation] = None,
+        self,
+        dataset: Union[str, List[str], DataFrame],
+        dataset_name: str,
+        metadata: Dict,
+        transformations: List[DatasetTransformation] = None,
     ) -> None:
         """
         Uploads a dataset.
@@ -253,8 +253,8 @@ class SecleaAI:
             # check for duplicates
             for up_kwargs in upload_queue:
                 if (
-                        pd.util.hash_pandas_object(up_kwargs["dataset"]).sum()
-                        == up_kwargs["parent_hash"]
+                    pd.util.hash_pandas_object(up_kwargs["dataset"]).sum()
+                    == up_kwargs["parent_hash"]
                 ):
                     raise AssertionError(
                         f"""The transformation {up_kwargs['transformation'].func.__name__} does not change the dataset.
@@ -309,7 +309,7 @@ class SecleaAI:
         )
 
     def _generate_intermediate_datasets(
-            self, transformations, dataset_name, dset_pk, user_metadata, parent, parent_metadata
+        self, transformations, dataset_name, dset_pk, user_metadata, parent, parent_metadata
     ):
         # setup for generating datasets.
         last = len(transformations) - 1
@@ -366,7 +366,7 @@ class SecleaAI:
 
             # constraints
             if not set(dset_metadata["continuous_features"]).issubset(
-                    set(dset_metadata["features"])
+                set(dset_metadata["features"])
             ):
                 raise ValueError(
                     "Continuous features must be a subset of features. Please check and try again."
@@ -377,7 +377,7 @@ class SecleaAI:
             # handle the final dataset - check generated = passed in.
             if idx == last:
                 if (
-                        dataset_hash(dset, self._project) != dset_pk
+                    dataset_hash(dset, self._project) != dset_pk
                 ):  # TODO create or find better exception
                     raise AssertionError(
                         """Generated Dataset does not match the Dataset passed in.
@@ -404,14 +404,14 @@ class SecleaAI:
         return upload_queue
 
     def upload_training_run_split(
-            self,
-            model,
-            X_train: DataFrame,
-            y_train: Union[DataFrame, Series],
-            X_test: DataFrame = None,
-            y_test: Union[DataFrame, Series] = None,
-            X_val: Union[DataFrame, Series] = None,
-            y_val: Union[DataFrame, Series] = None,
+        self,
+        model,
+        X_train: DataFrame,
+        y_train: Union[DataFrame, Series],
+        X_test: DataFrame = None,
+        y_test: Union[DataFrame, Series] = None,
+        X_val: Union[DataFrame, Series] = None,
+        y_val: Union[DataFrame, Series] = None,
     ) -> None:
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -447,11 +447,11 @@ class SecleaAI:
         )
 
     def upload_training_run(
-            self,
-            model,
-            train_dataset: DataFrame,
-            test_dataset: DataFrame = None,
-            val_dataset: DataFrame = None,
+        self,
+        model,
+        train_dataset: DataFrame,
+        test_dataset: DataFrame = None,
+        val_dataset: DataFrame = None,
     ) -> None:
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -712,12 +712,12 @@ class SecleaAI:
         return metadata
 
     def _upload_dataset(
-            self,
-            dataset: DataFrame,
-            dataset_name: str,
-            metadata: Dict,
-            parent_hash: Union[int, None],
-            transformation: Union[DatasetTransformation, None],
+        self,
+        dataset: DataFrame,
+        dataset_name: str,
+        metadata: Dict,
+        parent_hash: Union[int, None],
+        transformation: Union[DatasetTransformation, None],
     ):
         # upload a dataset - only works for a single transformation.
         if not os.path.exists(self._cache_dir):
@@ -779,7 +779,7 @@ class SecleaAI:
         )
 
     def _upload_training_run(
-            self, training_run_name: str, model_pk: int, dataset_pks: List[str], params: Dict
+        self, training_run_name: str, model_pk: int, dataset_pks: List[str], params: Dict
     ):
         """
 
@@ -806,12 +806,12 @@ class SecleaAI:
         )
 
     def _upload_model_state(
-            self,
-            model,
-            training_run_pk: int,
-            sequence_num: int,
-            final: bool,
-            model_manager: ModelManagers,
+        self,
+        model,
+        training_run_pk: int,
+        sequence_num: int,
+        final: bool,
+        model_manager: ModelManagers,
     ):
         os.makedirs(
             os.path.join(self._cache_dir, str(training_run_pk)),
