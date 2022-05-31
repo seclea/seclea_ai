@@ -729,7 +729,7 @@ class SecleaAI:
         comp_path = os.path.join(self._cache_dir, "compressed")
         rb = open(dataset_path, "rb")
         comp_path = save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
-
+        rb.close()
         dset_pk = dataset_hash(dataset, self._project)
 
         response = post_dataset(
@@ -739,7 +739,7 @@ class SecleaAI:
             organization_pk=self._organization,
             name=dataset_name,
             metadata={},
-            dataset_hash=dset_pk,
+            dataset_pk=dset_pk,
             parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
             delete=True,
         )

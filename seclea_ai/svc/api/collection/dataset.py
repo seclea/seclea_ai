@@ -15,7 +15,7 @@ def post_dataset(
     organization_pk: str,
     name: str,
     metadata: dict,
-    dataset_hash: str,
+    dataset_pk: str,
     parent_dataset_hash: str = None,
     delete=False,
 ):
@@ -26,7 +26,7 @@ def post_dataset(
     @param organization_pk:
     @param name:
     @param metadata:
-    @param dataset_hash:
+    @param dataset_pk:
     @param parent_dataset_hash:
     @param delete: delete dataset file
     @return:
@@ -36,7 +36,7 @@ def post_dataset(
         "organization": organization_pk,
         "name": name,
         "metadata": json.dumps(metadata),
-        "hash": str(dataset_hash),
+        "hash": str(dataset_pk),
         "parent": parent_dataset_hash,
     }
     res = transmission.send_file(
