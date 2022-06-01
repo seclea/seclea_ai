@@ -19,3 +19,5 @@ sphinx-rtd-theme==1.0.0
 urllib3>=1.26.5
 xgboost>=1.5.1
 zstandard>=0.15.1
+SQLAlchemy>=1.4.36
+aiohttp>=3.8.1

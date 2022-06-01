@@ -12,6 +12,10 @@ import pandas as pd
 from pandas import DataFrame, Series
 from requests import Response
 
+from .internal import local_db
+import threading
+import asyncio
+
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
 from seclea_ai.internal.backend import Backend
@@ -25,8 +29,8 @@ from seclea_ai.lib.seclea_utils.core import (
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
 
-from .svc.api.collection.dataset import post_dataset
-from .svc.api.collection.model_state import post_model_state
+from .svc.api.collection.aysnc_dataset import async_post_dataset
+from .svc.api.collection.async_model_state import async_post_model_state
 
 
 def handle_response(res: Response, expected: int, msg: str) -> Response:
@@ -676,41 +680,71 @@ class SecleaAI:
                 "Continuous features must be a subset of features. Please check and try again."
             )
 
-        # upload a dataset - only works for a single transformation.
-        if not os.path.exists(self._cache_dir):
-            os.makedirs(self._cache_dir)
+        # save data in local directory and store dataset info in sqlite
+        async def SaveData():
+            # upload a dataset - only works for a single transformation.
+            if not os.path.exists(self._cache_dir):
+                os.makedirs(self._cache_dir)
 
-        # TODO refactor to make multithreading safe.
-        dataset_path = os.path.join(self._cache_dir, "tmp.csv")
-        dataset.to_csv(dataset_path, index=True)
-        comp_path = os.path.join(self._cache_dir, "compressed")
-        rb = open(dataset_path, "rb")
-        comp_path = save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
+            dataset_path = os.path.join(self._cache_dir, "tmp.csv")
+            dataset.to_csv(dataset_path, index=True)
+            comp_path = os.path.join(self._cache_dir, "compressed")
+            rb = open(dataset_path, "rb")
+            comp_path = save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
 
-        dataset_hash = hash(pd.util.hash_pandas_object(dataset).sum() + self._project)
+            dataset_hash = hash(pd.util.hash_pandas_object(dataset).sum() + self._project)
 
-        response = post_dataset(
-            transmission=self._transmission,
-            dataset_file_path=comp_path,
-            project_pk=self._project,
-            organization_pk=self._organization,
-            name=dataset_name,
-            metadata=metadata,
-            dataset_hash=str(dataset_hash),
-            parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
-            delete=True,
-        )
-        handle_response(
-            response, 201, f"There was some issue uploading the dataset: {response.text}"
-        )
+            # store datasets info in sqlite db
+            dbms = local_db.MyDatabase(local_db.SQLITE, dbname='seclea_db.sqlite')
+            dbms.create_tables()
+            ds = local_db.Datasets(name=dataset_name, path=dataset_path, comp_path=comp_path,
+                                       project=str(self._project), organization=self._organization, status='stored')
+            dbms.session.add(ds)
+            dbms.session.commit()
 
-        # upload the transformations
-        if response.status_code == 201 and transformation is not None:
-            # upload transformations.
-            self._upload_transformation(
-                transformation=transformation,
-                dataset_pk=str(dataset_hash),
+            # upload datasets to server asynchronously
+            response = await async_post_dataset(
+                transmission=self._transmission,
+                dataset_file_path=comp_path,
+                project_pk=self._project,
+                organization_pk=self._organization,
+                name=dataset_name,
+                metadata={},
+                dataset_hash=str(dataset_hash),
+                parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
+                delete=True,
             )
+
+            # upload the transformations
+            if response.status == 201:
+                # update record status in sqlite
+                dbms.session.query(local_db.Datasets).filter(local_db.Datasets.path == dataset_path).update(
+                        {local_db.Datasets.status: "uploaded"}, synchronize_session=False)
+                dbms.session.commit()
+                self._update_dataset_metadata(dataset_hash=dataset_hash, metadata=metadata)
+                if transformation is not None:
+                    # upload transformations.
+                    self._upload_transformation(
+                        transformation=transformation,
+                        dataset_pk=str(dataset_hash),
+                    )
+            else:
+                raise ValueError(
+                    f"Response Status code {response.status}, expected: 201. \n f'There was some issue uploading the dataset: {response.text()}' - {response.reason} - {response.text}"
+                )
+
+            # caller function to await dataset saving
+            async def caller_function():
+                await SaveData()
+
+            def datasets_callback():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(caller_function())
+                loop.close()
+
+            _thread = threading.Thread(target=datasets_callback)
+            _thread.start()
 
     def _upload_model(self, model_name: str, framework: ModelManagers):
         """
@@ -768,31 +802,61 @@ class SecleaAI:
         final: bool,
         model_manager: ModelManagers,
     ):
-        os.makedirs(
-            os.path.join(self._cache_dir, str(training_run_pk)),
-            exist_ok=True,
-        )
-        model_data = serialize(model, model_manager)
-        save_path = os.path.join(
-            Path.home(), f".seclea/{self._project_name}/{training_run_pk}/model-{sequence_num}"
-        )
-        save_path = save_object(model_data, save_path, compression=CompressionFactory.ZSTD)
+        # store model state in local and upload to server asynchronously
+        async def SaveModel():
+            os.makedirs(
+                os.path.join(self._cache_dir, str(training_run_pk)),
+                exist_ok=True,
+            )
+            model_data = serialize(model, model_manager)
+            save_path = os.path.join(
+                Path.home(), f".seclea/{self._project_name}/{training_run_pk}/model-{sequence_num}"
+            )
 
-        res = post_model_state(
-            self._transmission,
-            save_path,
-            self._organization,
-            self._project,
-            str(training_run_pk),
-            sequence_num,
-            final,
-            True,
-        )
+            save_path = save_object(model_data, save_path, compression=CompressionFactory.ZSTD)
 
-        res = handle_response(
-            res, expected=201, msg=f"There was an issue uploading a model state: {res}"
-        )
-        return res
+            # store model state info in sqlite
+            dbms = local_db.MyDatabase(local_db.SQLITE, dbname='seclea_db.sqlite')
+            dbms.create_tables()
+            ms = local_db.Modelstates(path=save_path, project=str(self._project),
+                                      organization=self._organization, training_run=str(training_run_pk),
+                                      status='stored')
+            dbms.session.add(ms)
+            dbms.session.commit()
+
+            res = await async_post_model_state(
+                self._transmission,
+                save_path,
+                self._organization,
+                self._project,
+                str(training_run_pk),
+                sequence_num,
+                final,
+                True,
+            )
+
+            if res.status == 201:
+                # update record status in sqlite
+                dbms.session.query(local_db.Datasets).filter(local_db.Datasets.path == save_path).update(
+                    {local_db.Datasets.status: "uploaded"}, synchronize_session=False)
+                dbms.session.commit()
+            else:
+                raise ValueError(
+                    f"Response Status code {res.status}, expected: 201. \n f'There was some issue uploading a model state: {res.text()}' - {res.reason} - {res.text}"
+                )
+            return res
+
+        async def caller_function():
+            await SaveModel()
+
+        def callback():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(caller_function())
+            loop.close()
+
+        _thread = threading.Thread(target=callback)
+        _thread.start()
 
     def _upload_transformation(self, transformation: DatasetTransformation, dataset_pk):
         idx = 0
