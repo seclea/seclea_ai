@@ -206,6 +206,7 @@ class SecleaAI:
             >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
             >>> seclea.upload_dataset(dataset=files, dataset_name="Multifile Dataset", metadata=dataset_metadata)
 
+
         """
         # processing the final dataset - make sure it's a DataFrame
         if self._project is None:
@@ -220,50 +221,33 @@ class SecleaAI:
 
         if transformations is not None:
 
-            # check that the parent exists on platform
             parent = self._assemble_dataset(transformations[0].raw_data_kwargs)
 
-            # setup for generating datasets.
-            last = len(transformations) - 1
-            upload_queue = list()
+            #####
+            # Validate parent exists and get metadata - can factor out
+            #####
+            parent_hash = hash(pd.util.hash_pandas_object(parent).sum() + self._project)
+            # check parent exists - throw an error if not.
+            res = self._transmission.get(
+                url_path=f"/collection/datasets/{parent_hash}",
+                query_params={"project": self._project, "organization": self._organization},
+            )
+            if not res.status_code == 200:
+                raise AssertionError(
+                    "Parent Dataset does not exist on the Platform. Please check your arguments and "
+                    "that you have uploaded the parent dataset already"
+                )
+            parent_metadata = res.json()["metadata"]
+            #####
 
-            output = dict()
-            # iterate over transformations, assembling intermediate datasets
-            # TODO address memory issue of keeping all datasets
-            for idx, trans in enumerate(transformations):
-                output = trans(output)
-
-                # construct the generated dataset from outputs
-                dset = self._assemble_dataset(output)
-                dset_metadata = {}
-                dset_name = f"{dataset_name}-{trans.func.__name__}"
-
-                # handle the final dataset - check generated = passed in.
-                if idx == last:
-                    if (
-                        pd.util.hash_pandas_object(dset).sum() != dataset_hash
-                    ):  # TODO create or find better exception
-                        raise AssertionError(
-                            """Generated Dataset does not match the Dataset passed in.
-                                         Please check your DatasetTransformation definitions and try again.
-                                         Try using less DatasetTransformations if you are having persistent problems"""
-                        )
-                    else:
-                        dset_metadata = metadata
-                        dset_name = dataset_name
-
-                # add data to queue to upload later after final dataset checked
-                upload_kwargs = {
-                    "dataset": copy.deepcopy(dset),  # TODO change keys
-                    "dataset_name": copy.deepcopy(dset_name),
-                    "metadata": copy.deepcopy(dset_metadata),
-                    "parent_hash": pd.util.hash_pandas_object(parent).sum(),
-                    "transformation": copy.deepcopy(trans),
-                }
-                # update the parent dataset - these chained transformations only make sense if they are pushing the
-                # same dataset through multiple transformations.
-                parent = copy.deepcopy(dset)
-                upload_queue.append(upload_kwargs)
+            upload_queue = self._generate_intermediate_datasets(
+                transformations=transformations,
+                dataset_name=dataset_name,
+                dataset_hash=dataset_hash,
+                user_metadata=metadata,
+                parent=parent,
+                parent_metadata=parent_metadata,
+            )
 
             # check for duplicates
             for up_kwargs in upload_queue:
@@ -281,6 +265,40 @@ class SecleaAI:
             return
 
         # this only happens if this has no transformations ie. it is a Raw Dataset.
+        metadata_defaults_spec = dict(
+            continuous_features=[],
+            outcome_name=None,
+            num_samples=len(dataset),
+        )
+        try:
+            features = (
+                dataset.columns
+            )  # TODO - drop the outcome name but requires changes on frontend.
+        except KeyError:
+            # this means outcome was set to None
+            features = dataset.columns
+
+        required_metadata = ["favourable_outcome", "unfavourable_outcome"]
+
+        self._ensure_required_user_spec_metadata(metadata=metadata, required_spec=required_metadata)
+        metadata = self._ensure_required_metadata(
+            metadata=metadata, defaults_spec=metadata_defaults_spec
+        )
+        automatic_metadata = dict(
+            index=0 if dataset.index.name is None else dataset.index.name,
+            split=None,
+            features=list(features),
+            categorical_features=list(
+                set(list(features))
+                - set(metadata["continuous_features"]).intersection(set(list(features)))
+            ),
+        )
+        metadata = self._add_required_metadata(metadata=metadata, required_spec=automatic_metadata)
+
+        metadata["categorical_values"] = [
+            {col: dataset[col].unique().tolist()} for col in metadata["categorical_features"]
+        ]
+
         self._upload_dataset(
             dataset=dataset,
             dataset_name=dataset_name,
@@ -288,6 +306,103 @@ class SecleaAI:
             parent_hash=None,
             transformation=None,
         )
+
+    def _generate_intermediate_datasets(
+        self, transformations, dataset_name, dataset_hash, user_metadata, parent, parent_metadata
+    ):
+        # setup for generating datasets.
+        last = len(transformations) - 1
+        upload_queue = list()
+        parent_mdata = parent_metadata
+        parent_dset = parent
+
+        output = dict()
+        # iterate over transformations, assembling intermediate datasets
+        # TODO address memory issue of keeping all datasets
+        for idx, trans in enumerate(transformations):
+            output = trans(output)
+
+            # construct the generated dataset from outputs
+            dset = self._assemble_dataset(output)
+
+            dset_metadata = copy.deepcopy(user_metadata)
+            # validate and ensure required metadata
+            metadata_defaults_spec = dict(
+                continuous_features=parent_mdata["continuous_features"],
+                outcome_name=parent_mdata["outcome_name"],
+                num_samples=len(dset),
+                favourable_outcome=parent_mdata["favourable_outcome"],
+                unfavourable_outcome=parent_mdata["unfavourable_outcome"],
+            )
+            dset_metadata = self._ensure_required_metadata(
+                metadata=dset_metadata, defaults_spec=metadata_defaults_spec
+            )
+            try:
+                features = (
+                    dset.columns
+                )  # TODO - drop the outcome name but requires changes on frontend.
+            except KeyError:
+                # this means outcome was set to None
+                features = dset.columns
+
+            automatic_metadata = dict(
+                index=0 if dset.index.name is None else dset.index.name,
+                split=trans.split if trans is not None else parent_mdata["split"],
+                features=list(features),
+                categorical_features=list(
+                    set(list(features))
+                    - set(dset_metadata["continuous_features"]).intersection(set(list(features)))
+                ),
+            )
+
+            dset_metadata = self._add_required_metadata(
+                metadata=dset_metadata, required_spec=automatic_metadata
+            )
+
+            dset_metadata["categorical_values"] = [
+                {col: dset[col].unique().tolist()} for col in dset_metadata["categorical_features"]
+            ]
+
+            # constraints
+            if not set(dset_metadata["continuous_features"]).issubset(
+                set(dset_metadata["features"])
+            ):
+                raise ValueError(
+                    "Continuous features must be a subset of features. Please check and try again."
+                )
+
+            dset_name = f"{dataset_name}-{trans.func.__name__}"  # TODO improve this.
+
+            # handle the final dataset - check generated = passed in.
+            if idx == last:
+                if (
+                    pd.util.hash_pandas_object(dset).sum() != dataset_hash
+                ):  # TODO create or find better exception
+                    raise AssertionError(
+                        """Generated Dataset does not match the Dataset passed in.
+                                     Please check your DatasetTransformation definitions and try again.
+                                     Try using less DatasetTransformations if you are having persistent problems"""
+                    )
+                else:
+                    dset_name = dataset_name
+
+            # add data to queue to upload later after final dataset checked
+            upload_kwargs = {
+                "dataset": copy.deepcopy(dset),  # TODO change keys
+                "dataset_name": copy.deepcopy(dset_name),
+                "metadata": dset_metadata,
+                "parent_hash": str(
+                    hash(pd.util.hash_pandas_object(parent_dset).sum()) + self._project
+                ),
+                "transformation": copy.deepcopy(trans),
+            }
+            # update the parent dataset - these chained transformations only make sense if they are pushing the
+            # same dataset through multiple transformations.
+            parent_dset = copy.deepcopy(dset)
+            parent_mdata = copy.deepcopy(dset_metadata)
+            upload_queue.append(upload_kwargs)
+
+        return upload_queue
 
     def upload_training_run_split(
         self,
@@ -553,6 +668,50 @@ class SecleaAI:
             model_pk = resp.json()[0]["id"]
         return model_pk
 
+    @staticmethod
+    def _ensure_required_metadata(metadata: Dict, defaults_spec: Dict) -> Dict:
+        """
+        Ensures that required metadata that can be specified by the user are filled.
+        @param metadata: The metadata dict
+        @param defaults_spec:
+        @return: metadata
+        """
+        for required_key, default in defaults_spec.items():
+            try:
+                if metadata[required_key] is None:
+                    metadata[required_key] = default
+            except KeyError:
+                metadata[required_key] = default
+        return metadata
+
+    @staticmethod
+    def _ensure_required_user_spec_metadata(metadata: Dict, required_spec: List) -> None:
+        """
+        Ensures that required metadata that can be specified by the user are filled.
+        @param metadata: The metadata dict
+        @param defaults_spec:
+        @return: None
+        @raise ValueError if any are missing.
+        """
+        for required_key in required_spec:
+            try:
+                if metadata[required_key] is None:
+                    raise ValueError(f"{required_key} must be specified in the metadata")
+            except KeyError:
+                raise ValueError(f"{required_key} must be specified in the metadata")
+
+    @staticmethod
+    def _add_required_metadata(metadata: Dict, required_spec: Dict) -> Dict:
+        """
+        Adds required - non user specified fields to the metadata
+        @param metadata: The metadata dict
+        @param required_spec:
+        @return: metadata
+        """
+        for required_key, default in required_spec.items():
+            metadata[required_key] = default
+        return metadata
+
     def _upload_dataset(
         self,
         dataset: DataFrame,
@@ -561,47 +720,11 @@ class SecleaAI:
         parent_hash: Union[int, None],
         transformation: Union[DatasetTransformation, None],
     ):
-        split = transformation.split if transformation is not None else None
-        if parent_hash is not None:
-            parent_hash = hash(parent_hash + self._project)
-            # check parent exists - throw an error if not.
-            res = self._transmission.get(
-                url_path=f"/collection/datasets/{parent_hash}",
-                query_params={"project": self._project, "organization": self._organization},
-            )
-            if not res.status_code == 200:
-                raise AssertionError(
-                    "Parent Dataset does not exist on the Platform. Please check your arguments and "
-                    "that you have uploaded the parent dataset already"
-                )
-            parent = res.json()
-            # deal with the splits - take the set one by default but inherit from parent if None
-            if transformation.split is None:
-                # check the parent split - inherit split
-                split = parent["metadata"]["split"]
-            try:
-                if metadata["outcome_name"] is None:
-                    pass
-            except KeyError:
-                try:
-                    metadata["outcome_name"] = parent["metadata"]["outcome_name"]
-                except KeyError:
-                    metadata["outcome_name"] = None
-
-        # this needs to be here so split is always set.
-        metadata = {**metadata, "split": split, "features": list(dataset.columns)}
-
-        # ensure there is always an index.
-        try:
-            if metadata["index"] is None:
-                metadata["index"] = 0
-        except KeyError:
-            metadata["index"] = 0
-
         # upload a dataset - only works for a single transformation.
         if not os.path.exists(self._cache_dir):
             os.makedirs(self._cache_dir)
 
+        # TODO refactor to make multithreading safe.
         dataset_path = os.path.join(self._cache_dir, "tmp.csv")
         dataset.to_csv(dataset_path, index=True)
         comp_path = os.path.join(self._cache_dir, "compressed")
@@ -616,7 +739,7 @@ class SecleaAI:
             project_pk=self._project,
             organization_pk=self._organization,
             name=dataset_name,
-            metadata=metadata,
+            metadata={},
             dataset_hash=str(dataset_hash),
             parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
             delete=True,
@@ -626,12 +749,14 @@ class SecleaAI:
         )
 
         # upload the transformations
-        if response.status_code == 201 and transformation is not None:
-            # upload transformations.
-            self._upload_transformation(
-                transformation=transformation,
-                dataset_pk=str(dataset_hash),
-            )
+        if response.status_code == 201:
+            self._update_dataset_metadata(dataset_hash=dataset_hash, metadata=metadata)
+            if transformation is not None:
+                # upload transformations.
+                self._upload_transformation(
+                    transformation=transformation,
+                    dataset_pk=str(dataset_hash),
+                )
 
     def _upload_model(self, model_name: str, framework: ModelManagers):
         """
@@ -778,3 +903,21 @@ class SecleaAI:
             return ModelManagers.SKLEARN
         else:
             return ModelManagers.NOT_IMPORTED
+
+    def _update_dataset_metadata(self, dataset_hash, metadata):
+        """
+        Update the dataset's metadata. For use when the metadata is too large to encode in the url.
+        @param dataset_hash:
+        @param metadata:
+        @return:
+        """
+        res = self._transmission.patch(
+            url_path=f"/collection/datasets/{dataset_hash}",
+            obj={
+                "metadata": metadata,
+            },
+            query_params={"organization": self._organization, "project": self._project},
+        )
+        return handle_response(
+            res, expected=200, msg=f"There was an issue updating the metadata: {res.text}"
+        )
