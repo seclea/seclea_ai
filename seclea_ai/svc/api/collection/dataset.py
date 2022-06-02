@@ -31,18 +31,18 @@ def post_dataset(
     @param delete: delete dataset file
     @return:
     """
-    dataset_queryparams = {
-        "project": project_pk,
-        "organization": organization_pk,
-        "name": name,
-        "metadata": json.dumps(metadata),
-        "hash": str(dataset_pk),
-        "parent": parent_dataset_hash,
+    dataset_queryparams = {"project": project_pk, "organization": organization_pk}
+    dataset_obj = {
+        "project": (None, project_pk),
+        "name": (None, name),
+        "metadata": (None, json.dumps({"Test": 1})),
+        "hash": (None, str(dataset_pk)),
+        "parent": (None, parent_dataset_hash),
+        "dataset": ("dataset_name", open(dataset_file_path, "rb")),
     }
     res = transmission.send_file(
         url_path=f"{root}",
-        file_path=dataset_file_path,
+        obj=dataset_obj,
         query_params=dataset_queryparams,
-        delete_file=delete,
     )
     return res
