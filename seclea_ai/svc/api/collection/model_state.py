@@ -27,14 +27,16 @@ def post_model_state(
     """
     res = transmission.send_file(
         url_path="/collection/model-states",
-        file_path=model_state_file_path,
+        obj={
+            "project": (None, project_pk),
+            "sequence_num": (None, sequence_num),
+            "training_run": (None, training_run_pk),
+            "final_state": (None, final_state),
+            "state": ("fname", open(model_state_file_path, "rb")),
+        },
         query_params={
             "organization": organization_pk,
             "project": project_pk,
-            "sequence_num": sequence_num,
-            "training_run": training_run_pk,
-            "final_state": final_state,
         },
-        delete_file=delete,
     )
     return res
