@@ -1,14 +1,17 @@
+import sys
+import datetime
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import Table, Column, Integer, String, MetaData, ForeignKey
+from sqlalchemy import Table, Column, Integer, String, DateTime, MetaData, PrimaryKeyConstraint, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 SQLITE = 'sqlite'
-
+DATABASE = 'seclea_db.sqlite'
 # Table Names
-DATASETS = 'collection_datasets'
-MODELSTATES = 'collection_modelstates'
+DATASETMODELSTATE = 'dataset_modelstate'
+STATUSMONITOR = 'status_monitor'
 
 
 class MyDatabase:
@@ -20,7 +23,7 @@ class MyDatabase:
     # Main DB Connection Ref Obj
     db_engine = None
     session = None
-    def __init__(self, dbtype, username='', password='', dbname=''):
+    def __init__(self, dbtype=SQLITE, username='', password='', dbname=DATABASE):
         dbtype = dbtype.lower()
         if dbtype in self.DB_ENGINE.keys():
             engine_url = self.DB_ENGINE[dbtype].format(DB=dbname)
@@ -28,40 +31,25 @@ class MyDatabase:
             Session = sessionmaker()
             Session.configure(bind=self.db_engine)
             self.session = Session()
-            print(self.db_engine)
+            DatasetModelstate.__table__.create(bind=self.db_engine, checkfirst=True)
+            StatusMonitor.__table__.create(bind=self.db_engine, checkfirst=True)
         else:
             print("DBType is not found in DB_ENGINE")
 
-    def create_tables(self):
-        metadata = MetaData()
-        collection_datasets = Table(DATASETS, metadata,
-                      Column('id', Integer, primary_key=True),
-                      Column('name', String),
-                      Column('path', String),
-                      Column('comp_path', String),
-                      Column('project', String),
-                      Column('organization', String),
-                      Column('status', String)
-                      )
 
-        collection_modelstates = Table(MODELSTATES, metadata,
-                         Column('id', Integer, primary_key=True),
-                         Column('path', String),
-                         Column('project', String),
-                         Column('organization', String),
-                         Column('training_run', String),
-                         Column('status', String)
-                         )
+    def save_datasetmodelstate(self, object, status):
+        self.session.add(object)
+        self.session.commit()
+        self.add_status(object.id, status)
 
-        try:
-            metadata.create_all(self.db_engine)
-        except Exception as e:
-            print("Error occurred during Table creation!")
-            print(e)
+    def add_status(self, pid, status):
+        sm = StatusMonitor(pid=pid, status=status, timestamp=datetime.datetime.now())
+        self.session.add(sm)
+        self.session.commit()
 
 
-class Datasets(Base):
-    __tablename__ = DATASETS
+class DatasetModelstate(Base):
+    __tablename__ = DATASETMODELSTATE
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
@@ -69,14 +57,13 @@ class Datasets(Base):
     comp_path = Column(String)
     project = Column(String)
     organization = Column(String)
-    status = Column(String)
-
-class Modelstates(Base):
-    __tablename__ = MODELSTATES
-
-    id = Column(Integer, primary_key=True)
-    path = Column(String)
-    project = Column(String)
-    organization = Column(String)
     training_run = Column(String)
+
+
+class StatusMonitor(Base):
+    __tablename__ = STATUSMONITOR
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    pid = Column(Integer, ForeignKey('dataset_modelstate.id'))
     status = Column(String)
+    timestamp = Column(DateTime)
