@@ -61,7 +61,7 @@ class AuthenticationService:
         if not self._dbms.get_auth_key(self._key_token_access):
             return False
         self._transmission.cookies = {
-            self._key_token_access: self._dbms.get_auth_key(self._key_token_access, default="")
+            self._key_token_access: self._dbms.get_auth_key(self._key_token_access)
         }
 
         print(f"Cookies: {self._transmission.cookies}")
