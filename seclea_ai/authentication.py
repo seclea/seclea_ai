@@ -6,7 +6,7 @@ from requests import Response
 from seclea_ai.exceptions import AuthenticationError
 from seclea_ai.lib.seclea_utils.core import Transmission
 
-from .storage import Storage
+from .internal.local_db import MyDatabase
 
 try:
     import google.colab  # noqa F401
@@ -25,7 +25,7 @@ class AuthenticationService:
     def __init__(self, url: str, transmission: Transmission):
         self._url = url
         self._transmission = transmission
-        self._db = Storage(db_name="auth_service", root="." if IN_COLAB else None)
+        self._dbms = MyDatabase()
         self._path_token_obtain = (
             "/api/token/obtain/"  # nosec - bandit thinks this is a pw or key..
         )
@@ -58,10 +58,10 @@ class AuthenticationService:
 
         :return: bool True if valid or False
         """
-        if not self._db.get(self._key_token_access):
+        if not self._dbms.get_auth_key(self._key_token_access):
             return False
         self._transmission.cookies = {
-            self._key_token_access: self._db.get(self._key_token_access, default="")
+            self._key_token_access: self._dbms.get_auth_key(self._key_token_access)
         }
 
         print(f"Cookies: {self._transmission.cookies}")
@@ -81,10 +81,10 @@ class AuthenticationService:
 
         :return: bool Success
         """
-        if not self._db.get(self._key_token_refresh):
+        if not self._dbms.get_auth_key(self._key_token_refresh):
             return False
         self._transmission.cookies = {
-            self._key_token_refresh: self._db.get(self._key_token_refresh)
+            self._key_token_refresh: self._dbms.get_auth_key(self._key_token_refresh)
         }
         response = self._transmission.send_json(url_path=self._path_token_refresh, obj={})
         self._save_response_tokens(response)
@@ -108,9 +108,9 @@ class AuthenticationService:
         :return: None
         """
         if self._key_token_refresh in response.cookies:
-            self._db.write(self._key_token_refresh, response.cookies[self._key_token_refresh])
+            self._dbms.set_auth_key(self._key_token_refresh, response.cookies[self._key_token_refresh])
         if self._key_token_access in response.cookies:
-            self._db.write(self._key_token_access, response.cookies[self._key_token_access])
+            self._dbms.set_auth_key(self._key_token_access, response.cookies[self._key_token_access])
 
     def _obtain_initial_tokens(self, username=None, password=None) -> None:
         """

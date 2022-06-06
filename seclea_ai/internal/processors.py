@@ -8,7 +8,6 @@ from typing import Dict, List
 import pandas as pd
 
 from seclea_ai.internal.api import Api
-from seclea_ai.storage import Storage
 
 
 def _assemble_key(record) -> str:
@@ -47,7 +46,6 @@ class Writer(Processor):
         self._settings = settings
         self._input_q = input_q
         self._result_q = result_q
-        self._db = Storage(root=self._settings["project_root"], db_name="runs.db")
 
     def handle(self, record) -> None:
         # TODO check record type (if we have different ones)
@@ -68,7 +66,6 @@ class Writer(Processor):
         :return:
         """
         key = _assemble_key(record)
-        self._db.write(key, record)
 
     def terminate(self) -> None:
         pass
