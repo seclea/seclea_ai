@@ -1,5 +1,4 @@
 import json
-import math
 
 from seclea_ai.lib.seclea_utils.core.transmission import Transmission
 
@@ -15,15 +14,15 @@ def test_json_valid(d):
 
 # @throws_api_err
 def post_dataset(
-        transmission: Transmission,
-        dataset_file_path: str,
-        project_pk: str,
-        organization_pk: str,
-        name: str,
-        metadata: dict,
-        dataset_pk: str,
-        parent_dataset_hash: str = None,
-        delete=False,
+    transmission: Transmission,
+    dataset_file_path: str,
+    project_pk: str,
+    organization_pk: str,
+    name: str,
+    metadata: dict,
+    dataset_pk: str,
+    parent_dataset_hash: str = None,
+    delete=False,
 ):
     """
     @param transmission:
@@ -44,7 +43,7 @@ def post_dataset(
         dataset_obj = {
             "project": (None, project_pk),
             "name": (None, name),
-            "metadata": (None, json.dumps(metadata), 'application/json'),
+            "metadata": (None, json.dumps(metadata), "application/json"),
             "hash": (None, str(dataset_pk)),
             "parent": (None, parent_dataset_hash),
             "dataset": ("dataset_name", open(dataset_file_path, "rb")),
@@ -57,6 +56,7 @@ def post_dataset(
     except Exception as e:
         print(e)
     return res
+
 
 #
 #
