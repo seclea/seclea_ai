@@ -24,13 +24,11 @@ def handle_response(response: Response, msg: str = ""):
         err_msg = f"400 Error - Bad Request\n +{msg} - {response.reason} - {response.text}"
     if response.status_code == 401:
         err_msg = f"401 Error - Unauthorized\n +{msg} - {response.reason} - {response.text}"
+    if response.status_code == 403:
+        err_msg = f"403 Error - Forbidden\n +{msg} - {response.reason} - {response.text}"
     if response.status_code == 500:
         err_msg = (
             f"500 Error - Internal Server Error\n +{msg} - {response.reason} - {response.text}"
-        )
-    if response.status_code == 500:
-        err_msg = (
-            f"502 Error - Internal Server Error\n +{msg} - {response.reason} - {response.text}"
         )
 
     raise ValueError(err_msg)
@@ -237,8 +235,8 @@ class Api:
             err_msg = f"400 Error - Bad Request\n + - {response.reason} - {response.text}"
         if response.status == 401:
             err_msg = f"401 Error - Unauthorized\n + - {response.reason} - {response.text}"
-        if response.status == 500:
-            err_msg = f"500 Error - Internal Server Error\n + - {response.reason} - {response.text}"
+        if response.status == 403:
+            err_msg = f"403 Error - Forbidden\n + - {response.reason} - {response.text}"
         if response.status == 500:
             err_msg = f"502 Error - Internal Server Error\n + - {response.reason} - {response.text}"
 
