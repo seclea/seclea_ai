@@ -5,7 +5,6 @@ except ImportError:
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
-    fh.close()
 setup(
     name="seclea_ai",
     version="0.0.47",
