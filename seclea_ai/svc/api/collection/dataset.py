@@ -35,7 +35,7 @@ def post_dataset(
     dataset_obj = {
         "project": (None, project_pk),
         "name": (None, name),
-        "metadata": (None, json.dumps({"Test": 1})),
+        "metadata": (None, json.dumps(metadata)),
         "hash": (None, str(dataset_pk)),
         "parent": (None, parent_dataset_hash),
         "dataset": ("dataset_name", open(dataset_file_path, "rb")),
