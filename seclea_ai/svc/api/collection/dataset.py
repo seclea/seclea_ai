@@ -1,23 +1,29 @@
 import json
+import math
 
 from seclea_ai.lib.seclea_utils.core.transmission import Transmission
 
 # from ..errors import throws_api_err
-
 root = "/collection/datasets"
+
+
+def test_json_valid(d):
+    d = json.dumps(d)
+    json.loads(d)
+    pass
 
 
 # @throws_api_err
 def post_dataset(
-    transmission: Transmission,
-    dataset_file_path: str,
-    project_pk: str,
-    organization_pk: str,
-    name: str,
-    metadata: dict,
-    dataset_pk: str,
-    parent_dataset_hash: str = None,
-    delete=False,
+        transmission: Transmission,
+        dataset_file_path: str,
+        project_pk: str,
+        organization_pk: str,
+        name: str,
+        metadata: dict,
+        dataset_pk: str,
+        parent_dataset_hash: str = None,
+        delete=False,
 ):
     """
     @param transmission:
@@ -32,17 +38,30 @@ def post_dataset(
     @return:
     """
     dataset_queryparams = {"project": project_pk, "organization": organization_pk}
-    dataset_obj = {
-        "project": (None, project_pk),
-        "name": (None, name),
-        "metadata": (None, json.dumps(metadata)),
-        "hash": (None, str(dataset_pk)),
-        "parent": (None, parent_dataset_hash),
-        "dataset": ("dataset_name", open(dataset_file_path, "rb")),
-    }
-    res = transmission.send_file(
-        url_path=f"{root}",
-        obj=dataset_obj,
-        query_params=dataset_queryparams,
-    )
+    test_json_valid(metadata)
+
+    try:
+        dataset_obj = {
+            "project": (None, project_pk),
+            "name": (None, name),
+            "metadata": (None, json.dumps(metadata), 'application/json'),
+            "hash": (None, str(dataset_pk)),
+            "parent": (None, parent_dataset_hash),
+            "dataset": ("dataset_name", open(dataset_file_path, "rb")),
+        }
+        res = transmission.send_file(
+            url_path=f"{root}",
+            obj=dataset_obj,
+            query_params=dataset_queryparams,
+        )
+    except Exception as e:
+        print(e)
     return res
+
+#
+#
+# d1 = {
+#       "index": 0, "split": null,
+#
+#                              {"_c39": [NaN]}, {
+#                               }

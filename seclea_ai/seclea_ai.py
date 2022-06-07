@@ -738,7 +738,7 @@ class SecleaAI:
             project_pk=self._project,
             organization_pk=self._organization,
             name=dataset_name,
-            metadata={},
+            metadata=metadata,
             dataset_pk=dset_pk,
             parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
             delete=True,
@@ -749,7 +749,6 @@ class SecleaAI:
 
         # upload the transformations
         if response.status_code == 201:
-            self._update_dataset_metadata(dset_pk=dset_pk, metadata=metadata)
             if transformation is not None:
                 # upload transformations.
                 self._upload_transformation(
@@ -918,5 +917,5 @@ class SecleaAI:
             query_params={"organization": self._organization, "project": self._project},
         )
         return handle_response(
-            res, expected=200, msg=f"There was an issue updating the metadata: {res.text}"
+            res, expected=200, msg=f"There was an issue updating the metadata: {res.content}"
         )
