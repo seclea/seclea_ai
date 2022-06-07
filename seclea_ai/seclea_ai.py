@@ -1,56 +1,24 @@
 """
 Description for seclea_ai.py
 """
+import asyncio
 import copy
-import inspect
 import os
-from pathlib import Path
+import threading
 from typing import Any, Dict, List, Union
 
 import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
-from requests import Response
-
-import threading
 
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
+from seclea_ai.internal.api import Api, handle_response
 from seclea_ai.internal.backend import Backend
-from seclea_ai.lib.seclea_utils.core import (
-    CompressionFactory,
-    RequestWrapper,
-    decode_func,
-    encode_func,
-    save_object,
-)
-from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
+from seclea_ai.internal.file_processor import FileProcessor
+from seclea_ai.lib.seclea_utils.core import RequestWrapper, decode_func
+from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
 from seclea_ai.transformations import DatasetTransformation
-
-from .internal.file_processor import FileProcessor
-
-
-def handle_response(res: Response, expected: int, msg: str) -> Response:
-    """
-    Handle responses from the server
-
-    :param res: Response The response from the server.
-
-    :param expected: int The expected HTTP status code (ie. 200, 201 etc.)
-
-    :param msg: str The message to include in the Exception that is raised if the response doesn't have the expected
-        status code
-
-    :return: Response
-
-    :raises: ValueError - if the response code doesn't match the expected code.
-
-    """
-    if not res.status_code == expected:
-        raise ValueError(
-            f"Response Status code {res.status_code}, expected:{expected}. \n{msg} - {res.reason} - {res.text}"
-        )
-    return res
 
 
 class SecleaAI:
@@ -99,20 +67,23 @@ class SecleaAI:
         }
         self._backend = Backend(settings=self._settings)
         self._backend.ensure_launched()
-        self._auth_service = AuthenticationService(RequestWrapper(auth_url))
+        self._auth_service = AuthenticationService(auth_url, RequestWrapper(auth_url))
         self._transmission = RequestWrapper(server_root_url=platform_url)
         # if username is not None and password is not None:
         #     print("Unsecure login")
         #     self.login(username=username, password=password)
         # self._auth_service.authenticate(self._transmission)
         self._auth_service.authenticate(self._transmission, username=username, password=password)
+        self._api = Api(self._settings)
         self._project = None
         self._project_name = project_name
         self._organization = organization
         self._available_frameworks = {"sklearn", "xgboost", "lightgbm"}
         self._training_run = None
         self._init_project(project_name=project_name)
-        self._file_processor = FileProcessor(self._settings, self._project_name, self._organization, self._transmission)
+        self._file_processor = FileProcessor(
+            self._project_name, self._organization, self._transmission, self._api
+        )
         print("success")
 
     def login(self, username=None, password=None) -> None:
@@ -442,7 +413,7 @@ class SecleaAI:
             params=params,
         )
         # if the upload was successful, add the new training_run to the list to keep the names updated.
-        self._training_run = tr_res.json()["id"]
+        self._training_run = tr_res["id"]
 
         # upload model state. TODO figure out how this fits with multiple model states.
         self._upload_model_state(
@@ -480,15 +451,13 @@ class SecleaAI:
         if self._project is None:
             proj_res = self._create_project(project_name=project_name)
             try:
-                self._project = proj_res.json()["id"]
+                self._project = proj_res["id"]
             except KeyError:
-                print(f"There was an issue: {proj_res.text}")
+                # print(f"There was an issue: {proj_res.text}")
                 resp = self._transmission.get(
                     url_path="/collection/projects", query_params={"name": project_name}
                 )
-                resp = handle_response(
-                    resp, 200, f"There was an issue getting the project: {resp.text}"
-                )
+                resp = handle_response(resp, "There was an issue getting the project")
                 self._project = resp.json()[0]["id"]
 
     def _get_project(self, project_name: str) -> Any:
@@ -503,9 +472,7 @@ class SecleaAI:
             url_path="/collection/projects",
             query_params={"name": project_name, "organization": self._organization},
         )
-        handle_response(
-            project_res, 200, f"There was an issue getting the projects: {project_res.text}"
-        )
+        handle_response(project_res, f"There was an issue getting the projects: {project_res.text}")
         if len(project_res.json()) == 0:
             return None
         return project_res.json()[0]["id"]
@@ -523,18 +490,20 @@ class SecleaAI:
 
         :raises ValueError if the response status is not 201.
         """
-        res = self._transmission.send_json(
-            url_path="/collection/projects",
-            obj={
-                "name": project_name,
-                "description": description,
-                "organization": self._organization,
-            },
-            query_params={"organization": self._organization},
+        res = asyncio.run(
+            self._api.send_json(
+                url_path="/collection/projects",
+                obj={
+                    "name": project_name,
+                    "description": description,
+                    "organization": self._organization,
+                },
+                query_params={"organization": self._organization},
+                transmission=self._transmission,
+                json_response=True,
+            )
         )
-        return handle_response(
-            res, expected=201, msg=f"There was an issue creating the project: {res.text}"
-        )
+        return res
 
     def _set_model(self, model_name: str, framework: ModelManagers) -> int:
         """
@@ -558,7 +527,6 @@ class SecleaAI:
                     "framework": framework.name,
                 },
             ),
-            expected=200,
             msg="There was an issue getting the model list",
         )
         models = res.json()
@@ -567,7 +535,7 @@ class SecleaAI:
         # if we got here that means that the model has not been uploaded yet. So we upload it.
         res = self._upload_model(model_name=model_name, framework=framework)
         try:
-            model_pk = res.json()["id"]
+            model_pk = res["id"]
         except KeyError:
             resp = handle_response(
                 self._transmission.get(
@@ -579,7 +547,6 @@ class SecleaAI:
                         "framework": framework.name,
                     },
                 ),
-                expected=200,
                 msg="There was an issue getting the model list",
             )
             model_pk = resp.json()[0]["id"]
@@ -679,13 +646,17 @@ class SecleaAI:
             )
 
         # save data in local directory and store dataset info in sqlite
-        _thread = threading.Thread(target=self._file_processor._save_dataset(self._project,
-                                                                                 dataset,
-                                                                                 dataset_name,
-                                                                                 metadata,
-                                                                                 parent_hash,
-                                                                                 transformation,
-                                                                                 self._file_processor._send_dataset))
+        _thread = threading.Thread(
+            target=self._file_processor._save_dataset(
+                self._project,
+                dataset,
+                dataset_name,
+                metadata,
+                parent_hash,
+                transformation,
+                self._file_processor._send_dataset,
+            )
+        )
         _thread.start()
         _thread.join()
 
@@ -696,19 +667,21 @@ class SecleaAI:
         :param framework: instance of seclea_ai.Frameworks
         :return:
         """
-        res = self._transmission.send_json(
-            url_path="/collection/models",
-            obj={
-                "organization": self._organization,
-                "project": self._project,
-                "name": model_name,
-                "framework": framework.name,
-            },
-            query_params={"organization": self._organization, "project": self._project},
+        res = asyncio.run(
+            self._api.send_json(
+                url_path="/collection/models",
+                obj={
+                    "organization": self._organization,
+                    "project": self._project,
+                    "name": model_name,
+                    "framework": framework.name,
+                },
+                query_params={"organization": self._organization, "project": self._project},
+                transmission=self._transmission,
+                json_response=True,
+            )
         )
-        return handle_response(
-            res, expected=201, msg=f"There was an issue uploading the model: {res.text}"
-        )
+        return res
 
     def _upload_training_run(
         self, training_run_name: str, model_pk: int, dataset_pks: List[str], params: Dict
@@ -721,21 +694,23 @@ class SecleaAI:
         """
         if self._project is None:
             raise Exception("You need to create a project before uploading a training run")
-        res = self._transmission.send_json(
-            url_path="/collection/training-runs",
-            obj={
-                "organization": self._organization,
-                "project": self._project,
-                "datasets": dataset_pks,
-                "model": model_pk,
-                "name": training_run_name,
-                "params": params,
-            },
-            query_params={"organization": self._organization, "project": self._project},
+        res = asyncio.run(
+            self._api.send_json(
+                url_path="/collection/training-runs",
+                obj={
+                    "organization": self._organization,
+                    "project": self._project,
+                    "datasets": dataset_pks,
+                    "model": model_pk,
+                    "name": training_run_name,
+                    "params": params,
+                },
+                query_params={"organization": self._organization, "project": self._project},
+                transmission=self._transmission,
+                json_response=True,
+            )
         )
-        return handle_response(
-            res, expected=201, msg=f"There was an issue uploading the training run: {res.text}"
-        )
+        return res
 
     def _upload_model_state(
         self,
@@ -745,15 +720,18 @@ class SecleaAI:
         final: bool,
         model_manager: ModelManagers,
     ):
-        _thread = threading.Thread(target=self._file_processor._save_model_state(model,
-                                                                                 training_run_pk,
-                                                                                 sequence_num,
-                                                                                 final,
-                                                                                 model_manager,
-                                                                                 self._file_processor._send_model_state))
+        _thread = threading.Thread(
+            target=self._file_processor._save_model_state(
+                model,
+                training_run_pk,
+                sequence_num,
+                final,
+                model_manager,
+                self._file_processor._send_model_state,
+            )
+        )
         _thread.start()
         _thread.join()
-
 
     def _load_transformations(self, training_run_pk: int):
         """
@@ -765,7 +743,7 @@ class SecleaAI:
             query_params={"training_run": training_run_pk},
         )
         res = handle_response(
-            res, expected=200, msg=f"There was an issue loading the transformations: {res.text}"
+            res, msg=f"There was an issue loading the transformations: {res.text}"
         )
         transformations = list(map(lambda x: x["code_encoded"], res.json()))
         return list(map(decode_func, transformations))

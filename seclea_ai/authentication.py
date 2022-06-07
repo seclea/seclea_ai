@@ -50,7 +50,7 @@ class AuthenticationService:
             self._obtain_initial_tokens(username=username, password=password)
         if not self.verify_token():
             raise AuthenticationError("Failed to verify token")
-        # transmission.cookies = self._transmission.cookies
+        transmission.cookies = self._transmission.cookies
 
     def verify_token(self) -> bool:
         """
@@ -108,9 +108,13 @@ class AuthenticationService:
         :return: None
         """
         if self._key_token_refresh in response.cookies:
-            self._dbms.set_auth_key(self._key_token_refresh, response.cookies[self._key_token_refresh])
+            self._dbms.set_auth_key(
+                self._key_token_refresh, response.cookies[self._key_token_refresh]
+            )
         if self._key_token_access in response.cookies:
-            self._dbms.set_auth_key(self._key_token_access, response.cookies[self._key_token_access])
+            self._dbms.set_auth_key(
+                self._key_token_access, response.cookies[self._key_token_access]
+            )
 
     def _obtain_initial_tokens(self, username=None, password=None) -> None:
         """

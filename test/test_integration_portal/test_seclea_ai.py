@@ -39,19 +39,19 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller_1 = SecleaAI(
-            self.project_name_1,
-            self.organization,
-            self.portal_url,
-            self.auth_url,
+            project_name=self.project_name_1,
+            organization=self.organization,
+            platform_url=self.portal_url,
+            auth_url=self.auth_url,
             username=self.username,
             password=self.password,
         )
         # create second project for second dataset
         self.controller_2 = SecleaAI(
-            self.project_name_2,
-            self.organization,
-            self.portal_url,
-            self.auth_url,
+            project_name=self.project_name_2,
+            organization=self.organization,
+            platform_url=self.portal_url,
+            auth_url=self.auth_url,
             username=self.username,
             password=self.password,
         )
