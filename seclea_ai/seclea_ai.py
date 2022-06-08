@@ -729,9 +729,8 @@ class SecleaAI:
         dataset_path = os.path.join(self._cache_dir, "tmp.csv")
         dataset.to_csv(dataset_path, index=True)
         comp_path = os.path.join(self._cache_dir, "compressed")
-        rb = open(dataset_path, "rb")
-        comp_path = save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
-        rb.close()
+        with open(dataset_path, "rb") as rb:
+            comp_path = save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
         dset_pk = dataset_hash(dataset, self._project)
 
         response = post_dataset(
@@ -743,11 +742,13 @@ class SecleaAI:
             metadata=metadata,
             dataset_pk=dset_pk,
             parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
-            delete=True,
         )
         handle_response(
             response, 201, f"There was some issue uploading the dataset: {response.text}"
         )
+        # tidy up files.
+        os.remove(comp_path)
+        os.remove(dataset_path)
 
         # upload the transformations
         if response.status_code == 201:
@@ -832,8 +833,10 @@ class SecleaAI:
             str(training_run_pk),
             sequence_num,
             final,
-            True,
         )
+
+        # tidy up files.
+        os.remove(save_path)
 
         res = handle_response(
             res, expected=201, msg=f"There was an issue uploading a model state: {res}"
