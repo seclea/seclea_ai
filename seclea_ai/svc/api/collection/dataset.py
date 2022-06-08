@@ -22,7 +22,6 @@ def post_dataset(
     metadata: dict,
     dataset_pk: str,
     parent_dataset_hash: str = None,
-    delete=False,
 ):
     """
     @param transmission:
@@ -33,35 +32,26 @@ def post_dataset(
     @param metadata:
     @param dataset_pk:
     @param parent_dataset_hash:
-    @param delete: delete dataset file
     @return:
     """
     dataset_queryparams = {"project": project_pk, "organization": organization_pk}
     test_json_valid(metadata)
 
     try:
-        dataset_obj = {
-            "project": (None, project_pk),
-            "name": (None, name),
-            "metadata": (None, json.dumps(metadata), "application/json"),
-            "hash": (None, str(dataset_pk)),
-            "parent": (None, parent_dataset_hash),
-            "dataset": ("dataset_name", open(dataset_file_path, "rb")),
-        }
-        res = transmission.send_file(
-            url_path=f"{root}",
-            obj=dataset_obj,
-            query_params=dataset_queryparams,
-        )
+        with open(dataset_file_path, "rb") as f:
+            dataset_obj = {
+                "project": (None, project_pk),
+                "name": (None, name),
+                "metadata": (None, json.dumps(metadata), "application/json"),
+                "hash": (None, str(dataset_pk)),
+                "parent": (None, parent_dataset_hash),
+                "dataset": ("dataset", f),
+            }
+            res = transmission.send_file(
+                url_path=f"{root}",
+                obj=dataset_obj,
+                query_params=dataset_queryparams,
+            )
+        return res
     except Exception as e:
         print(e)
-    return res
-
-
-#
-#
-# d1 = {
-#       "index": 0, "split": null,
-#
-#                              {"_c39": [NaN]}, {
-#                               }

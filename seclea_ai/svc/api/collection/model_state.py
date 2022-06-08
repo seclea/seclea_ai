@@ -11,7 +11,6 @@ def post_model_state(
     training_run_pk: str,
     sequence_num: int,
     final_state,
-    delete=False,
 ):
     """
 
@@ -22,21 +21,21 @@ def post_model_state(
     @param training_run_pk:
     @param sequence_num:
     @param final_state:
-    @param delete:
     @return:
     """
-    res = transmission.send_file(
-        url_path="/collection/model-states",
-        obj={
-            "project": (None, project_pk),
-            "sequence_num": (None, sequence_num),
-            "training_run": (None, training_run_pk),
-            "final_state": (None, final_state),
-            "state": ("fname", open(model_state_file_path, "rb")),
-        },
-        query_params={
-            "organization": organization_pk,
-            "project": project_pk,
-        },
-    )
+    with open(model_state_file_path, "rb") as f:
+        res = transmission.send_file(
+            url_path="/collection/model-states",
+            obj={
+                "project": (None, project_pk),
+                "sequence_num": (None, sequence_num),
+                "training_run": (None, training_run_pk),
+                "final_state": (None, final_state),
+                "state": ("model_state", f),
+            },
+            query_params={
+                "organization": organization_pk,
+                "project": project_pk,
+            },
+        )
     return res
