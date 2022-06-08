@@ -23,7 +23,6 @@ from seclea_ai.lib.seclea_utils.core import (
 )
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
-from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
 from .svc.api.collection.dataset import post_dataset
 from .svc.api.collection.model_state import post_model_state
 
@@ -49,6 +48,10 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
             f"Response Status code {res.status_code}, expected:{expected}. \n{msg} - {res.reason} - {res.text}"
         )
     return res
+
+
+def dataset_hash(dataset, project: int) -> str:
+    return str(hash(pd.util.hash_pandas_object(dataset).sum() + project))
 
 
 class SecleaAI:
@@ -726,9 +729,8 @@ class SecleaAI:
         dataset_path = os.path.join(self._cache_dir, "tmp.csv")
         dataset.to_csv(dataset_path, index=True)
         comp_path = os.path.join(self._cache_dir, "compressed")
-        rb = open(dataset_path, "rb")
-        comp_path = save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
-        rb.close()
+        with open(dataset_path, "rb") as rb:
+            comp_path = save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
         dset_pk = dataset_hash(dataset, self._project)
 
         response = post_dataset(
@@ -740,11 +742,13 @@ class SecleaAI:
             metadata=metadata,
             dataset_pk=dset_pk,
             parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
-            delete=True,
         )
         handle_response(
             response, 201, f"There was some issue uploading the dataset: {response.text}"
         )
+        # tidy up files.
+        os.remove(comp_path)
+        os.remove(dataset_path)
 
         # upload the transformations
         if response.status_code == 201:
@@ -829,8 +833,10 @@ class SecleaAI:
             str(training_run_pk),
             sequence_num,
             final,
-            True,
         )
+
+        # tidy up files.
+        os.remove(save_path)
 
         res = handle_response(
             res, expected=201, msg=f"There was an issue uploading a model state: {res}"
@@ -900,21 +906,3 @@ class SecleaAI:
             return ModelManagers.SKLEARN
         else:
             return ModelManagers.NOT_IMPORTED
-
-    def _update_dataset_metadata(self, dset_pk, metadata):
-        """
-        Update the dataset's metadata. For use when the metadata is too large to encode in the url.
-        @param dset_pk:
-        @param metadata:
-        @return:
-        """
-        res = self._transmission.patch(
-            url_path=f"/collection/datasets/{dset_pk}",
-            obj={
-                "metadata": metadata,
-            },
-            query_params={"organization": self._organization, "project": self._project},
-        )
-        return handle_response(
-            res, expected=200, msg=f"There was an issue updating the metadata: {res.content}"
-        )
