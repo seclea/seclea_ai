@@ -23,7 +23,6 @@ from seclea_ai.lib.seclea_utils.core import (
 )
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
-from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
 from .svc.api.collection.dataset import post_dataset
 from .svc.api.collection.model_state import post_model_state
 
@@ -49,6 +48,10 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
             f"Response Status code {res.status_code}, expected:{expected}. \n{msg} - {res.reason} - {res.text}"
         )
     return res
+
+
+def dataset_hash(dataset, project: int) -> str:
+    return str(hash(pd.util.hash_pandas_object(dataset).sum() + project))
 
 
 class SecleaAI:
@@ -900,21 +903,3 @@ class SecleaAI:
             return ModelManagers.SKLEARN
         else:
             return ModelManagers.NOT_IMPORTED
-
-    def _update_dataset_metadata(self, dset_pk, metadata):
-        """
-        Update the dataset's metadata. For use when the metadata is too large to encode in the url.
-        @param dset_pk:
-        @param metadata:
-        @return:
-        """
-        res = self._transmission.patch(
-            url_path=f"/collection/datasets/{dset_pk}",
-            obj={
-                "metadata": metadata,
-            },
-            query_params={"organization": self._organization, "project": self._project},
-        )
-        return handle_response(
-            res, expected=200, msg=f"There was an issue updating the metadata: {res.content}"
-        )
