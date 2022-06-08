@@ -5,6 +5,7 @@ import asyncio
 import copy
 import os
 import threading
+from multiprocessing import Queue
 from typing import Any, Dict, List, Union
 
 import numpy as np
@@ -84,6 +85,7 @@ class SecleaAI:
         self._file_processor = FileProcessor(
             self._project_name, self._organization, self._transmission, self._api
         )
+        self._dataset_q = Queue()
         print("success")
 
     def login(self, username=None, password=None) -> None:
@@ -552,34 +554,6 @@ class SecleaAI:
             model_pk = resp.json()[0]["id"]
         return model_pk
 
-    @staticmethod
-    def _ensure_required_metadata(metadata: Dict, defaults_spec: Dict) -> Dict:
-        """
-        Ensures that required metadata that can be specified by the user are filled.
-        @param metadata: The metadata dict
-        @param defaults_spec:
-        @return: metadata
-        """
-        for required_key, default in defaults_spec.items():
-            try:
-                if metadata[required_key] is None:
-                    metadata[required_key] = default
-            except KeyError:
-                metadata[required_key] = default
-        return metadata
-
-    @staticmethod
-    def _add_required_metadata(metadata: Dict, required_spec: Dict) -> Dict:
-        """
-        Adds required - non user specified fields to the metadata
-        @param metadata: The metadata dict
-        @param required_spec:
-        @return: metadata
-        """
-        for required_key, default in required_spec.items():
-            metadata[required_key] = default
-        return metadata
-
     def _upload_dataset(
         self,
         dataset: DataFrame,
@@ -588,63 +562,6 @@ class SecleaAI:
         parent_hash: Union[int, None],
         transformation: Union[DatasetTransformation, None],
     ):
-        if parent_hash is not None:
-            parent_hash = hash(parent_hash + self._project)
-            # check parent exists - throw an error if not.
-            res = self._transmission.get(
-                url_path=f"/collection/datasets/{parent_hash}",
-                query_params={"project": self._project, "organization": self._organization},
-            )
-            if not res.status_code == 200:
-                raise AssertionError(
-                    "Parent Dataset does not exist on the Platform. Please check your arguments and "
-                    "that you have uploaded the parent dataset already"
-                )
-            parent_metadata = res.json()["metadata"]
-            # deal with the splits - take the set one by default but inherit from parent if None
-
-            if transformation.split is None:
-                # check the parent split - inherit split
-                metadata["split"] = parent_metadata["split"]
-            try:
-                if metadata["outcome_name"] is None:
-                    pass
-            except KeyError:
-                try:
-                    metadata["outcome_name"] = parent_metadata["outcome_name"]
-                except KeyError:
-                    metadata["outcome_name"] = None
-
-        # ensure that required keys are present in metadata and have meaningful defaults.
-        # outcome name is here in case there are no transformations. It still needs to be set.
-        defaults_spec = dict(
-            continuous_features=[],
-            outcome_name=None,
-            num_samples=len(dataset),
-        )
-        metadata = self._ensure_required_metadata(metadata=metadata, defaults_spec=defaults_spec)
-
-        try:
-            features = (
-                dataset.columns
-            )  # TODO - drop the outcome name but requires changes on frontend.
-        except KeyError:
-            # this means outcome was set to None
-            features = dataset.columns
-
-        required = dict(
-            index=0 if dataset.index.name is None else dataset.index.name,
-            split=transformation.split if transformation is not None else None,
-            features=list(features),
-        )
-        metadata = self._add_required_metadata(metadata=metadata, required_spec=required)
-
-        # constraints
-        if not set(metadata["continuous_features"]).issubset(set(metadata["features"])):
-            raise ValueError(
-                "Continuous features must be a subset of features. Please check and try again."
-            )
-
         # save data in local directory and store dataset info in sqlite
         _thread = threading.Thread(
             target=self._file_processor._save_dataset(
@@ -654,11 +571,13 @@ class SecleaAI:
                 metadata,
                 parent_hash,
                 transformation,
-                self._file_processor._send_dataset,
             )
         )
         _thread.start()
+        _send_thread = threading.Thread(target=self._file_processor.send_dataset())
+        _send_thread.start()
         _thread.join()
+        _send_thread.join()
 
     def _upload_model(self, model_name: str, framework: ModelManagers):
         """
@@ -727,11 +646,11 @@ class SecleaAI:
                 sequence_num,
                 final,
                 model_manager,
-                self._file_processor._send_model_state,
             )
         )
         _thread.start()
-        _thread.join()
+        _sending_thread = threading.Thread(target=self._file_processor.send_model_state())
+        _sending_thread.start()
 
     def _load_transformations(self, training_run_pk: int):
         """
