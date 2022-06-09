@@ -1,4 +1,5 @@
 import json
+import os.path
 
 from seclea_ai.lib.seclea_utils.core.transmission import Transmission
 
@@ -45,7 +46,7 @@ def post_dataset(
                 "metadata": (None, json.dumps(metadata), "application/json"),
                 "hash": (None, str(dataset_pk)),
                 "parent": (None, parent_dataset_hash),
-                "dataset": ("dataset", f),
+                "dataset": (os.path.basename(dataset_file_path), f),
             }
             res = transmission.send_file(
                 url_path=f"{root}",

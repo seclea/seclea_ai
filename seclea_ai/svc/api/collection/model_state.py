@@ -1,3 +1,5 @@
+import os.path
+
 from seclea_ai.lib.seclea_utils.core.transmission import Transmission
 
 root = "/collection/model-states"
@@ -31,7 +33,7 @@ def post_model_state(
                 "sequence_num": (None, sequence_num),
                 "training_run": (None, training_run_pk),
                 "final_state": (None, final_state),
-                "state": ("model_state", f),
+                "state": (os.path.basename(model_state_file_path), f),
             },
             query_params={
                 "organization": organization_pk,

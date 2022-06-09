@@ -44,9 +44,7 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
 
     """
     if not res.status_code == expected:
-        raise ValueError(
-            f"Response Status code {res.status_code}, expected:{expected}. \n{msg} - {res.reason} - {res.text}"
-        )
+        raise ValueError(f"Response Status code {res.status_code}, expected:{expected}. \n{msg}")
     return res
 
 
@@ -571,7 +569,7 @@ class SecleaAI:
                     url_path="/collection/projects", query_params={"name": project_name}
                 )
                 resp = handle_response(
-                    resp, 200, f"There was an issue getting the project: {resp.text}"
+                    resp, 200, f"There was an issue getting the project: {resp.reason}"
                 )
                 self._project = resp.json()[0]["id"]
 
@@ -588,7 +586,7 @@ class SecleaAI:
             query_params={"name": project_name, "organization": self._organization},
         )
         handle_response(
-            project_res, 200, f"There was an issue getting the projects: {project_res.text}"
+            project_res, 200, f"There was an issue getting the projects: {project_res.reason}"
         )
         if len(project_res.json()) == 0:
             return None
@@ -617,7 +615,7 @@ class SecleaAI:
             query_params={"organization": self._organization},
         )
         return handle_response(
-            res, expected=201, msg=f"There was an issue creating the project: {res.text}"
+            res, expected=201, msg=f"There was an issue creating the project: {res.reason}"
         )
 
     def _set_model(self, model_name: str, framework: ModelManagers) -> int:
@@ -744,7 +742,7 @@ class SecleaAI:
             parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
         )
         handle_response(
-            response, 201, f"There was some issue uploading the dataset: {response.text}"
+            response, 201, f"There was some issue uploading the dataset: {response.reason}"
         )
         # tidy up files.
         os.remove(comp_path)
@@ -777,7 +775,7 @@ class SecleaAI:
             query_params={"organization": self._organization, "project": self._project},
         )
         return handle_response(
-            res, expected=201, msg=f"There was an issue uploading the model: {res.text}"
+            res, expected=201, msg=f"There was an issue uploading the model: {res.reason}"
         )
 
     def _upload_training_run(
@@ -804,7 +802,7 @@ class SecleaAI:
             query_params={"organization": self._organization, "project": self._project},
         )
         return handle_response(
-            res, expected=201, msg=f"There was an issue uploading the training run: {res.text}"
+            res, expected=201, msg=f"There was an issue uploading the training run: {res.reason}"
         )
 
     def _upload_model_state(
@@ -839,7 +837,7 @@ class SecleaAI:
         os.remove(save_path)
 
         res = handle_response(
-            res, expected=201, msg=f"There was an issue uploading a model state: {res}"
+            res, expected=201, msg=f"There was an issue uploading a model state: {res.reason}"
         )
         return res
 
@@ -861,7 +859,7 @@ class SecleaAI:
         res = handle_response(
             res,
             expected=201,
-            msg=f"There was an issue uploading the transformations on transformation {idx} with name {transformation.func.__name__}: {res.text}",
+            msg=f"There was an issue uploading the transformations on transformation {idx} with name {transformation.func.__name__}: {res.reason}",
         )
         return res
 
@@ -875,7 +873,7 @@ class SecleaAI:
             query_params={"training_run": training_run_pk},
         )
         res = handle_response(
-            res, expected=200, msg=f"There was an issue loading the transformations: {res.text}"
+            res, expected=200, msg=f"There was an issue loading the transformations: {res.reason}"
         )
         transformations = list(map(lambda x: x["code_encoded"], res.json()))
         return list(map(decode_func, transformations))
