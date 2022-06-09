@@ -83,9 +83,13 @@ class SecleaAI:
         self._training_run = None
         self._init_project(project_name=project_name)
         self._file_processor = FileProcessor(
-            self._project_name, self._organization, self._transmission, self._api
+            self._project_name,
+            self._organization,
+            self._transmission,
+            self._api,
+            self._auth_service,
         )
-        self._dataset_q = Queue()
+        self._storage_q = Queue()
         print("success")
 
     def login(self, username=None, password=None) -> None:
@@ -235,8 +239,9 @@ class SecleaAI:
             # upload all the datasets and transformations.
             for up_kwargs in upload_queue:
                 # self._upload_dataset(**up_kwargs)  # TODO change
-                self._dataset_q.put(
+                self._storage_q.put(
                     {
+                        "function": "upload_dataset",
                         "project": self._project,
                         "dataset": up_kwargs["dataset"],
                         "dataset_name": up_kwargs["dataset_name"],
@@ -245,17 +250,12 @@ class SecleaAI:
                         "transformation": up_kwargs["transformation"],
                     }
                 )
-                _thread = threading.Thread(
-                    target=self._file_processor.save_dataset(self._dataset_q)
-                )
-                _thread.start()
-                _sending_thread = threading.Thread(target=self._file_processor.send_dataset())
-                _sending_thread.start()
             return
 
         # this only happens if this has no transformations ie. it is a Raw Dataset.
-        self._dataset_q.put(
+        self._storage_q.put(
             {
+                "function": "upload_dataset",
                 "project": self._project,
                 "dataset": dataset,
                 "dataset_name": dataset_name,
@@ -264,11 +264,13 @@ class SecleaAI:
                 "transformation": None,
             }
         )
-        _thread = threading.Thread(target=self._file_processor.save_dataset(self._dataset_q))
+        _thread = threading.Thread(target=self._file_processor.writer(self._storage_q))
         _thread.start()
+        _thread.join()
 
-        _sending_thread = threading.Thread(target=self._file_processor.send_dataset())
+        _sending_thread = threading.Thread(target=self._file_processor.sender())
         _sending_thread.start()
+        _sending_thread.join()
 
     def _generate_intermediate_datasets(
         self, transformations, dataset_name, dataset_hash, user_metadata
@@ -354,101 +356,22 @@ class SecleaAI:
             test_dataset = self._assemble_dataset({"X": X_test, "y": y_test})
         if X_val is not None and y_val is not None:
             val_dataset = self._assemble_dataset({"X": X_val, "y": y_val})
-        self.upload_training_run(
-            model=model,
-            train_dataset=train_dataset,
-            test_dataset=test_dataset,
-            val_dataset=val_dataset,
-        )
 
-    def upload_training_run(
-        self,
-        model,
-        train_dataset: DataFrame,
-        test_dataset: DataFrame = None,
-        val_dataset: DataFrame = None,
-    ) -> None:
-        """
-        Takes a model and extracts the necessary data for uploading the training run.
-
-        :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
-
-        :param train_dataset: DataFrame The Dataset that the model is trained on.
-
-        :param test_dataset: DataFrame The Dataset that the model is trained on.
-
-        :param val_dataset: DataFrame The Dataset that the model is trained on.
-
-        :return: None
-
-        Example::
-
-            >>> seclea = SecleaAI(project_name="Test Project")
-            >>> dataset = pd.read_csv(<dataset_name>)
-            >>> model = LogisticRegressionClassifier()
-            >>> model.fit(X, y)
-            >>> seclea.upload_training_run(
-                    model,
-                    framework=seclea_ai.Frameworks.SKLEARN,
-                    dataset_name="Test Dataset",
-                )
-        """
-        self._auth_service.authenticate(self._transmission)
-
-        # validate the splits? maybe later when we have proper Dataset class to manage these things.
-        dataset_pks = [
-            str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project))
-            for dataset in [train_dataset, test_dataset, val_dataset]
-            if dataset is not None
-        ]
-
-        model_name = model.__class__.__name__
-
-        framework = self._get_framework(model)
-
-        # check the model exists upload if not
-        model_type_pk = self._set_model(model_name=model_name, framework=framework)
-
-        # check the latest training run
-        training_runs_res = self._transmission.get(
-            "/collection/training-runs",
-            query_params={
+        self._storage_q.put(
+            {
+                "function": "upload_training_run",
+                "model": model,
+                "train_dataset": train_dataset,
+                "test_dataset": test_dataset,
+                "val_dataset": val_dataset,
                 "project": self._project,
-                "model": model_type_pk,
-                "organization": self._organization,
-            },
+            }
         )
-        training_runs = training_runs_res.json()
 
-        # Create the training run name
-        largest = -1
-        for training_run in training_runs:
-            num = int(training_run["name"].split(" ")[2])
-            if num > largest:
-                largest = num
-        training_run_name = f"Training Run {largest + 1}"
-
-        # extract params from the model
-        params = framework.value.get_params(model)
-
-        # upload training run
-        tr_res = self._upload_training_run(
-            training_run_name=training_run_name,
-            model_pk=model_type_pk,
-            dataset_pks=dataset_pks,
-            params=params,
-        )
-        # if the upload was successful, add the new training_run to the list to keep the names updated.
-        self._training_run = tr_res["id"]
-
-        # upload model state. TODO figure out how this fits with multiple model states.
-        self._upload_model_state(
-            model=model,
-            training_run_pk=self._training_run,
-            sequence_num=0,
-            final=True,
-            model_manager=framework,
-        )
+        _thread = threading.Thread(target=self._file_processor.writer(self._storage_q))
+        _thread.start()
+        _sending_thread = threading.Thread(target=self._file_processor.sender())
+        _sending_thread.start()
 
     @staticmethod
     def _assemble_dataset(data: Dict[str, DataFrame]) -> DataFrame:
@@ -593,35 +516,6 @@ class SecleaAI:
                     "project": self._project,
                     "name": model_name,
                     "framework": framework.name,
-                },
-                query_params={"organization": self._organization, "project": self._project},
-                transmission=self._transmission,
-                json_response=True,
-            )
-        )
-        return res
-
-    def _upload_training_run(
-        self, training_run_name: str, model_pk: int, dataset_pks: List[str], params: Dict
-    ):
-        """
-
-        :param training_run_name: eg. "Training Run 0"
-        :param params: Dict The hyper parameters of the model - can auto extract?
-        :return:
-        """
-        if self._project is None:
-            raise Exception("You need to create a project before uploading a training run")
-        res = asyncio.run(
-            self._api.send_json(
-                url_path="/collection/training-runs",
-                obj={
-                    "organization": self._organization,
-                    "project": self._project,
-                    "datasets": dataset_pks,
-                    "model": model_pk,
-                    "name": training_run_name,
-                    "params": params,
                 },
                 query_params={"organization": self._organization, "project": self._project},
                 transmission=self._transmission,
