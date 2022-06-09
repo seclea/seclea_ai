@@ -22,7 +22,7 @@ from seclea_ai.lib.seclea_utils.core import (
     save_object,
 )
 import uuid
-from lib.seclea_utils.dataset_management.dataset_utils import save_dataset
+from .lib.seclea_utils.dataset_management.dataset_utils import save_dataset
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
 from .svc.api.collection.dataset import post_dataset
