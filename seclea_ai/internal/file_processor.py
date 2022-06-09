@@ -119,18 +119,16 @@ class FileProcessor:
             dataset_hash = hash(pd.util.hash_pandas_object(dataset).sum() + project)
 
             self.dataset_q.put(
-                self.dataset_q.put(
-                    {
-                        "project": project,
-                        "metadata": metadata,
-                        "parent_hash": parent_hash,
-                        "transformation": transformation,
-                        "dataset_name": dataset_name,
-                        "dataset_hash": dataset_hash,
-                        "comp_path": comp_path,
-                        "dataset_path": dataset_path,
-                    }
-                )
+                {
+                    "project": project,
+                    "metadata": metadata,
+                    "parent_hash": parent_hash,
+                    "transformation": transformation,
+                    "dataset_name": dataset_name,
+                    "dataset_hash": dataset_hash,
+                    "comp_path": comp_path,
+                    "dataset_path": dataset_path,
+                }
             )
 
             # store datasets info in sqlite db
