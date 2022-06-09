@@ -5,7 +5,7 @@ import asyncio
 import copy
 import os
 import threading
-from multiprocessing import Queue
+from queue import Queue
 from typing import Any, Dict, List, Union
 
 import numpy as np
@@ -234,17 +234,41 @@ class SecleaAI:
                     )
             # upload all the datasets and transformations.
             for up_kwargs in upload_queue:
-                self._upload_dataset(**up_kwargs)  # TODO change
+                # self._upload_dataset(**up_kwargs)  # TODO change
+                self._dataset_q.put(
+                    {
+                        "project": self._project,
+                        "dataset": up_kwargs["dataset"],
+                        "dataset_name": up_kwargs["dataset_name"],
+                        "metadata": up_kwargs["metadata"],
+                        "parent_hash": up_kwargs["parent_hash"],
+                        "transformation": up_kwargs["transformation"],
+                    }
+                )
+                _thread = threading.Thread(
+                    target=self._file_processor.save_dataset(self._dataset_q)
+                )
+                _thread.start()
+                _sending_thread = threading.Thread(target=self._file_processor.send_dataset())
+                _sending_thread.start()
             return
 
         # this only happens if this has no transformations ie. it is a Raw Dataset.
-        self._upload_dataset(
-            dataset=dataset,
-            dataset_name=dataset_name,
-            metadata=metadata,
-            parent_hash=None,
-            transformation=None,
+        self._dataset_q.put(
+            {
+                "project": self._project,
+                "dataset": dataset,
+                "dataset_name": dataset_name,
+                "metadata": metadata,
+                "parent_hash": None,
+                "transformation": None,
+            }
         )
+        _thread = threading.Thread(target=self._file_processor.save_dataset(self._dataset_q))
+        _thread.start()
+
+        _sending_thread = threading.Thread(target=self._file_processor.send_dataset())
+        _sending_thread.start()
 
     def _generate_intermediate_datasets(
         self, transformations, dataset_name, dataset_hash, user_metadata
@@ -553,31 +577,6 @@ class SecleaAI:
             )
             model_pk = resp.json()[0]["id"]
         return model_pk
-
-    def _upload_dataset(
-        self,
-        dataset: DataFrame,
-        dataset_name: str,
-        metadata: Dict,
-        parent_hash: Union[int, None],
-        transformation: Union[DatasetTransformation, None],
-    ):
-        # save data in local directory and store dataset info in sqlite
-        _thread = threading.Thread(
-            target=self._file_processor._save_dataset(
-                self._project,
-                dataset,
-                dataset_name,
-                metadata,
-                parent_hash,
-                transformation,
-            )
-        )
-        _thread.start()
-        _send_thread = threading.Thread(target=self._file_processor.send_dataset())
-        _send_thread.start()
-        _thread.join()
-        _send_thread.join()
 
     def _upload_model(self, model_name: str, framework: ModelManagers):
         """

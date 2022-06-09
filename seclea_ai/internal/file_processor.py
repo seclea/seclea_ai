@@ -4,8 +4,7 @@ File storing and uploading data to server
 import os
 import tempfile
 import uuid
-from multiprocessing import Queue
-from pathlib import Path
+from queue import Queue
 from typing import Dict, Union
 
 import pandas as pd
@@ -32,8 +31,23 @@ class FileProcessor:
         self._cache_dir = os.path.join(tempfile.gettempdir(), ".seclea/cache")
         self._api = api
         self._dbms = MyDatabase()
-        self.dataset_q = Queue()
+        self.send_dataset_q = Queue()
         self.mdoel_state_q = Queue()
+
+    def save_dataset(self, _dataset_q: Queue):
+        self._dataset_q = _dataset_q
+        while not _dataset_q.empty():
+            obj = _dataset_q.get()
+
+            if obj:
+                self._save_dataset(
+                    obj["project"],
+                    obj["dataset"],
+                    obj["dataset_name"],
+                    obj["metadata"],
+                    obj["parent_hash"],
+                    obj["transformation"],
+                )
 
     def _save_dataset(
         self,
@@ -60,9 +74,10 @@ class FileProcessor:
                     "Parent Dataset does not exist on the Platform. Please check your arguments and "
                     "that you have uploaded the parent dataset already"
                 )
+                return
+
             parent_metadata = res.json()["metadata"]
             # deal with the splits - take the set one by default but inherit from parent if None
-
             if transformation.split is None:
                 # check the parent split - inherit split
                 metadata["split"] = parent_metadata["split"]
@@ -118,7 +133,20 @@ class FileProcessor:
 
             dataset_hash = hash(pd.util.hash_pandas_object(dataset).sum() + project)
 
-            self.dataset_q.put(
+            # store datasets info in sqlite db
+            ds = DatasetModelstate(
+                name=dataset_name,
+                path=dataset_path,
+                comp_path=comp_path,
+                project=str(project),
+                organization=self._organization,
+            )
+
+            self._dbms.save_datasetmodelstate(ds, "stored")
+
+            # self._send_dataset(project, metadata, parent_hash, transformation, dataset_name, dataset_hash, comp_path,
+            #                   dataset_path)
+            self.send_dataset_q.put(
                 {
                     "project": project,
                     "metadata": metadata,
@@ -130,17 +158,6 @@ class FileProcessor:
                     "dataset_path": dataset_path,
                 }
             )
-
-            # store datasets info in sqlite db
-            ds = DatasetModelstate(
-                name=dataset_name,
-                path=dataset_path,
-                comp_path=comp_path,
-                project=str(project),
-                organization=self._organization,
-            )
-
-            self._dbms.save_datasetmodelstate(ds, "failed")
 
         except Exception as e:
             ds = DatasetModelstate(
@@ -154,8 +171,8 @@ class FileProcessor:
             print(e)
 
     def send_dataset(self):
-        while not self.dataset_q.empty():
-            obj = self.dataset_q.get()
+        while not self.send_dataset_q.empty():
+            obj = self.send_dataset_q.get()
             if obj:
                 self._send_dataset(
                     project=obj["project"],
@@ -215,6 +232,7 @@ class FileProcessor:
                 project=project,
                 organization=self._organization,
             )
+
             if transformation is not None:
                 # upload transformations.
                 self._api._upload_transformation(
@@ -242,12 +260,12 @@ class FileProcessor:
         """
         try:
             os.makedirs(
-                os.path.join(self._cache_dir, str(training_run_pk)),
+                os.path.join(self._cache_dir, f"{self._project_name}/{str(training_run_pk)}"),
                 exist_ok=True,
             )
             model_data = serialize(model, model_manager)
             save_path = os.path.join(
-                Path.home(), f".seclea/{self._project_name}/{training_run_pk}/model-{sequence_num}"
+                self._cache_dir, f"{self._project_name}/{training_run_pk}/model-{sequence_num}"
             )
 
             save_path = save_object(model_data, save_path, compression=CompressionFactory.ZSTD)
