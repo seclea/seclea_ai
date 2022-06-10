@@ -11,6 +11,7 @@ from typing import Dict, List, Union
 import pandas as pd
 from pandas import DataFrame
 
+from seclea_ai.internal.api import handle_response
 from seclea_ai.lib.seclea_utils.core import CompressionFactory, save_object
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
@@ -55,7 +56,7 @@ class FileProcessor:
                         model=obj["model"],
                         train_dataset=obj["train_dataset"],
                         test_dataset=obj["test_dataset"],
-                        val_dataset=["val_dataset"],
+                        val_dataset=obj["val_dataset"],
                         project=obj["project"],
                     )
                 if obj["function"] == "_save_model_state":
@@ -88,6 +89,16 @@ class FileProcessor:
                         dataset_hash=obj["dataset_hash"],
                         comp_path=obj["comp_path"],
                         dataset_path=obj["dataset_path"],
+                    )
+                if obj["function"] == "_upload_training_run":
+                    self._upload_training_run(
+                        project=obj["project"],
+                        model=obj["model"],
+                        framework=obj["framework"],
+                        training_run_name=obj["training_run_name"],
+                        model_pk=obj["model_pk"],
+                        dataset_pks=obj["dataset_pks"],
+                        params=obj["params"],
                     )
 
     def _save_dataset(
@@ -345,11 +356,11 @@ class FileProcessor:
         # extract params from the model
         params = framework.value.get_params(model)
 
-        self._storage_q.put(
+        self._sender_q.put(
             {
                 "function": "_upload_training_run",
                 "project": project,
-                "mdoel": model,
+                "model": model,
                 "framework": framework,
                 "training_run_name": training_run_name,
                 "model_pk": model_type_pk,
@@ -369,7 +380,6 @@ class FileProcessor:
         params: Dict,
     ):
         """
-
         :param training_run_name: eg. "Training Run 0"
         :param params: Dict The hyper parameters of the model - can auto extract?
         :return:
@@ -404,6 +414,76 @@ class FileProcessor:
                 "model_manager": framework,
             }
         )
+
+    def _set_model(self, model_name: str, framework: ModelManagers) -> int:
+        """
+        Set the model for this session.
+        Checks if it has already been uploaded. If not it will upload it.
+
+        :param model_name: The name for the architecture/algorithm. eg. "GradientBoostedMachine" or "3-layer CNN".
+
+        :return: int The model id.
+
+        :raises: ValueError - if the framework is not one of the supported frameworks or if there is an issue uploading
+         the model.
+        """
+        res = handle_response(
+            self._transmission.get(
+                url_path="/collection/models",
+                query_params={
+                    "organization": self._organization,
+                    "project": self._project,
+                    "name": model_name,
+                    "framework": framework.name,
+                },
+            ),
+            msg="There was an issue getting the model list",
+        )
+        models = res.json()
+        if len(models) == 1:
+            return models[0]["id"]
+        # if we got here that means that the model has not been uploaded yet. So we upload it.
+        res = self._upload_model(model_name=model_name, framework=framework)
+        try:
+            model_pk = res["id"]
+        except KeyError:
+            resp = handle_response(
+                self._transmission.get(
+                    url_path="/collection/models",
+                    query_params={
+                        "organization": self._organization,
+                        "project": self._project,
+                        "name": model_name,
+                        "framework": framework.name,
+                    },
+                ),
+                msg="There was an issue getting the model list",
+            )
+            model_pk = resp.json()[0]["id"]
+        return model_pk
+
+    def _upload_model(self, model_name: str, framework: ModelManagers):
+        """
+
+        :param model_name:
+        :param framework: instance of seclea_ai.Frameworks
+        :return:
+        """
+        res = asyncio.run(
+            self._api.send_json(
+                url_path="/collection/models",
+                obj={
+                    "organization": self._organization,
+                    "project": self._project,
+                    "name": model_name,
+                    "framework": framework.name,
+                },
+                query_params={"organization": self._organization, "project": self._project},
+                transmission=self._transmission,
+                json_response=True,
+            )
+        )
+        return res
 
     def _save_model_state(
         self,
@@ -517,3 +597,17 @@ class FileProcessor:
         for required_key, default in required_spec.items():
             metadata[required_key] = default
         return metadata
+
+    @staticmethod
+    def _get_framework(model) -> ModelManagers:
+        module = model.__class__.__module__
+        # order is important as xgboost and lightgbm contain sklearn compliant packages.
+        # TODO check if we can treat them as sklearn but for now we avoid that issue by doing sklearn last.
+        if "xgboost" in module:
+            return ModelManagers.XGBOOST
+        elif "lightgbm" in module:
+            return ModelManagers.LIGHTGBM
+        elif "sklearn" in module:
+            return ModelManagers.SKLEARN
+        else:
+            return ModelManagers.NOT_IMPORTED

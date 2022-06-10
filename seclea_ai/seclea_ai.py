@@ -250,6 +250,10 @@ class SecleaAI:
                         "transformation": up_kwargs["transformation"],
                     }
                 )
+                _thread = threading.Thread(target=self._file_processor.writer(self._storage_q))
+                _thread.start()
+                _sending_thread = threading.Thread(target=self._file_processor.sender())
+                _sending_thread.start()
             return
 
         # this only happens if this has no transformations ie. it is a Raw Dataset.
@@ -266,11 +270,8 @@ class SecleaAI:
         )
         _thread = threading.Thread(target=self._file_processor.writer(self._storage_q))
         _thread.start()
-        _thread.join()
-
         _sending_thread = threading.Thread(target=self._file_processor.sender())
         _sending_thread.start()
-        _sending_thread.join()
 
     def _generate_intermediate_datasets(
         self, transformations, dataset_name, dataset_hash, user_metadata
@@ -367,7 +368,6 @@ class SecleaAI:
                 "project": self._project,
             }
         )
-
         _thread = threading.Thread(target=self._file_processor.writer(self._storage_q))
         _thread.start()
         _sending_thread = threading.Thread(target=self._file_processor.sender())
@@ -453,97 +453,6 @@ class SecleaAI:
             )
         )
         return res
-
-    def _set_model(self, model_name: str, framework: ModelManagers) -> int:
-        """
-        Set the model for this session.
-        Checks if it has already been uploaded. If not it will upload it.
-
-        :param model_name: The name for the architecture/algorithm. eg. "GradientBoostedMachine" or "3-layer CNN".
-
-        :return: int The model id.
-
-        :raises: ValueError - if the framework is not one of the supported frameworks or if there is an issue uploading
-         the model.
-        """
-        res = handle_response(
-            self._transmission.get(
-                url_path="/collection/models",
-                query_params={
-                    "organization": self._organization,
-                    "project": self._project,
-                    "name": model_name,
-                    "framework": framework.name,
-                },
-            ),
-            msg="There was an issue getting the model list",
-        )
-        models = res.json()
-        if len(models) == 1:
-            return models[0]["id"]
-        # if we got here that means that the model has not been uploaded yet. So we upload it.
-        res = self._upload_model(model_name=model_name, framework=framework)
-        try:
-            model_pk = res["id"]
-        except KeyError:
-            resp = handle_response(
-                self._transmission.get(
-                    url_path="/collection/models",
-                    query_params={
-                        "organization": self._organization,
-                        "project": self._project,
-                        "name": model_name,
-                        "framework": framework.name,
-                    },
-                ),
-                msg="There was an issue getting the model list",
-            )
-            model_pk = resp.json()[0]["id"]
-        return model_pk
-
-    def _upload_model(self, model_name: str, framework: ModelManagers):
-        """
-
-        :param model_name:
-        :param framework: instance of seclea_ai.Frameworks
-        :return:
-        """
-        res = asyncio.run(
-            self._api.send_json(
-                url_path="/collection/models",
-                obj={
-                    "organization": self._organization,
-                    "project": self._project,
-                    "name": model_name,
-                    "framework": framework.name,
-                },
-                query_params={"organization": self._organization, "project": self._project},
-                transmission=self._transmission,
-                json_response=True,
-            )
-        )
-        return res
-
-    def _upload_model_state(
-        self,
-        model,
-        training_run_pk: int,
-        sequence_num: int,
-        final: bool,
-        model_manager: ModelManagers,
-    ):
-        _thread = threading.Thread(
-            target=self._file_processor._save_model_state(
-                model,
-                training_run_pk,
-                sequence_num,
-                final,
-                model_manager,
-            )
-        )
-        _thread.start()
-        _sending_thread = threading.Thread(target=self._file_processor.send_model_state())
-        _sending_thread.start()
 
     def _load_transformations(self, training_run_pk: int):
         """
