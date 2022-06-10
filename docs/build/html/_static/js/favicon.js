@@ -10,6 +10,3 @@ head.append(link)
 if (darkTheme) {
     link.href = '_static/favicon-dark-theme.ico';
 }
-
-
-
