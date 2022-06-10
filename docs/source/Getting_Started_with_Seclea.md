@@ -566,5 +566,3 @@ for name, (X_train, X_test, y_train, y_test) in datasets:
 ## 🔍 Analysis
 
 Head back to [platform.seclea.com](https://platform.seclea.com) and we can analyse our Models
-
-
