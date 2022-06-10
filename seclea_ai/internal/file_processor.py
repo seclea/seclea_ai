@@ -11,7 +11,7 @@ from typing import Dict, List, Union
 import pandas as pd
 from pandas import DataFrame
 
-from seclea_ai.internal.api import handle_response
+import seclea_ai
 from seclea_ai.lib.seclea_utils.core import CompressionFactory, save_object
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
@@ -42,73 +42,28 @@ class FileProcessor:
             obj = self._storage_q.get()
 
             if obj:
-                if obj["function"] == "upload_dataset":
-                    self._save_dataset(
-                        obj["project"],
-                        obj["dataset"],
-                        obj["dataset_name"],
-                        obj["metadata"],
-                        obj["parent_hash"],
-                        obj["transformation"],
-                    )
-                if obj["function"] == "upload_training_run":
-                    self.upload_training_run(
-                        model=obj["model"],
-                        train_dataset=obj["train_dataset"],
-                        test_dataset=obj["test_dataset"],
-                        val_dataset=obj["val_dataset"],
-                        project=obj["project"],
-                    )
-                if obj["function"] == "_save_model_state":
-                    self._save_model_state(
-                        model=obj["model"],
-                        training_run_pk=obj["training_run_pk"],
-                        sequence_num=obj["sequence_num"],
-                        final=obj["final"],
-                        model_manager=obj["model_manager"],
-                    )
+                target_function = obj["target"]
+                del obj["target"]
+                target_function(**obj)
 
-    def sender(self):
+    def sender(self, _sender_q: Queue = None):
+        if _sender_q:
+            self._sender_q = _sender_q
         while not self._sender_q.empty():
             obj = self._sender_q.get()
             if obj:
-                if obj["function"] == "_send_model_state":
-                    self._send_model_state(
-                        save_path=obj["save_path"],
-                        training_run_pk=obj["training_run_pk"],
-                        sequence_num=obj["sequence_num"],
-                        final=obj["final"],
-                    )
-                if obj["function"] == "_send_dataset":
-                    self._send_dataset(
-                        project=obj["project"],
-                        metadata=obj["metadata"],
-                        parent_hash=obj["parent_hash"],
-                        transformation=obj["transformation"],
-                        dataset_name=obj["dataset_name"],
-                        dataset_hash=obj["dataset_hash"],
-                        comp_path=obj["comp_path"],
-                        dataset_path=obj["dataset_path"],
-                    )
-                if obj["function"] == "_upload_training_run":
-                    self._upload_training_run(
-                        project=obj["project"],
-                        model=obj["model"],
-                        framework=obj["framework"],
-                        training_run_name=obj["training_run_name"],
-                        model_pk=obj["model_pk"],
-                        dataset_pks=obj["dataset_pks"],
-                        params=obj["params"],
-                    )
+                target_function = obj["target"]
+                del obj["target"]
+                target_function(**obj)
 
     def _save_dataset(
         self,
-        project: int,
         dataset: DataFrame,
         dataset_name: str,
         metadata: Dict,
         parent_hash: Union[int, None],
         transformation: Union[DatasetTransformation, None],
+        project: int,
     ):
         """
         Save dataset in local temp directory and call functions to upload dataset
@@ -149,7 +104,9 @@ class FileProcessor:
             outcome_name=None,
             num_samples=len(dataset),
         )
-        metadata = self._ensure_required_metadata(metadata=metadata, defaults_spec=defaults_spec)
+        metadata = seclea_ai.SecleaAI._ensure_required_metadata(
+            metadata=metadata, defaults_spec=defaults_spec
+        )
 
         try:
             features = (
@@ -164,7 +121,9 @@ class FileProcessor:
             split=transformation.split if transformation is not None else None,
             features=list(features),
         )
-        metadata = self._add_required_metadata(metadata=metadata, required_spec=required)
+        metadata = seclea_ai.SecleaAI._add_required_metadata(
+            metadata=metadata, required_spec=required
+        )
 
         # constraints
         if not set(metadata["continuous_features"]).issubset(set(metadata["features"])):
@@ -200,7 +159,7 @@ class FileProcessor:
             #                   dataset_path)
             self._sender_q.put(
                 {
-                    "function": "_send_dataset",
+                    "target": self._send_dataset,
                     "project": project,
                     "metadata": metadata,
                     "parent_hash": parent_hash,
@@ -285,90 +244,6 @@ class FileProcessor:
                 f"Response Status code {response.status}, expected: 201. \n f'There was some issue uploading the dataset: {response.text()}' - {response.reason} - {response.text}"
             )
 
-    def upload_training_run(
-        self,
-        model,
-        project,
-        train_dataset: DataFrame,
-        test_dataset: DataFrame = None,
-        val_dataset: DataFrame = None,
-    ) -> None:
-        """
-        Takes a model and extracts the necessary data for uploading the training run.
-
-        :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
-
-        :param train_dataset: DataFrame The Dataset that the model is trained on.
-
-        :param test_dataset: DataFrame The Dataset that the model is trained on.
-
-        :param val_dataset: DataFrame The Dataset that the model is trained on.
-
-        :return: None
-
-        Example::
-
-            >>> seclea = SecleaAI(project_name="Test Project")
-            >>> dataset = pd.read_csv(<dataset_name>)
-            >>> model = LogisticRegressionClassifier()
-            >>> model.fit(X, y)
-            >>> seclea.upload_training_run(
-                    model,
-                    framework=seclea_ai.Frameworks.SKLEARN,
-                    dataset_name="Test Dataset",
-                )
-        """
-        self._auth_service.authenticate(self._transmission)
-
-        # validate the splits? maybe later when we have proper Dataset class to manage these things.
-        dataset_pks = [
-            str(hash(pd.util.hash_pandas_object(dataset).sum() + project))
-            for dataset in [train_dataset, test_dataset, val_dataset]
-            if dataset is not None
-        ]
-
-        model_name = model.__class__.__name__
-
-        framework = self._get_framework(model)
-
-        # check the model exists upload if not
-        model_type_pk = self._set_model(model_name=model_name, framework=framework)
-
-        # check the latest training run
-        training_runs_res = self._transmission.get(
-            "/collection/training-runs",
-            query_params={
-                "project": self._project,
-                "model": model_type_pk,
-                "organization": self._organization,
-            },
-        )
-        training_runs = training_runs_res.json()
-
-        # Create the training run name
-        largest = -1
-        for training_run in training_runs:
-            num = int(training_run["name"].split(" ")[2])
-            if num > largest:
-                largest = num
-        training_run_name = f"Training Run {largest + 1}"
-
-        # extract params from the model
-        params = framework.value.get_params(model)
-
-        self._sender_q.put(
-            {
-                "function": "_upload_training_run",
-                "project": project,
-                "model": model,
-                "framework": framework,
-                "training_run_name": training_run_name,
-                "model_pk": model_type_pk,
-                "dataset_pks": dataset_pks,
-                "params": params,
-            }
-        )
-
     def _upload_training_run(
         self,
         project,
@@ -406,7 +281,7 @@ class FileProcessor:
         self._training_run = res["id"]
         self._storage_q.put(
             {
-                "function": "_save_model_state",
+                "target": self._save_model_state,
                 "model": model,
                 "training_run_pk": self._training_run,
                 "sequence_num": 0,
@@ -414,76 +289,6 @@ class FileProcessor:
                 "model_manager": framework,
             }
         )
-
-    def _set_model(self, model_name: str, framework: ModelManagers) -> int:
-        """
-        Set the model for this session.
-        Checks if it has already been uploaded. If not it will upload it.
-
-        :param model_name: The name for the architecture/algorithm. eg. "GradientBoostedMachine" or "3-layer CNN".
-
-        :return: int The model id.
-
-        :raises: ValueError - if the framework is not one of the supported frameworks or if there is an issue uploading
-         the model.
-        """
-        res = handle_response(
-            self._transmission.get(
-                url_path="/collection/models",
-                query_params={
-                    "organization": self._organization,
-                    "project": self._project,
-                    "name": model_name,
-                    "framework": framework.name,
-                },
-            ),
-            msg="There was an issue getting the model list",
-        )
-        models = res.json()
-        if len(models) == 1:
-            return models[0]["id"]
-        # if we got here that means that the model has not been uploaded yet. So we upload it.
-        res = self._upload_model(model_name=model_name, framework=framework)
-        try:
-            model_pk = res["id"]
-        except KeyError:
-            resp = handle_response(
-                self._transmission.get(
-                    url_path="/collection/models",
-                    query_params={
-                        "organization": self._organization,
-                        "project": self._project,
-                        "name": model_name,
-                        "framework": framework.name,
-                    },
-                ),
-                msg="There was an issue getting the model list",
-            )
-            model_pk = resp.json()[0]["id"]
-        return model_pk
-
-    def _upload_model(self, model_name: str, framework: ModelManagers):
-        """
-
-        :param model_name:
-        :param framework: instance of seclea_ai.Frameworks
-        :return:
-        """
-        res = asyncio.run(
-            self._api.send_json(
-                url_path="/collection/models",
-                obj={
-                    "organization": self._organization,
-                    "project": self._project,
-                    "name": model_name,
-                    "framework": framework.name,
-                },
-                query_params={"organization": self._organization, "project": self._project},
-                transmission=self._transmission,
-                json_response=True,
-            )
-        )
-        return res
 
     def _save_model_state(
         self,
@@ -519,7 +324,7 @@ class FileProcessor:
             # pushing data to queue
             self._sender_q.put(
                 {
-                    "function": "_send_model_state",
+                    "target": self._send_model_state,
                     "save_path": save_path,
                     "training_run_pk": training_run_pk,
                     "sequence_num": sequence_num,
@@ -569,45 +374,3 @@ class FileProcessor:
                 f"Response Status code {res.status}, expected: 201. \n f'There was some issue uploading a model state: {res.text()}' - {res.reason} - {res.text}"
             )
         return res
-
-    @staticmethod
-    def _ensure_required_metadata(metadata: Dict, defaults_spec: Dict) -> Dict:
-        """
-        Ensures that required metadata that can be specified by the user are filled.
-        @param metadata: The metadata dict
-        @param defaults_spec:
-        @return: metadata
-        """
-        for required_key, default in defaults_spec.items():
-            try:
-                if metadata[required_key] is None:
-                    metadata[required_key] = default
-            except KeyError:
-                metadata[required_key] = default
-        return metadata
-
-    @staticmethod
-    def _add_required_metadata(metadata: Dict, required_spec: Dict) -> Dict:
-        """
-        Adds required - non user specified fields to the metadata
-        @param metadata: The metadata dict
-        @param required_spec:
-        @return: metadata
-        """
-        for required_key, default in required_spec.items():
-            metadata[required_key] = default
-        return metadata
-
-    @staticmethod
-    def _get_framework(model) -> ModelManagers:
-        module = model.__class__.__module__
-        # order is important as xgboost and lightgbm contain sklearn compliant packages.
-        # TODO check if we can treat them as sklearn but for now we avoid that issue by doing sklearn last.
-        if "xgboost" in module:
-            return ModelManagers.XGBOOST
-        elif "lightgbm" in module:
-            return ModelManagers.LIGHTGBM
-        elif "sklearn" in module:
-            return ModelManagers.SKLEARN
-        else:
-            return ModelManagers.NOT_IMPORTED

@@ -90,6 +90,7 @@ class SecleaAI:
             self._auth_service,
         )
         self._storage_q = Queue()
+        self._sender_q = Queue()
         print("success")
 
     def login(self, username=None, password=None) -> None:
@@ -239,17 +240,9 @@ class SecleaAI:
             # upload all the datasets and transformations.
             for up_kwargs in upload_queue:
                 # self._upload_dataset(**up_kwargs)  # TODO change
-                self._storage_q.put(
-                    {
-                        "function": "upload_dataset",
-                        "project": self._project,
-                        "dataset": up_kwargs["dataset"],
-                        "dataset_name": up_kwargs["dataset_name"],
-                        "metadata": up_kwargs["metadata"],
-                        "parent_hash": up_kwargs["parent_hash"],
-                        "transformation": up_kwargs["transformation"],
-                    }
-                )
+                up_kwargs["target"] = self._file_processor._save_dataset
+                up_kwargs["project"] = self._project
+                self._storage_q.put(up_kwargs)
                 _thread = threading.Thread(target=self._file_processor.writer(self._storage_q))
                 _thread.start()
                 _sending_thread = threading.Thread(target=self._file_processor.sender())
@@ -259,13 +252,13 @@ class SecleaAI:
         # this only happens if this has no transformations ie. it is a Raw Dataset.
         self._storage_q.put(
             {
-                "function": "upload_dataset",
-                "project": self._project,
+                "target": self._file_processor._save_dataset,
                 "dataset": dataset,
                 "dataset_name": dataset_name,
                 "metadata": metadata,
                 "parent_hash": None,
                 "transformation": None,
+                "project": self._project,
             }
         )
         _thread = threading.Thread(target=self._file_processor.writer(self._storage_q))
@@ -358,20 +351,164 @@ class SecleaAI:
         if X_val is not None and y_val is not None:
             val_dataset = self._assemble_dataset({"X": X_val, "y": y_val})
 
-        self._storage_q.put(
-            {
-                "function": "upload_training_run",
-                "model": model,
-                "train_dataset": train_dataset,
-                "test_dataset": test_dataset,
-                "val_dataset": val_dataset,
+        self.upload_training_run(model, train_dataset, test_dataset, val_dataset)
+
+    def upload_training_run(
+        self,
+        model,
+        train_dataset: DataFrame,
+        test_dataset: DataFrame = None,
+        val_dataset: DataFrame = None,
+    ) -> None:
+        """
+        Takes a model and extracts the necessary data for uploading the training run.
+
+        :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
+
+        :param train_dataset: DataFrame The Dataset that the model is trained on.
+
+        :param test_dataset: DataFrame The Dataset that the model is trained on.
+
+        :param val_dataset: DataFrame The Dataset that the model is trained on.
+
+        :return: None
+
+        Example::
+
+            >>> seclea = SecleaAI(project_name="Test Project")
+            >>> dataset = pd.read_csv(<dataset_name>)
+            >>> model = LogisticRegressionClassifier()
+            >>> model.fit(X, y)
+            >>> seclea.upload_training_run(
+                    model,
+                    framework=seclea_ai.Frameworks.SKLEARN,
+                    dataset_name="Test Dataset",
+                )
+        """
+        self._auth_service.authenticate(self._transmission)
+
+        # validate the splits? maybe later when we have proper Dataset class to manage these things.
+        dataset_pks = [
+            str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project))
+            for dataset in [train_dataset, test_dataset, val_dataset]
+            if dataset is not None
+        ]
+
+        model_name = model.__class__.__name__
+
+        framework = self._get_framework(model)
+
+        # check the model exists upload if not
+        model_type_pk = self._set_model(model_name=model_name, framework=framework)
+
+        # check the latest training run
+        training_runs_res = self._transmission.get(
+            "/collection/training-runs",
+            query_params={
                 "project": self._project,
+                "model": model_type_pk,
+                "organization": self._organization,
+            },
+        )
+        training_runs = training_runs_res.json()
+
+        # Create the training run name
+        largest = -1
+        for training_run in training_runs:
+            num = int(training_run["name"].split(" ")[2])
+            if num > largest:
+                largest = num
+        training_run_name = f"Training Run {largest + 1}"
+
+        # extract params from the model
+        params = framework.value.get_params(model)
+
+        self._sender_q.put(
+            {
+                "target": self._file_processor._upload_training_run,
+                "project": self._project,
+                "model": model,
+                "framework": framework,
+                "training_run_name": training_run_name,
+                "model_pk": model_type_pk,
+                "dataset_pks": dataset_pks,
+                "params": params,
             }
         )
         _thread = threading.Thread(target=self._file_processor.writer(self._storage_q))
         _thread.start()
-        _sending_thread = threading.Thread(target=self._file_processor.sender())
+        _sending_thread = threading.Thread(target=self._file_processor.sender(self._sender_q))
         _sending_thread.start()
+
+    def _set_model(self, model_name: str, framework: ModelManagers) -> int:
+        """
+        Set the model for this session.
+        Checks if it has already been uploaded. If not it will upload it.
+
+        :param model_name: The name for the architecture/algorithm. eg. "GradientBoostedMachine" or "3-layer CNN".
+
+        :return: int The model id.
+
+        :raises: ValueError - if the framework is not one of the supported frameworks or if there is an issue uploading
+         the model.
+        """
+        res = handle_response(
+            self._transmission.get(
+                url_path="/collection/models",
+                query_params={
+                    "organization": self._organization,
+                    "project": self._project,
+                    "name": model_name,
+                    "framework": framework.name,
+                },
+            ),
+            msg="There was an issue getting the model list",
+        )
+        models = res.json()
+        if len(models) == 1:
+            return models[0]["id"]
+        # if we got here that means that the model has not been uploaded yet. So we upload it.
+        res = self._upload_model(model_name=model_name, framework=framework)
+        try:
+            model_pk = res["id"]
+        except KeyError:
+            resp = handle_response(
+                self._transmission.get(
+                    url_path="/collection/models",
+                    query_params={
+                        "organization": self._organization,
+                        "project": self._project,
+                        "name": model_name,
+                        "framework": framework.name,
+                    },
+                ),
+                msg="There was an issue getting the model list",
+            )
+            model_pk = resp.json()[0]["id"]
+        return model_pk
+
+    def _upload_model(self, model_name: str, framework: ModelManagers):
+        """
+
+        :param model_name:
+        :param framework: instance of seclea_ai.Frameworks
+        :return:
+        """
+        res = asyncio.run(
+            self._api.send_json(
+                url_path="/collection/models",
+                obj={
+                    "organization": self._organization,
+                    "project": self._project,
+                    "name": model_name,
+                    "framework": framework.name,
+                },
+                query_params={"organization": self._organization, "project": self._project},
+                transmission=self._transmission,
+                json_response=True,
+            )
+        )
+        return res
 
     @staticmethod
     def _assemble_dataset(data: Dict[str, DataFrame]) -> DataFrame:
@@ -481,6 +618,34 @@ class SecleaAI:
         loaded_datasets = [pd.read_csv(dset, index_col=index) for dset in datasets]
         aggregated = pd.concat(loaded_datasets, axis=0)
         return aggregated
+
+    @staticmethod
+    def _ensure_required_metadata(metadata: Dict, defaults_spec: Dict) -> Dict:
+        """
+        Ensures that required metadata that can be specified by the user are filled.
+        @param metadata: The metadata dict
+        @param defaults_spec:
+        @return: metadata
+        """
+        for required_key, default in defaults_spec.items():
+            try:
+                if metadata[required_key] is None:
+                    metadata[required_key] = default
+            except KeyError:
+                metadata[required_key] = default
+        return metadata
+
+    @staticmethod
+    def _add_required_metadata(metadata: Dict, required_spec: Dict) -> Dict:
+        """
+        Adds required - non user specified fields to the metadata
+        @param metadata: The metadata dict
+        @param required_spec:
+        @return: metadata
+        """
+        for required_key, default in required_spec.items():
+            metadata[required_key] = default
+        return metadata
 
     @staticmethod
     def _get_framework(model) -> ModelManagers:
