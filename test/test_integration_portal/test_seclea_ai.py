@@ -1,5 +1,4 @@
 import os
-import traceback
 import uuid
 from unittest import TestCase
 
@@ -14,7 +13,6 @@ from seclea_ai.transformations import DatasetTransformation
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
-print(folder_path)
 
 
 class TestIntegrationSecleaAIPortal(TestCase):
@@ -160,14 +158,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
             X_sm, y_sm = sm.fit_resample(X, y)
 
-            print(
-                f"""Shape of X before SMOTE: {X.shape}
-            Shape of X after SMOTE: {X_sm.shape}"""
-            )
-            print(
-                f"""Shape of y before SMOTE: {y.shape}
-            Shape of y after SMOTE: {y_sm.shape}"""
-            )
             return X_sm, y_sm
             # returns X, y
 
@@ -304,11 +294,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
     def step_3_upload_trainingrun(self):
         # define model
 
-        print(
-            f"""% Positive class in Train = {np.round(self.y_sm.value_counts(normalize=True)[1] * 100, 2)}
-            % Positive class in Test  = {np.round(self.y_test.value_counts(normalize=True)[1] * 100, 2)}"""
-        )
-
         from sklearn.ensemble import RandomForestClassifier
 
         # from sklearn.metrics import accuracy_score
@@ -342,5 +327,4 @@ class TestIntegrationSecleaAIPortal(TestCase):
                 step()
                 print("STEP COMPLETE")
             except Exception as e:
-                traceback.print_exc()
                 self.fail(f"{step} failed ({type(e)}: {e})")

@@ -15,6 +15,7 @@ class Storage:
             root = f"{Path.home()}/.seclea/"
         self._path = f"{root}/{db_name}"
         Path(root).mkdir(parents=True, exist_ok=True)
+        # TODO this is unclosed during testing...
         self.db = db.load(self._path, True)
 
     @property
@@ -30,6 +31,7 @@ class Storage:
         path_root = path.split("/")[-1].join("/")
         Path(path_root).mkdir(parents=True, exist_ok=True)
         self._path = path
+        # TODO this is unclosed during testing...
         self.db = db.load(self._path, True)
 
     def write(self, key, val):
