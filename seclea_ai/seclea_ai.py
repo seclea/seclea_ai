@@ -3,6 +3,7 @@ Description for seclea_ai.py
 """
 import asyncio
 import copy
+import inspect
 import os
 import threading
 from queue import Queue
@@ -17,7 +18,7 @@ from seclea_ai.exceptions import AuthenticationError
 from seclea_ai.internal.api import Api, handle_response
 from seclea_ai.internal.backend import Backend
 from seclea_ai.internal.file_processor import FileProcessor
-from seclea_ai.lib.seclea_utils.core import RequestWrapper, decode_func
+from seclea_ai.lib.seclea_utils.core import RequestWrapper, decode_func, encode_func
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
 from seclea_ai.transformations import DatasetTransformation
 
@@ -82,15 +83,21 @@ class SecleaAI:
         self._available_frameworks = {"sklearn", "xgboost", "lightgbm"}
         self._training_run = None
         self._init_project(project_name=project_name)
-        self._file_processor = FileProcessor(
-            self._project_name,
-            self._organization,
-            self._transmission,
-            self._api,
-            self._auth_service,
-        )
         self._storage_q = Queue()
         self._sender_q = Queue()
+        self._file_processor = FileProcessor(
+            project_name=self._project_name,
+            organization=self._organization,
+            transmission=self._transmission,
+            api=self._api,
+            auth_service=self._auth_service,
+            storage_q=self._storage_q,
+            sender_q=self._sender_q,
+        )
+        self._writer_thread = threading.Thread(target=self._file_processor.writer(self._storage_q))
+        self._writer_thread.start()
+        self._sending_thread = threading.Thread(target=self._file_processor.sender())
+        self._sending_thread.start()
         print("success")
 
     def login(self, username=None, password=None) -> None:
@@ -118,6 +125,10 @@ class SecleaAI:
                 print(e)
         if not success:
             raise AuthenticationError("Failed to login.")
+
+    def end(self):
+        # TODO terminate the threads gracefully - empty queues etc. then join threads.
+        pass
 
     def upload_dataset_split(
         self,
@@ -216,65 +227,117 @@ class SecleaAI:
         elif isinstance(dataset, str):
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
 
-        dataset_hash = pd.util.hash_pandas_object(dataset).sum()
+        # TODO replace with dataset_hash fn
+        dataset_hash = hash(pd.util.hash_pandas_object(dataset).sum() + self._project)
 
         if transformations is not None:
 
-            upload_queue = self._generate_intermediate_datasets(
+            parent = self._assemble_dataset(transformations[0].raw_data_kwargs)
+
+            #####
+            # Validate parent exists and get metadata - can factor out
+            #####
+            parent_dset_pk = hash(pd.util.hash_pandas_object(parent).sum() + self._project)
+            # check parent exists - throw an error if not.
+            res = self._transmission.get(
+                url_path=f"/collection/datasets/{parent_dset_pk}",
+                query_params={"project": self._project, "organization": self._organization},
+            )
+            if not res.status_code == 200:
+                raise AssertionError(
+                    "Parent Dataset does not exist on the Platform. Please check your arguments and "
+                    "that you have uploaded the parent dataset already"
+                )
+            parent_metadata = res.json()["metadata"]
+            #####
+
+            dataset_queue, transformations_queue = self._generate_intermediate_datasets(
                 transformations=transformations,
                 dataset_name=dataset_name,
                 dataset_hash=dataset_hash,
                 user_metadata=metadata,
+                parent=parent,
+                parent_metadata=parent_metadata,
             )
 
-            # check for duplicates
-            for up_kwargs in upload_queue:
-                if (
-                    pd.util.hash_pandas_object(up_kwargs["dataset"]).sum()
-                    == up_kwargs["parent_hash"]
-                ):
-                    raise AssertionError(
-                        f"""The transformation {up_kwargs['transformation'].func.__name__} does not change the dataset.
-                        Please remove it and try again."""
-                    )
             # upload all the datasets and transformations.
-            for up_kwargs in upload_queue:
-                # self._upload_dataset(**up_kwargs)  # TODO change
-                up_kwargs["target"] = self._file_processor._save_dataset
+            for up_kwargs in dataset_queue:
                 up_kwargs["project"] = self._project
-                self._storage_q.put(up_kwargs)
-                _thread = threading.Thread(target=self._file_processor.writer(self._storage_q))
-                _thread.start()
-                _sending_thread = threading.Thread(target=self._file_processor.sender())
-                _sending_thread.start()
+                # add to storage and sending queues
+                if up_kwargs["entity"] == "dataset":
+                    self._storage_q.put(up_kwargs)
+                self._sender_q.put(up_kwargs)
             return
 
         # this only happens if this has no transformations ie. it is a Raw Dataset.
-        self._storage_q.put(
-            {
-                "target": self._file_processor._save_dataset,
-                "dataset": dataset,
-                "dataset_name": dataset_name,
-                "metadata": metadata,
-                "parent_hash": None,
-                "transformation": None,
-                "project": self._project,
-            }
+
+        # validation
+        metadata_defaults_spec = dict(
+            continuous_features=[],
+            outcome_name=None,
+            num_samples=len(dataset),
         )
-        _thread = threading.Thread(target=self._file_processor.writer(self._storage_q))
-        _thread.start()
-        _sending_thread = threading.Thread(target=self._file_processor.sender())
-        _sending_thread.start()
+        try:
+            features = (
+                dataset.columns
+            )  # TODO - drop the outcome name but requires changes on frontend.
+        except KeyError:
+            # this means outcome was set to None
+            features = dataset.columns
+
+        required_metadata = ["favourable_outcome", "unfavourable_outcome"]
+
+        self._ensure_required_user_spec_metadata(metadata=metadata, required_spec=required_metadata)
+        metadata = self._ensure_required_metadata(
+            metadata=metadata, defaults_spec=metadata_defaults_spec
+        )
+        automatic_metadata = dict(
+            index=0 if dataset.index.name is None else dataset.index.name,
+            split=None,
+            features=list(features),
+            categorical_features=list(
+                set(list(features))
+                - set(metadata["continuous_features"]).intersection(set(list(features)))
+            ),
+        )
+        metadata = self._add_required_metadata(metadata=metadata, required_spec=automatic_metadata)
+
+        metadata["categorical_values"] = [
+            {col: dataset[col].unique().tolist()} for col in metadata["categorical_features"]
+        ]
+
+        # create local db record.
+        dataset_record_id = self._file_processor._dbms.create_record(
+            entity="dataset", status="in_memory"
+        )
+
+        # New arch
+        dataset_upload_kwargs = {
+            "entity": "dataset",
+            "record_id": dataset_record_id,
+            "dataset": dataset,
+            "dataset_name": dataset_name,
+            "metadata": metadata,
+            "parent_hash": None,
+            "transformation": None,
+            "project": self._project,
+        }
+        # add to storage and sending queues
+        self._storage_q.put(dataset_upload_kwargs)
+        self._sender_q.put(dataset_upload_kwargs)
 
     def _generate_intermediate_datasets(
-        self, transformations, dataset_name, dataset_hash, user_metadata
+        self, transformations, dataset_name, dataset_hash, user_metadata, parent, parent_metadata
     ):
-        # to check that the parent exists on platform - using the hash. See _upload_dataset
-        parent = self._assemble_dataset(transformations[0].raw_data_kwargs)
+        parent_dataset_record_id = self._file_processor._dbms.create_record(
+            entity="dataset", status="in_memory"
+        )
 
         # setup for generating datasets.
         last = len(transformations) - 1
         upload_queue = list()
+        parent_mdata = parent_metadata
+        parent_dset = parent
 
         output = dict()
         # iterate over transformations, assembling intermediate datasets
@@ -284,13 +347,59 @@ class SecleaAI:
 
             # construct the generated dataset from outputs
             dset = self._assemble_dataset(output)
+
             dset_metadata = copy.deepcopy(user_metadata)
+            # validate and ensure required metadata
+            metadata_defaults_spec = dict(
+                continuous_features=parent_mdata["continuous_features"],
+                outcome_name=parent_mdata["outcome_name"],
+                num_samples=len(dset),
+                favourable_outcome=parent_mdata["favourable_outcome"],
+                unfavourable_outcome=parent_mdata["unfavourable_outcome"],
+            )
+            dset_metadata = self._ensure_required_metadata(
+                metadata=dset_metadata, defaults_spec=metadata_defaults_spec
+            )
+            try:
+                features = (
+                    dset.columns
+                )  # TODO - drop the outcome name but requires changes on frontend.
+            except KeyError:
+                # this means outcome was set to None
+                features = dset.columns
+
+            automatic_metadata = dict(
+                index=0 if dset.index.name is None else dset.index.name,
+                split=trans.split if trans is not None else parent_mdata["split"],
+                features=list(features),
+                categorical_features=list(
+                    set(list(features))
+                    - set(dset_metadata["continuous_features"]).intersection(set(list(features)))
+                ),
+            )
+
+            dset_metadata = self._add_required_metadata(
+                metadata=dset_metadata, required_spec=automatic_metadata
+            )
+
+            dset_metadata["categorical_values"] = [
+                {col: dset[col].unique().tolist()} for col in dset_metadata["categorical_features"]
+            ]
+
+            # constraints
+            if not set(dset_metadata["continuous_features"]).issubset(
+                set(dset_metadata["features"])
+            ):
+                raise ValueError(
+                    "Continuous features must be a subset of features. Please check and try again."
+                )
+
             dset_name = f"{dataset_name}-{trans.func.__name__}"  # TODO improve this.
 
             # handle the final dataset - check generated = passed in.
             if idx == last:
                 if (
-                    pd.util.hash_pandas_object(dset).sum() != dataset_hash
+                    hash(pd.util.hash_pandas_object(dset).sum() + self._project) != dataset_hash
                 ):  # TODO create or find better exception
                     raise AssertionError(
                         """Generated Dataset does not match the Dataset passed in.
@@ -299,19 +408,52 @@ class SecleaAI:
                     )
                 else:
                     dset_name = dataset_name
+            else:
+                if (
+                    pd.util.hash_pandas_object(dset).sum()
+                    == pd.util.hash_pandas_object(parent_dset).sum()
+                ):
+                    raise AssertionError(
+                        f"""The transformation {trans.func.__name__} does not change the dataset.
+                        Please remove it and try again."""
+                    )
+
+            # create local db record.
+            dataset_record_id = self._file_processor._dbms.create_record(
+                entity="dataset", status="in_memory", dependencies=[parent_dataset_record_id]
+            )
 
             # add data to queue to upload later after final dataset checked
             upload_kwargs = {
+                "entity": "dataset",
+                "record_id": dataset_record_id,
                 "dataset": copy.deepcopy(dset),  # TODO change keys
                 "dataset_name": copy.deepcopy(dset_name),
                 "metadata": dset_metadata,
-                "parent_hash": pd.util.hash_pandas_object(parent).sum(),
-                "transformation": copy.deepcopy(trans),
             }
             # update the parent dataset - these chained transformations only make sense if they are pushing the
             # same dataset through multiple transformations.
-            parent = copy.deepcopy(dset)
+            parent_dset = copy.deepcopy(dset)
+            parent_mdata = copy.deepcopy(dset_metadata)
             upload_queue.append(upload_kwargs)
+
+            # add dependency to dataset
+            trans_record_id = self._file_processor._dbms.create_record(
+                entity="transformation", status="in_memory", dependencies=[dataset_record_id]
+            )
+            # TODO unpack transformation into kwargs for upload - need to create trans upload func first.
+            trans_kwargs = {**trans.data_kwargs, **trans.kwargs}
+            transformation_kwargs = {
+                "entity": "transformation",
+                "record_id": trans_record_id,
+                "name": trans.func.__name__,
+                "code_raw": inspect.getsource(trans.func),
+                "code_encoded": encode_func(trans.func, [], trans_kwargs),
+            }
+            upload_queue.append(transformation_kwargs)
+            # update parent to next dataset in queue
+            parent_dataset_record_id = dataset_record_id
+
         return upload_queue
 
     def upload_training_run_split(
@@ -394,14 +536,13 @@ class SecleaAI:
             if dataset is not None
         ]
 
+        # Model stuff
         model_name = model.__class__.__name__
-
         framework = self._get_framework(model)
-
-        # check the model exists upload if not
+        # check the model exists upload if not TODO convert to add to queue
         model_type_pk = self._set_model(model_name=model_name, framework=framework)
 
-        # check the latest training run
+        # check the latest training run TODO extract all this stuff
         training_runs_res = self._transmission.get(
             "/collection/training-runs",
             query_params={
@@ -423,22 +564,44 @@ class SecleaAI:
         # extract params from the model
         params = framework.value.get_params(model)
 
-        self._sender_q.put(
+        # search for datasets in local db? Maybe not needed..
+
+        # create record
+        training_run_record_id = self._file_processor._dbms.create_record(
+            entity="training_run", status="in_memory"
+        )
+
+        # sent training run for upload.
+        training_run_details = {
             {
-                "target": self._file_processor._upload_training_run,
+                "entity": "training_run",
+                "record_id": training_run_record_id,
                 "project": self._project,
-                "model": model,
-                "framework": framework,
                 "training_run_name": training_run_name,
                 "model_pk": model_type_pk,
                 "dataset_pks": dataset_pks,
                 "params": params,
             }
+        }
+        self._sender_q.put(training_run_details)
+
+        # create local db record
+        model_state_record_id = self._file_processor._dbms.create_record(
+            entity="training_run", status="in_memory", dependencies=[training_run_record_id]
         )
-        _thread = threading.Thread(target=self._file_processor.writer(self._storage_q))
-        _thread.start()
-        _sending_thread = threading.Thread(target=self._file_processor.sender(self._sender_q))
-        _sending_thread.start()
+
+        # send model state for save and upload
+        # TODO make a function interface rather than the queue interface. Need a response to confirm it is okay.
+        model_state_details = {
+            "entity": "model_state",
+            "record_id": model_state_record_id,
+            "model": model,
+            "sequence_num": 0,
+            "final": True,
+            "model_manager": framework,  # TODO move framework to sender.
+        }
+        self._storage_q.put(model_state_details)
+        self._sender_q.put(model_state_details)
 
     def _set_model(self, model_name: str, framework: ModelManagers) -> int:
         """
@@ -494,6 +657,10 @@ class SecleaAI:
         :param framework: instance of seclea_ai.Frameworks
         :return:
         """
+        # TODO fill in the details
+        # model_details = {}
+        # self._sender_q.put(model_details)
+
         res = asyncio.run(
             self._api.send_json(
                 url_path="/collection/models",
@@ -634,6 +801,22 @@ class SecleaAI:
             except KeyError:
                 metadata[required_key] = default
         return metadata
+
+    @staticmethod
+    def _ensure_required_user_spec_metadata(metadata: Dict, required_spec: List) -> None:
+        """
+        Ensures that required metadata that can be specified by the user are filled.
+        @param metadata: The metadata dict
+        @param defaults_spec:
+        @return: None
+        @raise ValueError if any are missing.
+        """
+        for required_key in required_spec:
+            try:
+                if metadata[required_key] is None:
+                    raise ValueError(f"{required_key} must be specified in the metadata")
+            except KeyError:
+                raise ValueError(f"{required_key} must be specified in the metadata")
 
     @staticmethod
     def _add_required_metadata(metadata: Dict, required_spec: Dict) -> Dict:

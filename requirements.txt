@@ -1,3 +1,4 @@
+aiohttp>=3.8.1
 certifi==2021.5.30
 chardet==3.0.4
 dill>=0.3.4
@@ -15,8 +16,7 @@ scikit-learn>-0.24.2
 setuptools>=49.2.1
 Sphinx==4.3.0
 sphinx-rtd-theme==1.0.0
+SQLAlchemy>=1.4.36
 urllib3>=1.26.5
 xgboost>=1.5.1
 zstandard>=0.15.1
-SQLAlchemy>=1.4.36
-aiohttp>=3.8.1

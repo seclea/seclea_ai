@@ -65,7 +65,7 @@ class Writer(Processor):
         :param record:
         :return:
         """
-        key = _assemble_key(record)
+        # key = _assemble_key(record)
 
     def terminate(self) -> None:
         pass

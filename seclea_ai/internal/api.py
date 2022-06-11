@@ -2,7 +2,6 @@
 Everything to do with the API to the backend.
 """
 import asyncio
-import inspect
 import json
 import os
 from typing import Dict
@@ -11,9 +10,7 @@ import aiohttp
 import requests
 from requests import Response
 
-from seclea_ai.lib.seclea_utils.core import encode_func
 from seclea_ai.lib.seclea_utils.core.transmission import Transmission
-from seclea_ai.transformations import DatasetTransformation
 
 
 def handle_response(response: Response, msg: str = ""):
@@ -126,15 +123,13 @@ class Api:
         return res
 
     def _upload_transformation(
-        self, transformation: DatasetTransformation, dataset_pk, transmission, organization, project
+        self, name: str, code_raw, code_encoded, dataset_pk, transmission, organization, project
     ):
-        idx = 0
-        trans_kwargs = {**transformation.data_kwargs, **transformation.kwargs}
+
         data = {
-            "name": transformation.func.__name__,
-            "code_raw": inspect.getsource(transformation.func),
-            "code_encoded": encode_func(transformation.func, [], trans_kwargs),
-            "order": idx,
+            "name": name,
+            "code_raw": code_raw,
+            "code_encoded": code_encoded,
             "dataset": dataset_pk,
         }
         res = asyncio.run(
