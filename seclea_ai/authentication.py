@@ -38,7 +38,7 @@ class AuthenticationService:
         self._key_token_access = "access_token"  # nosec - bandit thinks this is a pw or key..
         self._key_token_refresh = "refresh_token"  # nosec - bandit thinks this is a pw or key..
 
-    def authenticate(self, transmission: Transmission = None, username=None, password=None):
+    def authenticate(self, transmission: Transmission, username=None, password=None):
         """
         Attempts to authenticate with server and then passes credential to specified transmission
 

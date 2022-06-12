@@ -9,10 +9,10 @@ from seclea_ai.internal.processors import Processor
 
 
 class ProcessLoopThread(Thread):
-    def __init__(self, input_q: Queue, result_q: Queue, stop: Event, debounce_interval_ms: float):
+    def __init__(self, input_q: Queue, stop: Event, debounce_interval_ms: float):
         super(ProcessLoopThread, self).__init__()
         self._input_q = input_q
-        self._result_q = result_q
+        # self._result_q = result_q
         self._stop = stop
         self._debounce_interval_ms = debounce_interval_ms
 
@@ -91,7 +91,7 @@ class DirectorThread(ProcessLoopThread):
 class ProcessorThread(ProcessLoopThread):
 
     _input_q: Queue
-    _result_q: Queue
+    # _result_q: Queue
     _stop: Event
 
     def __init__(
@@ -100,13 +100,13 @@ class ProcessorThread(ProcessLoopThread):
         name,
         settings,
         input_q: Queue,
-        result_q: Queue,
+        # result_q: Queue,
         stop: Event,
         debounce_interval_ms: float,
         **kwargs,
     ):
         super(ProcessorThread, self).__init__(
-            input_q=input_q, result_q=result_q, stop=stop, debounce_interval_ms=debounce_interval_ms
+            input_q=input_q, stop=stop, debounce_interval_ms=debounce_interval_ms
         )
         self._processor_class = processor  # just a class here - instantiate and populate in _setup.
         self._settings = settings
@@ -117,7 +117,7 @@ class ProcessorThread(ProcessLoopThread):
         self._processor: Processor = self._processor_class(
             settings=self._settings,
             input_q=self._input_q,
-            result_q=self._result_q,
+            # result_q=self._result_q,
             kwargs=self._kwargs,
         )
 

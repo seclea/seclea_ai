@@ -1,12 +1,9 @@
 """
 Description for seclea_ai.py
 """
-import asyncio
 import copy
 import inspect
 import os
-import threading
-from queue import Queue
 from typing import Any, Dict, List, Union
 
 import numpy as np
@@ -16,7 +13,6 @@ from pandas import DataFrame, Series
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
 from seclea_ai.internal.api import Api, handle_response
-from seclea_ai.internal.backend import Backend
 from seclea_ai.internal.file_processor import FileProcessor
 from seclea_ai.lib.seclea_utils.core import RequestWrapper, decode_func, encode_func
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
@@ -59,45 +55,30 @@ class SecleaAI:
 
             >>> seclea = SecleaAI(project_name="Test Project", project_root=".")
         """
+        self._auth_service = AuthenticationService(auth_url, RequestWrapper(auth_url))
+        self._transmission = RequestWrapper(server_root_url=platform_url)
+        self._auth_service.authenticate(self._transmission, username=username, password=password)
+        self._project_name = project_name
+        self._organization = organization
+        self._project_id = self._init_project(project_name=project_name)
         self._settings = {
-            "project": project_name,
+            "project_name": project_name,
+            "project_id": self._project_id,
+            "organization": organization,
             "project_root": project_root,
             "platform_url": platform_url,
             "auth_url": auth_url,
             "cache_dir": os.path.join(project_root, ".seclea/cache"),
             "offline": False,
         }
-        self._backend = Backend(settings=self._settings)
-        self._backend.ensure_launched()
-        self._auth_service = AuthenticationService(auth_url, RequestWrapper(auth_url))
-        self._transmission = RequestWrapper(server_root_url=platform_url)
-        # if username is not None and password is not None:
-        #     print("Unsecure login")
-        #     self.login(username=username, password=password)
-        # self._auth_service.authenticate(self._transmission)
-        self._auth_service.authenticate(self._transmission, username=username, password=password)
         self._api = Api(self._settings)
-        self._project = None
-        self._project_name = project_name
-        self._organization = organization
-        self._available_frameworks = {"sklearn", "xgboost", "lightgbm"}
         self._training_run = None
-        self._init_project(project_name=project_name)
-        self._storage_q = Queue()
-        self._sender_q = Queue()
         self._file_processor = FileProcessor(
-            project_name=self._project_name,
-            organization=self._organization,
+            settings=self._settings,
             transmission=self._transmission,
-            api=self._api,
             auth_service=self._auth_service,
-            storage_q=self._storage_q,
-            sender_q=self._sender_q,
         )
-        self._writer_thread = threading.Thread(target=self._file_processor.writer(self._storage_q))
-        self._writer_thread.start()
-        self._sending_thread = threading.Thread(target=self._file_processor.sender())
-        self._sending_thread.start()
+
         print("success")
 
     def login(self, username=None, password=None) -> None:
@@ -128,7 +109,7 @@ class SecleaAI:
 
     def end(self):
         # TODO terminate the threads gracefully - empty queues etc. then join threads.
-        pass
+        self._file_processor.stop()
 
     def upload_dataset_split(
         self,
@@ -219,7 +200,7 @@ class SecleaAI:
 
         """
         # processing the final dataset - make sure it's a DataFrame
-        if self._project is None:
+        if self._project_id is None:
             raise Exception("You need to create a project before uploading a dataset")
 
         if isinstance(dataset, List):
@@ -228,7 +209,7 @@ class SecleaAI:
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
 
         # TODO replace with dataset_hash fn
-        dataset_hash = hash(pd.util.hash_pandas_object(dataset).sum() + self._project)
+        dataset_hash = hash(pd.util.hash_pandas_object(dataset).sum() + self._project_id)
 
         if transformations is not None:
 
@@ -237,11 +218,11 @@ class SecleaAI:
             #####
             # Validate parent exists and get metadata - can factor out
             #####
-            parent_dset_pk = hash(pd.util.hash_pandas_object(parent).sum() + self._project)
+            parent_dset_pk = hash(pd.util.hash_pandas_object(parent).sum() + self._project_id)
             # check parent exists - throw an error if not.
             res = self._transmission.get(
                 url_path=f"/collection/datasets/{parent_dset_pk}",
-                query_params={"project": self._project, "organization": self._organization},
+                query_params={"project": self._project_id, "organization": self._organization},
             )
             if not res.status_code == 200:
                 raise AssertionError(
@@ -251,7 +232,7 @@ class SecleaAI:
             parent_metadata = res.json()["metadata"]
             #####
 
-            dataset_queue, transformations_queue = self._generate_intermediate_datasets(
+            upload_queue = self._generate_intermediate_datasets(
                 transformations=transformations,
                 dataset_name=dataset_name,
                 dataset_hash=dataset_hash,
@@ -261,12 +242,12 @@ class SecleaAI:
             )
 
             # upload all the datasets and transformations.
-            for up_kwargs in dataset_queue:
-                up_kwargs["project"] = self._project
+            for up_kwargs in upload_queue:
+                up_kwargs["project"] = self._project_id
                 # add to storage and sending queues
                 if up_kwargs["entity"] == "dataset":
-                    self._storage_q.put(up_kwargs)
-                self._sender_q.put(up_kwargs)
+                    self._file_processor.store_entity(up_kwargs)
+                self._file_processor.send_entity(up_kwargs)
             return
 
         # this only happens if this has no transformations ie. it is a Raw Dataset.
@@ -307,6 +288,7 @@ class SecleaAI:
         ]
 
         # create local db record.
+        # TODO make lack of parent more obvious??
         dataset_record_id = self._file_processor._dbms.create_record(
             entity="dataset", status="in_memory"
         )
@@ -318,13 +300,11 @@ class SecleaAI:
             "dataset": dataset,
             "dataset_name": dataset_name,
             "metadata": metadata,
-            "parent_hash": None,
-            "transformation": None,
-            "project": self._project,
+            "project": self._project_id,
         }
         # add to storage and sending queues
-        self._storage_q.put(dataset_upload_kwargs)
-        self._sender_q.put(dataset_upload_kwargs)
+        self._file_processor.store_entity(dataset_upload_kwargs)
+        self._file_processor.send_entity(dataset_upload_kwargs)
 
     def _generate_intermediate_datasets(
         self, transformations, dataset_name, dataset_hash, user_metadata, parent, parent_metadata
@@ -399,7 +379,7 @@ class SecleaAI:
             # handle the final dataset - check generated = passed in.
             if idx == last:
                 if (
-                    hash(pd.util.hash_pandas_object(dset).sum() + self._project) != dataset_hash
+                    hash(pd.util.hash_pandas_object(dset).sum() + self._project_id) != dataset_hash
                 ):  # TODO create or find better exception
                     raise AssertionError(
                         """Generated Dataset does not match the Dataset passed in.
@@ -429,6 +409,9 @@ class SecleaAI:
                 "record_id": dataset_record_id,
                 "dataset": copy.deepcopy(dset),  # TODO change keys
                 "dataset_name": copy.deepcopy(dset_name),
+                "dataset_hash": hash(
+                    pd.util.hash_pandas_object(dset).sum() + self._project_id
+                ),  # TODO extract
                 "metadata": dset_metadata,
             }
             # update the parent dataset - these chained transformations only make sense if they are pushing the
@@ -531,7 +514,7 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_pks = [
-            str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project))
+            str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project_id))
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
         ]
@@ -546,7 +529,7 @@ class SecleaAI:
         training_runs_res = self._transmission.get(
             "/collection/training-runs",
             query_params={
-                "project": self._project,
+                "project": self._project_id,
                 "model": model_type_pk,
                 "organization": self._organization,
             },
@@ -573,17 +556,15 @@ class SecleaAI:
 
         # sent training run for upload.
         training_run_details = {
-            {
-                "entity": "training_run",
-                "record_id": training_run_record_id,
-                "project": self._project,
-                "training_run_name": training_run_name,
-                "model_pk": model_type_pk,
-                "dataset_pks": dataset_pks,
-                "params": params,
-            }
+            "entity": "training_run",
+            "record_id": training_run_record_id,
+            "project": self._project_id,
+            "training_run_name": training_run_name,
+            "model_pk": model_type_pk,
+            "dataset_pks": dataset_pks,
+            "params": params,
         }
-        self._sender_q.put(training_run_details)
+        self._file_processor.send_entity(training_run_details)
 
         # create local db record
         model_state_record_id = self._file_processor._dbms.create_record(
@@ -600,8 +581,8 @@ class SecleaAI:
             "final": True,
             "model_manager": framework,  # TODO move framework to sender.
         }
-        self._storage_q.put(model_state_details)
-        self._sender_q.put(model_state_details)
+        self._file_processor.store_entity(model_state_details)
+        self._file_processor.send_entity(model_state_details)
 
     def _set_model(self, model_name: str, framework: ModelManagers) -> int:
         """
@@ -620,7 +601,7 @@ class SecleaAI:
                 url_path="/collection/models",
                 query_params={
                     "organization": self._organization,
-                    "project": self._project,
+                    "project": self._project_id,
                     "name": model_name,
                     "framework": framework.name,
                 },
@@ -633,14 +614,14 @@ class SecleaAI:
         # if we got here that means that the model has not been uploaded yet. So we upload it.
         res = self._upload_model(model_name=model_name, framework=framework)
         try:
-            model_pk = res["id"]
+            model_pk = res.json()["id"]
         except KeyError:
             resp = handle_response(
                 self._transmission.get(
                     url_path="/collection/models",
                     query_params={
                         "organization": self._organization,
-                        "project": self._project,
+                        "project": self._project_id,
                         "name": model_name,
                         "framework": framework.name,
                     },
@@ -661,19 +642,15 @@ class SecleaAI:
         # model_details = {}
         # self._sender_q.put(model_details)
 
-        res = asyncio.run(
-            self._api.send_json(
-                url_path="/collection/models",
-                obj={
-                    "organization": self._organization,
-                    "project": self._project,
-                    "name": model_name,
-                    "framework": framework.name,
-                },
-                query_params={"organization": self._organization, "project": self._project},
-                transmission=self._transmission,
-                json_response=True,
-            )
+        res = self._transmission.send_json(
+            url_path="/collection/models",
+            obj={
+                "organization": self._organization,
+                "project": self._project_id,
+                "name": model_name,
+                "framework": framework.name,
+            },
+            query_params={"organization": self._organization, "project": self._project_id},
         )
         return res
 
@@ -692,7 +669,7 @@ class SecleaAI:
                 "Output doesn't match the requirements. Please review the documentation."
             )
 
-    def _init_project(self, project_name) -> None:
+    def _init_project(self, project_name) -> int:
         """
         Initialises the project for the object. If the project does not exist on the server it will be created.
 
@@ -700,18 +677,19 @@ class SecleaAI:
 
         :return: None
         """
-        self._project = self._get_project(project_name)
-        if self._project is None:
+        project = self._get_project(project_name)
+        if project is None:
             proj_res = self._create_project(project_name=project_name)
             try:
-                self._project = proj_res["id"]
+                project = proj_res.json()["id"]
             except KeyError:
                 # print(f"There was an issue: {proj_res.text}")
                 resp = self._transmission.get(
                     url_path="/collection/projects", query_params={"name": project_name}
                 )
                 resp = handle_response(resp, "There was an issue getting the project")
-                self._project = resp.json()[0]["id"]
+                project = resp.json()[0]["id"]
+        return project
 
     def _get_project(self, project_name: str) -> Any:
         """
@@ -743,18 +721,14 @@ class SecleaAI:
 
         :raises ValueError if the response status is not 201.
         """
-        res = asyncio.run(
-            self._api.send_json(
-                url_path="/collection/projects",
-                obj={
-                    "name": project_name,
-                    "description": description,
-                    "organization": self._organization,
-                },
-                query_params={"organization": self._organization},
-                transmission=self._transmission,
-                json_response=True,
-            )
+        res = self._transmission.send_json(
+            url_path="/collection/projects",
+            obj={
+                "name": project_name,
+                "description": description,
+                "organization": self._organization,
+            },
+            query_params={"organization": self._organization},
         )
         return res
 

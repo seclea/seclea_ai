@@ -1,13 +1,18 @@
 import abc
 import os
+import queue
+import time
 import uuid
 from abc import ABC
 from multiprocessing import Queue
 from typing import Dict, List
 
-import pandas as pd
+from pandas import DataFrame
 
 from seclea_ai.internal.api import Api
+from seclea_ai.internal.local_db import MyDatabase
+from seclea_ai.lib.seclea_utils.core import CompressionFactory, save_object
+from seclea_ai.lib.seclea_utils.model_management import ModelManagers, serialize
 
 
 def _assemble_key(record) -> str:
@@ -17,12 +22,12 @@ def _assemble_key(record) -> str:
 class Processor(ABC):
 
     _input_q: Queue
-    _result_q: Queue
+    # _result_q: Queue
 
-    def __init__(self, settings, input_q: Queue, result_q: Queue, **kwargs):
+    def __init__(self, settings, input_q: Queue, **kwargs):
         self._settings = settings
         self._input_q = input_q
-        self._result_q = result_q
+        # self._result_q = result_q
 
     def __len__(self):
         return self._input_q.qsize()
@@ -39,17 +44,34 @@ class Processor(ABC):
 class Writer(Processor):
 
     _input_q: Queue
-    _result_q: Queue
+    # _result_q: Queue
 
-    def __init__(self, settings, input_q: Queue, result_q: Queue):
-        super(Writer, self).__init__(settings=settings, input_q=input_q, result_q=result_q)
+    def __init__(self, settings, input_q: Queue):
+        super().__init__(settings=settings, input_q=input_q)
         self._settings = settings
         self._input_q = input_q
-        self._result_q = result_q
+        # self._result_q = result_q
+        self._dbms = (
+            MyDatabase()
+        )  # TODO need a way to specify where db located - probably in .seclea
+
+    def terminate(self) -> None:
+        # need to finish processing all items in the queue otherwise we have data loss.
+        while not self._input_q.empty():
+            record = self._input_q.get(timeout=0.01)
+            self.handle(record)
 
     def handle(self, record) -> None:
-        # TODO check record type (if we have different ones)
-        self._write(record)
+        # TODO check record type (if we have different ones) - maybe come back to this
+        # self._write(record)
+        funcs = {
+            "dataset": self._save_dataset,
+            "model_state": self._save_model_state,
+        }
+        entity = record["entity"]
+        target_function = funcs[entity]
+        del record["entity"]
+        target_function(**record)
 
     def _write(self, record) -> None:
         """
@@ -67,105 +89,281 @@ class Writer(Processor):
         """
         # key = _assemble_key(record)
 
-    def terminate(self) -> None:
-        pass
+    def _save_dataset(
+        self,
+        record_id: int,
+        dataset: DataFrame,
+        **kwargs,  # TODO improve this interface to not need kwargs etc.
+    ):
+        """
+        Save dataset in local temp directory and call functions to upload dataset
+        """
+        try:
+            # upload a dataset - only works for a single transformation.
+            if not os.path.exists(self._settings["cache_dir"]):
+                os.makedirs(self._settings["cache_dir"])
+
+            dataset_path = os.path.join(self._settings["cache_dir"], f"{uuid.uuid4()}_tmp.csv")
+            dataset.to_csv(dataset_path, index=True)
+            comp_path = os.path.join(self._settings["cache_dir"], f"{uuid.uuid4()}_compressed")
+            rb = open(dataset_path, "rb")
+            comp_path = save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
+            # tidy up intermediate file
+            os.remove(dataset_path)
+
+            # update the record TODO refactor out.
+            dataset_record = self._dbms.get_record(record_id=record_id)
+            dataset_record.path = comp_path
+            dataset_record.status = "stored"
+            self._dbms.update_record(dataset_record)
+
+        except Exception as e:
+            # update the record TODO refactor out.
+            dataset_record = self._dbms.get_record(record_id=record_id)
+            dataset_record.status = "failed_to_store"
+            self._dbms.update_record(record=dataset_record)
+            print(e)
+
+    def _save_model_state(
+        self,
+        record_id,
+        model,
+        training_run_pk: int,
+        sequence_num: int,
+        model_manager: ModelManagers,
+        **kwargs,
+    ):
+        """
+        Save model state in local temp directory
+        """
+        try:
+            os.makedirs(
+                os.path.join(
+                    self._settings["cache_dir"],
+                    f"{self._settings['project_name']}/{str(training_run_pk)}",
+                ),
+                exist_ok=True,
+            )
+            save_path = os.path.join(
+                self._settings["cache_dir"],
+                f"{self._settings['project_name']}/{training_run_pk}/model-{sequence_num}",
+            )
+
+            model_data = serialize(model, model_manager)
+            save_path = save_object(model_data, save_path, compression=CompressionFactory.ZSTD)
+
+            # update the record TODO refactor out.
+            record = self._dbms.get_record(record_id=record_id)
+            record.path = save_path
+            record.status = "stored"
+            self._dbms.update_record(record=record)
+
+        except Exception as e:
+            # update the record TODO refactor out.
+            record = self._dbms.get_record(record_id=record_id)
+            record.status = "failed_to_store"
+            self._dbms.update_record(record=record)
+            print(e)
 
 
 class Sender(Processor):
     _input_q: Queue
-    _result_q: Queue
+    # _result_q: Queue
     _publish_q: Queue
 
-    def __init__(self, settings, input_q: Queue, result_q: Queue, api: Api):
-        super(Sender, self).__init__(settings=settings, input_q=input_q, result_q=result_q)
+    def __init__(self, settings, input_q: Queue):
+        super().__init__(settings=settings, input_q=input_q)
         self._settings = settings
         self._input_q = input_q
-        self._result_q = result_q
-        self._api = api
+        # self._result_q = result_q
+        self._api = Api(settings=settings)
+        self._dbms = MyDatabase()
 
     def handle(self, record) -> None:
-        # TODO check record type (if we have different ones)
-        self._send_dataset(record)
-
-    def _send_training_run(self, record) -> None:
-        # send the record and put the response in the result_q
-        """
-        Assume record contains everything about the training_run
-        {
-            name: str,
-            model_class: str,
-            dataset: int,
-            params: dict,
-            model_states: list[filenames?],
+        funcs = {
+            "dataset": self._send_dataset,
+            "model_state": self._send_model_state,
+            "dataset_transformation": self._send_transformation,
+            "training_run": self._send_training_run,
         }
-        :param record:
-        :return:
-        """
-        pass
-
-    def _send_dataset(self, record) -> None:
-        # send the record and put the response in the result_q
-        """
-        Assume record contains everything about the dataset
-        {
-            name: str,
-            metadata: dict,
-            parent: Optional[int],
-            transformations: List[Callable],
-            files: List[Pathlike]
-        }
-        For now just send directly in here, may add async processing using threads later depending on requirements.
-        :param record:
-        :return:
-        """
-        self._api.reauthenticate()
-        temp_dataset_path = self._aggregate_dataset(datasets=record["files"])
-        # TODO need to handle large metadata - will need to send empty with file and use update request to fill
-        # it in in a second request.
-        query_params = self.get_dataset_query_params(record)
-        response = self._api.transport.send_file(
-            url_path=self._api.dataset_endpoint,
-            file_path=temp_dataset_path,
-            query_params=query_params,
-        )
-        # clean up temp file
-        os.remove(temp_dataset_path)
-        self._result_q.put(response)
+        entity = record["entity"]
+        target_function = funcs[entity]
+        del record["entity"]
+        target_function(**record)
 
     def terminate(self) -> None:
-        # nothing to do here for now
-        pass
+        # clear the queue otherwise will never join
+        try:
+            while True:
+                self._input_q.get_nowait()
+        except queue.Empty:
+            print("exited")
+            return
 
-    def _aggregate_dataset(self, datasets: List[str]) -> str:
+    def _send_training_run(
+        self,
+        record_id,
+        project,
+        training_run_name: str,
+        model_pk: int,
+        dataset_pks: List[str],
+        params: Dict,
+        **kwargs,
+    ):
         """
-        Aggregates a list of dataset paths into a single file for upload.
-        NOTE the files must be split by row and have the same format otherwise this will fail or cause unexpected format
-        issues later.
-        :param datasets:
+        :param training_run_name: eg. "Training Run 0"
+        :param params: Dict The hyper parameters of the model - can auto extract?
         :return:
         """
-        loaded_datasets = [pd.read_csv(dset) for dset in datasets]
-        aggregated = pd.concat(loaded_datasets, axis=0)
-        if not os.path.exists(self._settings["cache_dir"]):
-            os.makedirs(self._settings["cache_dir"])
-        # save aggregated and return path as string
-        aggregated.to_csv(
-            os.path.join(self._settings["cache_dir"], f"temp_dataset_{uuid.uuid4()}.csv"),
-            index=False,
+        if project is None:
+            raise Exception("You need to create a project before uploading a training run")
+        response = self._api.upload_training_run(
+            organization_pk=self._settings["organization"],
+            project_pk=self._settings["project_id"],
+            dataset_pks=dataset_pks,
+            model_pk=model_pk,
+            training_run_name=training_run_name,
+            params=params,
         )
-        return os.path.join(self._settings["cache_dir"], "temp_dataset.csv")
 
-    def get_dataset_query_params(self, record) -> Dict:
+        # TODO improve/factor out validation and updating status - return error codes or something
+        if response.status_code == 201:
+            # update the record TODO refactor out.
+            tr_record = self._dbms.get_record(record_id=record_id)
+            tr_record.status = "uploaded"
+            tr_record.remote_id = response.json()["id"]
+            self._dbms.update_record(record=tr_record)
+        else:
+            raise ValueError(
+                f"Response Status code {response.status}, expected: 201. \n f'There was some issue uploading the training run: {response.text()}' - {response.reason} - {response.text}"
+            )
+
+    def _send_model_state(self, record_id, sequence_num: int, final: bool, **kwargs):
         """
-        Get query_params for the dataset from the information in the record.
-        TODO remove this by having better defined classes in the package - may coincide with using protobuf.
-        :param record:
-        :return: Dict The query params dict
+        Upload model state to server
         """
-        return {
-            "project": self._settings["project"],
-            "name": record["name"],
-            "metadata": record["metadata"],
-            "parent": record["parent"],
-            "transformations": record["transformations"],
-        }
+        # prep
+        record = self._dbms.get_record(record_id)
+        try:
+            parent_record_id = record.dependencies[0]
+            parent_record = self._dbms.get_record(parent_record_id)
+            parent_id = parent_record.remote_id
+        except IndexError:
+            raise ValueError(
+                "Training run must be uploaded before model state something went wrong"
+            )
+
+        # wait for storage to complete if it hasn't
+        while record.status != "stored":
+            time.sleep(0.5)
+            record = self._dbms.get_record(
+                record_id=record_id
+            )  # TODO check if this is needed to update
+
+        response = self._api.upload_model_state(
+            model_state_file_path=record.path,
+            organization_pk=self._settings["organization"],
+            project_pk=self._settings["project_id"],
+            training_run_pk=str(parent_id),
+            sequence_num=sequence_num,
+            final_state=final,
+            delete=False,
+        )
+
+        # update the db
+        if response.status == 201:
+            # update record status in sqlite
+            record.remote_id = response.json()["id"]  # TODO improve parsing.
+            record.status = "uploaded"
+            self._dbms.update_record(record=record)
+            os.remove(record.path)
+        else:
+            raise ValueError(
+                f"Response Status code {response.status}, expected: 201. \n f'There was some issue uploading the dataset: {response.text()}' - {response.reason} - {response.text}"
+            )
+
+    def _send_dataset(
+        self,
+        record_id: int,
+        metadata: Dict,
+        dataset_name: str,
+        dataset_hash,
+        **kwargs,
+    ):
+
+        """
+        Upload dataset file to server and upload transformation once dataset uploaded successfully
+        """
+        dataset_record = self._dbms.get_record(record_id)
+        try:
+            parent_record_id = dataset_record.dependencies[0]
+            parent_record = self._dbms.get_record(record_id=parent_record_id)
+            parent_id = parent_record.remote_id
+        except IndexError:
+            parent_id = None
+
+        # wait for storage to complete if it hasn't
+        while dataset_record.status != "stored":
+            time.sleep(0.5)
+            dataset_record = self._dbms.get_record(
+                record_id=record_id
+            )  # TODO check if this is needed to update
+
+        response = self._api.upload_dataset(
+            dataset_file_path=dataset_record.comp_path,
+            project_pk=self._settings["project_id"],
+            organization_pk=self._settings["organization"],
+            name=dataset_name,
+            metadata={},
+            dataset_hash=str(dataset_hash),
+            parent_dataset_hash=parent_id,
+            delete=False,
+        )
+
+        # update the db
+        if response.status == 201:
+            # update record status in sqlite
+            dataset_record.remote_id = response.json()["id"]  # TODO improve parsing.
+            dataset_record.status = "uploaded"
+            self._dbms.update_record(dataset_record)
+            os.remove(dataset_record.comp_path)
+            # update the metadata - TODO remove and move to new uploading inside request.
+            self._api.update_dataset_metadata(
+                dataset_hash=dataset_hash,
+                metadata=metadata,
+                project=self._settings["project_id"],
+                organization=self._settings["organization"],
+            )
+        else:
+            raise ValueError(
+                f"Response Status code {response.status}, expected: 201. \n f'There was some issue uploading the dataset: {response.text()}' - {response.reason} - {response.text}"
+            )
+
+    def _send_transformation(self, record_id, project, name, code_raw, code_encoded, **kwargs):
+        record = self._dbms.get_record(record_id=record_id)
+        try:
+            dataset_record_id = record.dependencies[0]
+            dataset_record = self._dbms.get_record(record_id=dataset_record_id)
+            dataset_id = dataset_record.remote_id
+        except IndexError:
+            dataset_id = None
+
+        response = self._api.upload_transformation(
+            project=project,
+            organization=self._settings["organization"],
+            code_raw=code_raw,
+            code_encoded=code_encoded,
+            name=name,
+            dataset_pk=dataset_id,
+        )
+        # TODO improve/factor out validation and updating status - return error codes or something
+        if response.status_code == 201:
+            # update the record TODO refactor out.
+            record = self._dbms.get_record(record_id=record_id)
+            record.status = "uploaded"
+            record.remote_id = response.json()["id"]
+            self._dbms.update_record(record=record)
+        else:
+            raise ValueError(
+                f"Response Status code {response.status}, expected: 201. \n f'There was some issue uploading the training run: {response.text()}' - {response.reason} - {response.text}"
+            )
