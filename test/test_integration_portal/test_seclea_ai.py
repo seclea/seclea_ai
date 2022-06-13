@@ -325,8 +325,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.controller_1.upload_training_run_split(
             model1, X_train=self.X_sm, y_train=self.y_sm, X_test=self.X_test, y_test=self.y_test
         )
-        self.controller_2.end()
-        self.controller_1.end()
+        self.controller_2.complete()
+        self.controller_1.complete()
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted

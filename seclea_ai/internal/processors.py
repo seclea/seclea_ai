@@ -10,7 +10,7 @@ from typing import Dict, List
 from pandas import DataFrame
 
 from seclea_ai.internal.api import Api
-from seclea_ai.internal.local_db import MyDatabase
+from seclea_ai.internal.local_db import MyDatabase, RecordStatus
 from seclea_ai.lib.seclea_utils.core import CompressionFactory, save_object
 from seclea_ai.lib.seclea_utils.model_management import ModelManagers, serialize
 
@@ -96,7 +96,7 @@ class Writer(Processor):
         **kwargs,  # TODO improve this interface to not need kwargs etc.
     ):
         """
-        Save dataset in local temp directory and call functions to upload dataset
+        Save dataset in local temp directory
         """
         try:
             # upload a dataset - only works for a single transformation.
@@ -114,13 +114,13 @@ class Writer(Processor):
             # update the record TODO refactor out.
             dataset_record = self._dbms.get_record(record_id=record_id)
             dataset_record.path = comp_path
-            dataset_record.status = "stored"
+            dataset_record.status = RecordStatus.STORED
             self._dbms.update_record(dataset_record)
 
         except Exception as e:
             # update the record TODO refactor out.
             dataset_record = self._dbms.get_record(record_id=record_id)
-            dataset_record.status = "failed_to_store"
+            dataset_record.status = RecordStatus.STORE_FAIL
             self._dbms.update_record(record=dataset_record)
             print(e)
 
@@ -155,13 +155,13 @@ class Writer(Processor):
             # update the record TODO refactor out.
             record = self._dbms.get_record(record_id=record_id)
             record.path = save_path
-            record.status = "stored"
+            record.status = RecordStatus.STORED
             self._dbms.update_record(record=record)
 
         except Exception as e:
             # update the record TODO refactor out.
             record = self._dbms.get_record(record_id=record_id)
-            record.status = "failed_to_store"
+            record.status = RecordStatus.STORE_FAIL
             self._dbms.update_record(record=record)
             print(e)
 
@@ -230,10 +230,13 @@ class Sender(Processor):
         if response.status_code == 201:
             # update the record TODO refactor out.
             tr_record = self._dbms.get_record(record_id=record_id)
-            tr_record.status = "uploaded"
+            tr_record.status = RecordStatus.SENT
             tr_record.remote_id = response.json()["id"]
             self._dbms.update_record(record=tr_record)
         else:
+            tr_record = self._dbms.get_record(record_id=record_id)
+            tr_record.status = RecordStatus.SEND_FAIL
+            self._dbms.update_record(record=tr_record)
             raise ValueError(
                 f"Response Status code {response.status}, expected: 201. \n f'There was some issue uploading the training run: {response.text()}' - {response.reason} - {response.text}"
             )
@@ -274,10 +277,12 @@ class Sender(Processor):
         if response.status == 201:
             # update record status in sqlite
             record.remote_id = response.json()["id"]  # TODO improve parsing.
-            record.status = "uploaded"
+            record.status = RecordStatus.SENT
             self._dbms.update_record(record=record)
             os.remove(record.path)
         else:
+            record.status = RecordStatus.SEND_FAIL
+            self._dbms.update_record(record=record)
             raise ValueError(
                 f"Response Status code {response.status}, expected: 201. \n f'There was some issue uploading the dataset: {response.text()}' - {response.reason} - {response.text}"
             )
@@ -303,7 +308,7 @@ class Sender(Processor):
             parent_id = None
 
         # wait for storage to complete if it hasn't
-        while dataset_record.status != "stored":
+        while dataset_record.status != RecordStatus.STORED:
             time.sleep(0.5)
             dataset_record = self._dbms.get_record(
                 record_id=record_id
@@ -324,7 +329,7 @@ class Sender(Processor):
         if response.status == 201:
             # update record status in sqlite
             dataset_record.remote_id = response.json()["id"]  # TODO improve parsing.
-            dataset_record.status = "uploaded"
+            dataset_record.status = RecordStatus.SENT
             self._dbms.update_record(dataset_record)
             os.remove(dataset_record.comp_path)
             # update the metadata - TODO remove and move to new uploading inside request.
@@ -335,6 +340,8 @@ class Sender(Processor):
                 organization=self._settings["organization"],
             )
         else:
+            dataset_record.status = RecordStatus.SEND_FAIL
+            self._dbms.update_record(record=dataset_record)
             raise ValueError(
                 f"Response Status code {response.status}, expected: 201. \n f'There was some issue uploading the dataset: {response.text()}' - {response.reason} - {response.text}"
             )
@@ -360,10 +367,12 @@ class Sender(Processor):
         if response.status_code == 201:
             # update the record TODO refactor out.
             record = self._dbms.get_record(record_id=record_id)
-            record.status = "uploaded"
+            record.status = RecordStatus.SENT
             record.remote_id = response.json()["id"]
             self._dbms.update_record(record=record)
         else:
+            record.status = RecordStatus.SEND_FAIL
+            self._dbms.update_record(record=record)
             raise ValueError(
                 f"Response Status code {response.status}, expected: 201. \n f'There was some issue uploading the training run: {response.text()}' - {response.reason} - {response.text}"
             )

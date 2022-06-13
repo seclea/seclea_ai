@@ -13,7 +13,7 @@ class ProcessLoopThread(Thread):
         super(ProcessLoopThread, self).__init__()
         self._input_q = input_q
         # self._result_q = result_q
-        self._stop = stop
+        self._stop_event = stop
         self._debounce_interval_ms = debounce_interval_ms
 
     def _setup(self) -> None:
@@ -31,7 +31,7 @@ class ProcessLoopThread(Thread):
     def _run(self):
         self._setup()
         start = time.time()
-        while not self._stop.is_set():
+        while not self._stop_event.is_set():
             if time.time() - start >= self._debounce_interval_ms / 1000.0:
                 self._debounce()
                 start = time.time()
@@ -60,7 +60,7 @@ class DirectorThread(ProcessLoopThread):
         writer_q,
     ):
         super(DirectorThread, self).__init__(
-            input_q=input_q, result_q=result_q, stop=stop, debounce_interval_ms=debounce_interval_ms
+            input_q=input_q, stop=stop, debounce_interval_ms=debounce_interval_ms
         )
         self._settings = settings
         self.name = "DirectorThread"

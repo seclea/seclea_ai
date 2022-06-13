@@ -1,7 +1,8 @@
 import datetime
 import json
 import traceback
-from typing import List
+from enum import Enum
+from typing import Dict, List
 
 from sqlalchemy import Column, DateTime, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -16,27 +17,47 @@ RECORD = "record"
 AUTHSERVICE = "auth_service"
 
 
+class RecordStatus(Enum):
+    IN_MEMORY = "in_memory"
+    STORED = "stored"
+    SENT = "sent"
+    STORE_FAIL = "store_fail"
+    SEND_FAIL = "send_fail"
+
+
 class Record(Base):
     __tablename__ = RECORD
 
     id = Column(Integer, primary_key=True, autoincrement=True)  # TODO improve.
     remote_id = Column(Integer)  # TODO this may change to string for uuids
     entity = Column(String)  # TODO remove or convert to ForeignKey - here for debugging for now.
+    key = Column(String)  # mainly for tracking datasets and training runs may need to remove
     _dependencies = Column(String)  # this will be a list of ids
     status = Column(String)  # TODO change to enum
     timestamp = Column(DateTime)
     # only used for datasets and modelstates.
     path = Column(String)
+    # only used for datasets - probably need to factor out a lot of this.
+    _dataset_metadata = Column(String)
 
     @property
-    def dependencies(self) -> List[int]:
+    def dependencies(self) -> List:
         return json.loads(self._dependencies)
 
     @dependencies.setter
-    def dependencies(self, value: List[int]):
+    def dependencies(self, value: List):
         self._dependencies = json.dumps(value)
 
+    @property
+    def dataset_metadata(self) -> Dict:
+        return json.loads(self._dataset_metadata)
+
+    @dataset_metadata.setter
+    def dataset_metadata(self, value: Dict):
+        self._dataset_metadata = json.dumps(value)
+
     dependencies = synonym("_dependencies", descriptor=dependencies)
+    dataset_metadata = synonym("_metadata", descriptor=dataset_metadata)
 
 
 class Authservice(Base):
@@ -68,12 +89,21 @@ class MyDatabase:
         else:
             print("DBType is not found in DB_ENGINE")
 
-    def create_record(self, entity: str, status: str, dependencies: List[int] = None) -> int:
+    def create_record(
+        self,
+        entity: str,
+        status: str,
+        key: str = None,
+        dependencies: List[int] = None,
+        dataset_metadata: Dict = None,
+    ) -> int:
         rec = Record(
             entity=entity,
             status=status,
+            key=key,
             timestamp=datetime.datetime.now(),
-            dependencies=json.dumps(dependencies) if dependencies is not None else None,
+            dependencies=dependencies,
+            dataset_metadata=dataset_metadata,
         )
         self.session.add(rec)
         self.session.commit()
@@ -90,6 +120,10 @@ class MyDatabase:
         except Exception:  # TODO make more specific
             self.session.rollback()
             raise Exception("DB failed to commit - see traceback")
+
+    def search_record(self, key):
+        # TODO check return value - should be None if not exist.
+        return self.session.query(Record).filter(Record.key == key).first()
 
     def set_auth_key(self, key, value):
         """

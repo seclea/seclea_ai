@@ -107,9 +107,13 @@ class SecleaAI:
         if not success:
             raise AuthenticationError("Failed to login.")
 
-    def end(self):
+    def complete(self):
         # TODO terminate the threads gracefully - empty queues etc. then join threads.
-        self._file_processor.stop()
+        self._file_processor.complete()
+
+    def terminate(self):
+        # TODO terminate the threads gracefully - empty queues etc. then join threads.
+        self._file_processor.terminate()
 
     def upload_dataset_split(
         self,
@@ -216,20 +220,26 @@ class SecleaAI:
             parent = self._assemble_dataset(transformations[0].raw_data_kwargs)
 
             #####
-            # Validate parent exists and get metadata - can factor out
+            # Validate parent exists and get metadata - check how often on portal, maybe remove?
             #####
             parent_dset_pk = hash(pd.util.hash_pandas_object(parent).sum() + self._project_id)
-            # check parent exists - throw an error if not.
+            # check parent exists - check local db if not else error.
             res = self._transmission.get(
                 url_path=f"/collection/datasets/{parent_dset_pk}",
                 query_params={"project": self._project_id, "organization": self._organization},
             )
             if not res.status_code == 200:
-                raise AssertionError(
-                    "Parent Dataset does not exist on the Platform. Please check your arguments and "
-                    "that you have uploaded the parent dataset already"
-                )
-            parent_metadata = res.json()["metadata"]
+                # check local db
+                parent_record = self._file_processor._dbms.search_record(parent_dset_pk)
+                if parent_record is not None:
+                    parent_metadata = parent_record.dataset_metadata
+                else:
+                    raise AssertionError(
+                        "Parent Dataset does not exist on the Platform or locally. Please check your arguments and "
+                        "that you have uploaded the parent dataset already"
+                    )
+            else:
+                parent_metadata = res.json()["metadata"]
             #####
 
             upload_queue = self._generate_intermediate_datasets(
@@ -290,7 +300,7 @@ class SecleaAI:
         # create local db record.
         # TODO make lack of parent more obvious??
         dataset_record_id = self._file_processor._dbms.create_record(
-            entity="dataset", status="in_memory"
+            entity="dataset", status="in_memory", key=str(dataset_hash), dataset_metadata=metadata
         )
 
         # New arch
@@ -299,6 +309,7 @@ class SecleaAI:
             "record_id": dataset_record_id,
             "dataset": dataset,
             "dataset_name": dataset_name,
+            "dataset_hash": dataset_hash,
             "metadata": metadata,
             "project": self._project_id,
         }
@@ -312,6 +323,9 @@ class SecleaAI:
         parent_dataset_record_id = self._file_processor._dbms.create_record(
             entity="dataset", status="in_memory"
         )
+
+        print("type: --", type(parent_metadata))
+        print("PARENT_METADATA: --", parent_metadata)
 
         # setup for generating datasets.
         last = len(transformations) - 1
@@ -398,9 +412,14 @@ class SecleaAI:
                         Please remove it and try again."""
                     )
 
+            dset_hash = hash(pd.util.hash_pandas_object(dset).sum() + self._project_id)
             # create local db record.
             dataset_record_id = self._file_processor._dbms.create_record(
-                entity="dataset", status="in_memory", dependencies=[parent_dataset_record_id]
+                entity="dataset",
+                status="in_memory",
+                dependencies=[parent_dataset_record_id],
+                key=str(dset_hash),
+                dataset_metadata=dset_metadata,
             )
 
             # add data to queue to upload later after final dataset checked
@@ -409,9 +428,7 @@ class SecleaAI:
                 "record_id": dataset_record_id,
                 "dataset": copy.deepcopy(dset),  # TODO change keys
                 "dataset_name": copy.deepcopy(dset_name),
-                "dataset_hash": hash(
-                    pd.util.hash_pandas_object(dset).sum() + self._project_id
-                ),  # TODO extract
+                "dataset_hash": dset_hash,
                 "metadata": dset_metadata,
             }
             # update the parent dataset - these chained transformations only make sense if they are pushing the
