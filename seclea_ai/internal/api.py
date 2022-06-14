@@ -7,7 +7,8 @@ from typing import Dict, List
 import requests
 from requests import Response
 
-from seclea_ai.lib.seclea_utils.core.transmission import RequestWrapper, Transmission
+from seclea_ai.authentication import AuthenticationService
+from seclea_ai.lib.seclea_utils.core.transmission import RequestWrapper
 
 
 def handle_response(response: Response, msg: str = ""):
@@ -37,9 +38,14 @@ class Api:
         # setup some defaults
         self._settings = settings
         self.transport = requests.Session()
-        self._transmission = Transmission(RequestWrapper(settings["platform_url"]))  # TODO replace
-        # self.auth = AuthenticationService(url=settings["auth_url"], session=self.transport)
-        # self.auth.authenticate()
+        self._transmission = RequestWrapper(
+            server_root_url=settings["platform_url"]
+        )  # TODO replace
+        self.auth = AuthenticationService(
+            url=settings["auth_url"],
+            transmission=RequestWrapper(server_root_url=settings["auth_url"]),
+        )
+        self.auth.authenticate(self._transmission)
         self.project_endpoint = "/collection/projects"
         self.dataset_endpoint = "/collection/datasets"
         self.model_endpoint = "/collection/models"
@@ -56,7 +62,7 @@ class Api:
         dataset_hash: str,
         parent_dataset_hash: str = None,
         delete=False,
-    ):
+    ) -> Response:
 
         dataset_queryparams = {
             "project": str(project_pk),

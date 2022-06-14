@@ -113,6 +113,9 @@ class MyDatabase:
     def get_record(self, record_id) -> Record:
         return self.session.get(Record, record_id)
 
+    def refresh_record(self, record: Record) -> None:
+        self.session.expire(record)
+
     def update_record(self, record: Record):
         try:
             self.session.add(record)
@@ -148,4 +151,5 @@ class MyDatabase:
         get auth keys from auth_service table
         """
         auth_key = self.session.query(Authservice).filter(Authservice.key == key).first()
+        self.session.commit()  # flush session to ensure subsequent calls get from db?
         return auth_key.value if auth_key else False

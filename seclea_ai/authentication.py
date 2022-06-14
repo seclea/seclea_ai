@@ -46,10 +46,9 @@ class AuthenticationService:
 
         :return:
         """
-        if not self.refresh_token():
-            self._obtain_initial_tokens(username=username, password=password)
         if not self.verify_token():
-            raise AuthenticationError("Failed to verify token")
+            if not self.refresh_token():
+                self._obtain_initial_tokens(username=username, password=password)
         transmission.cookies = self._transmission.cookies
 
     def verify_token(self) -> bool:
@@ -64,7 +63,7 @@ class AuthenticationService:
             self._key_token_access: self._dbms.get_auth_key(self._key_token_access)
         }
 
-        print(f"Cookies: {self._transmission.cookies}")
+        print(f"Cookies: {self._transmission.cookies}")  # TODO remove or make debug only
 
         try:
             response = self._transmission.send_json(url_path=self._path_token_verify, obj={})

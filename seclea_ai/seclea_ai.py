@@ -320,12 +320,6 @@ class SecleaAI:
     def _generate_intermediate_datasets(
         self, transformations, dataset_name, dataset_hash, user_metadata, parent, parent_metadata
     ):
-        parent_dataset_record_id = self._file_processor._dbms.create_record(
-            entity="dataset", status="in_memory"
-        )
-
-        print("type: --", type(parent_metadata))
-        print("PARENT_METADATA: --", parent_metadata)
 
         # setup for generating datasets.
         last = len(transformations) - 1
@@ -413,6 +407,13 @@ class SecleaAI:
                     )
 
             dset_hash = hash(pd.util.hash_pandas_object(dset).sum() + self._project_id)
+
+            # find parent dataset in local db - TODO improve
+            parent_record = self._file_processor._dbms.search_record(
+                key=str(hash(pd.util.hash_pandas_object(parent_dset).sum() + self._project_id))
+            )
+            parent_dataset_record_id = parent_record.id
+
             # create local db record.
             dataset_record_id = self._file_processor._dbms.create_record(
                 entity="dataset",
@@ -585,7 +586,7 @@ class SecleaAI:
 
         # create local db record
         model_state_record_id = self._file_processor._dbms.create_record(
-            entity="training_run", status="in_memory", dependencies=[training_run_record_id]
+            entity="model_state", status="in_memory", dependencies=[training_run_record_id]
         )
 
         # send model state for save and upload

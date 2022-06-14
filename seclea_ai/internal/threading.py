@@ -28,7 +28,7 @@ class ProcessLoopThread(Thread):
     def _debounce(self) -> None:
         raise NotImplementedError
 
-    def _run(self):
+    def run(self):
         self._setup()
         start = time.time()
         while not self._stop_event.is_set():
@@ -118,7 +118,7 @@ class ProcessorThread(ProcessLoopThread):
             settings=self._settings,
             input_q=self._input_q,
             # result_q=self._result_q,
-            kwargs=self._kwargs,
+            **self._kwargs,
         )
 
     def _process(self, record) -> None:
