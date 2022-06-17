@@ -38,7 +38,7 @@ def f2(a=1, b=2):
 
 
 # for imported functions simply wrap
-f2 = transform_manager(f2)
+f2 = transform_manager(f2, project=5)
 
 c = f1(a=5)
 c = f2(a=c)
