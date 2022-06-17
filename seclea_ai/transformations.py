@@ -1,9 +1,9 @@
-from typing import Callable, Dict, List, Tuple
 import inspect
+from typing import Callable, Dict, List, Tuple
 
 
 class DatasetTransformation:
-    """ Represents a dataset transformation
+    """Represents a dataset transformation
     df' = f_transform(df, *args **kwargs)
 
      Example::
@@ -39,12 +39,13 @@ class DatasetTransformation:
 
     def __init__(self, f: Callable):
         """
-            :param f: Callable a transformation function.
+        :param f: Callable a transformation function.
         """
         self._transform: Callable = f
         self._signature: inspect.Signature = inspect.signature(f)
         self._result: Dict = {}
         ...
+
     @property
     def transform(self) -> Callable:
         return self._transform

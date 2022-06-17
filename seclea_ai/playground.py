@@ -1,12 +1,13 @@
 from __future__ import annotations
-from seclea_ai.transformations import DatasetTransformation
-from typing import Callable, Dict, Any
+
 import functools
+from typing import Any, Callable, Dict
+
+from seclea_ai.transformations import DatasetTransformation
 
 
 def transform_manager(function=None, project: int = None, **kwargs) -> Any:
-    """
-    """
+    """ """
 
     def _decorate(f):
         dt = DatasetTransformation(f=f)
