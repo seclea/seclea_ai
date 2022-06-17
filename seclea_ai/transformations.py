@@ -59,6 +59,11 @@ class DatasetTransformation:
     def result(self) -> Dict:
         return self._result
 
+    @result.setter
+    def result(self, r):
+        self._result = r
+        return
+
     def __call__(self, **kwargs) -> Dict:
-        outputs = self.transform(**kwargs)
-        return outputs
+        self.result = self.transform(**kwargs)
+        return self.result
