@@ -6,13 +6,13 @@ jupyter==1.0.0
 lightgbm==3.2.1
 numpy>=1.19.0
 pandas>=1.1.5
+peewee==3.14.10
 pre-commit>=2.12.1
 requests>=2.22.0
 responses>=0.13.0
 scikit-learn>=0.24.2
 setuptools>=49.2.1
 Sphinx==4.5.0
-SQLAlchemy>=1.4.36
 urllib3>=1.26.5
 xgboost>=1.5.1
 zstandard>=0.15.1

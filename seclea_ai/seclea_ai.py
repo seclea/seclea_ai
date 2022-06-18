@@ -9,11 +9,13 @@ from typing import Any, Dict, List, Union
 import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
+from peewee import SqliteDatabase
 
 from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
 from seclea_ai.internal.api import Api, handle_response
 from seclea_ai.internal.file_processor import FileProcessor
+from seclea_ai.internal.local_db import Record
 from seclea_ai.lib.seclea_utils.core import RequestWrapper, decode_func, encode_func
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
 from seclea_ai.transformations import DatasetTransformation
@@ -55,6 +57,7 @@ class SecleaAI:
 
             >>> seclea = SecleaAI(project_name="Test Project", project_root=".")
         """
+        self._db = SqliteDatabase("seclea_ai.db", thread_safe=True)
         self._auth_service = AuthenticationService(auth_url, RequestWrapper(auth_url))
         self._transmission = RequestWrapper(server_root_url=platform_url)
         self._auth_service.authenticate(self._transmission, username=username, password=password)
@@ -73,11 +76,7 @@ class SecleaAI:
         }
         self._api = Api(self._settings)
         self._training_run = None
-        self._file_processor = FileProcessor(
-            settings=self._settings,
-            transmission=self._transmission,
-            auth_service=self._auth_service,
-        )
+        self._file_processor = FileProcessor(settings=self._settings)
 
         print("success")
 
@@ -108,11 +107,10 @@ class SecleaAI:
             raise AuthenticationError("Failed to login.")
 
     def complete(self):
-        # TODO terminate the threads gracefully - empty queues etc. then join threads.
+        # TODO change to make terminate happen after timeout if specified or something.
         self._file_processor.complete()
 
     def terminate(self):
-        # TODO terminate the threads gracefully - empty queues etc. then join threads.
         self._file_processor.terminate()
 
     def upload_dataset_split(
@@ -230,7 +228,9 @@ class SecleaAI:
             )
             if not res.status_code == 200:
                 # check local db
-                parent_record = self._file_processor._dbms.search_record(parent_dset_pk)
+                self._db.connect()
+                parent_record = Record.get_or_none(Record.key == parent_dset_pk)
+                self._db.close()
                 if parent_record is not None:
                     parent_metadata = parent_record.dataset_metadata
                 else:
@@ -299,14 +299,16 @@ class SecleaAI:
 
         # create local db record.
         # TODO make lack of parent more obvious??
-        dataset_record_id = self._file_processor._dbms.create_record(
+        self._db.connect()
+        dataset_record = Record.create(
             entity="dataset", status="in_memory", key=str(dataset_hash), dataset_metadata=metadata
         )
+        self._db.close()
 
         # New arch
         dataset_upload_kwargs = {
             "entity": "dataset",
-            "record_id": dataset_record_id,
+            "record_id": dataset_record.id,
             "dataset": dataset,
             "dataset_name": dataset_name,
             "dataset_hash": dataset_hash,
@@ -409,13 +411,15 @@ class SecleaAI:
             dset_hash = hash(pd.util.hash_pandas_object(dset).sum() + self._project_id)
 
             # find parent dataset in local db - TODO improve
-            parent_record = self._file_processor._dbms.search_record(
-                key=str(hash(pd.util.hash_pandas_object(parent_dset).sum() + self._project_id))
+            self._db.connect()
+            parent_record = Record.get_or_none(
+                Record.key
+                == str(hash(pd.util.hash_pandas_object(parent_dset).sum() + self._project_id))
             )
             parent_dataset_record_id = parent_record.id
 
             # create local db record.
-            dataset_record_id = self._file_processor._dbms.create_record(
+            dataset_record = Record.create(
                 entity="dataset",
                 status="in_memory",
                 dependencies=[parent_dataset_record_id],
@@ -426,7 +430,7 @@ class SecleaAI:
             # add data to queue to upload later after final dataset checked
             upload_kwargs = {
                 "entity": "dataset",
-                "record_id": dataset_record_id,
+                "record_id": dataset_record.id,
                 "dataset": copy.deepcopy(dset),  # TODO change keys
                 "dataset_name": copy.deepcopy(dset_name),
                 "dataset_hash": dset_hash,
@@ -439,21 +443,23 @@ class SecleaAI:
             upload_queue.append(upload_kwargs)
 
             # add dependency to dataset
-            trans_record_id = self._file_processor._dbms.create_record(
-                entity="transformation", status="in_memory", dependencies=[dataset_record_id]
+            trans_record = Record.create(
+                entity="transformation", status="in_memory", dependencies=[dataset_record.id]
             )
+            self._db.close()
+
             # TODO unpack transformation into kwargs for upload - need to create trans upload func first.
             trans_kwargs = {**trans.data_kwargs, **trans.kwargs}
             transformation_kwargs = {
                 "entity": "transformation",
-                "record_id": trans_record_id,
+                "record_id": trans_record.id,
                 "name": trans.func.__name__,
                 "code_raw": inspect.getsource(trans.func),
                 "code_encoded": encode_func(trans.func, [], trans_kwargs),
             }
             upload_queue.append(transformation_kwargs)
             # update parent to next dataset in queue
-            parent_dataset_record_id = dataset_record_id
+            parent_dataset_record_id = dataset_record.id
 
         return upload_queue
 
@@ -568,14 +574,13 @@ class SecleaAI:
         # search for datasets in local db? Maybe not needed..
 
         # create record
-        training_run_record_id = self._file_processor._dbms.create_record(
-            entity="training_run", status="in_memory"
-        )
+        self._db.connect()
+        training_run_record = Record.create(entity="training_run", status="in_memory")
 
         # sent training run for upload.
         training_run_details = {
             "entity": "training_run",
-            "record_id": training_run_record_id,
+            "record_id": training_run_record.id,
             "project": self._project_id,
             "training_run_name": training_run_name,
             "model_pk": model_type_pk,
@@ -585,15 +590,16 @@ class SecleaAI:
         self._file_processor.send_entity(training_run_details)
 
         # create local db record
-        model_state_record_id = self._file_processor._dbms.create_record(
-            entity="model_state", status="in_memory", dependencies=[training_run_record_id]
+        model_state_record = Record.create(
+            entity="model_state", status="in_memory", dependencies=[training_run_record.id]
         )
+        self._db.close()
 
         # send model state for save and upload
         # TODO make a function interface rather than the queue interface. Need a response to confirm it is okay.
         model_state_details = {
             "entity": "model_state",
-            "record_id": model_state_record_id,
+            "record_id": model_state_record.id,
             "model": model,
             "sequence_num": 0,
             "final": True,

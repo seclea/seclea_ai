@@ -5,7 +5,6 @@ import time
 from multiprocessing import Event, Queue
 from typing import Dict
 
-from .local_db import MyDatabase
 from .processors import Sender, Writer
 from .threading import ProcessorThread
 
@@ -15,14 +14,11 @@ class FileProcessor:
     Something to wrap backend requests. Maybe use to change the base url??
     """
 
-    def __init__(self, settings, transmission, auth_service):
+    def __init__(self, settings):
         # setup some defaults
         self._settings = settings
         # TODO probably remove
-        self._transmission = transmission
-        self._auth_service = auth_service
         ##
-        self._dbms = MyDatabase()
         self._store_q = Queue()
         self._send_q = Queue()
         self._stop_event = Event()
