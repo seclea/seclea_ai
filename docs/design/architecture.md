@@ -100,20 +100,76 @@ Need to decide whether to use cron or on restart for clean up of incomplete/fail
 ```mermaid
   classDiagram
 
+  SecleaAI *-- Internal
+  SecleaAI *-- Api
+  SecleaAI *-- DB
+  
+  AuthService *-- Transmission
+  AuthService *-- DB
+  
+  Internal *-- Writer
+  Internal *-- Sender
+  
+  Api *-- AuthService
+  Api *-- Transmission
+  
+  Writer *-- DB
+  
+  Sender *-- Api
+  Sender *-- DB
 
-  class Auth {
-    access: Token
-    refresh: Token
+  class SecleaAI {
+    dbms: DB
+    internal: Internal
+    api: Api
     
+    +upload_dataset()
+    +upload_training_run()
+  }
+  
+
+  class AuthService {
+    dbms: DB
+    transmission: Transmission
+    
+    +authenticate()
   }
   
   
   class Internal {
-    dbms: DB
+    store_q: Queue
+    send_q: Queue
+    store_thread: Writer(ProcessorThread)
+    send_thread: Sender(ProcessorThread)
     
-    + start()
+    +store_entity()
+    +send_entity()
     
   }
+  
+  class Api {
+    auth: AuthService
+    transmission: Transmission
+    
+  }
+  
+  class Transmission {
+  
+  }
+  
+  class Writer {
+    dbms: DB
+  }
+  
+  class Sender {
+    dbms: DB
+    api: Api
+  }
+  
+  class DB {
+  
+  }
+  
 ```
 
 
