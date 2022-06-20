@@ -10,7 +10,7 @@ from typing import Dict, List
 from pandas import DataFrame
 from peewee import SqliteDatabase
 
-from seclea_ai.internal.api import Api
+from seclea_ai.internal.api.api_interface import Api
 from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.lib.seclea_utils.core import CompressionFactory, save_object
 from seclea_ai.lib.seclea_utils.model_management import ModelManagers, serialize

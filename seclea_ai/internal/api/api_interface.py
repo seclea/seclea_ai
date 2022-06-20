@@ -11,7 +11,7 @@ from seclea_ai.authentication import AuthenticationService
 from seclea_ai.lib.seclea_utils.core.transmission import RequestWrapper
 
 
-# TODO return Exceptions for specific non success responses.
+# TODO return specific Exceptions for specific non success responses.
 def handle_response(response: Response, msg: str = ""):
     if response.status_code in [200, 201]:  # or requests.code.ok
         return response

@@ -12,9 +12,9 @@ import pandas as pd
 from pandas import DataFrame, Series
 from peewee import SqliteDatabase
 
-from seclea_ai.exceptions import AuthenticationError
-from seclea_ai.internal.api import Api
-from seclea_ai.internal.file_processor import FileProcessor
+from seclea_ai.internal.api.api_interface import Api
+from seclea_ai.internal.director import Director
+from seclea_ai.internal.exceptions import AuthenticationError
 from seclea_ai.internal.local_db import Record
 from seclea_ai.lib.seclea_utils.core import encode_func
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
@@ -77,7 +77,7 @@ class SecleaAI:
         self._project_id = self._init_project(project_name=project_name)
         self._settings["project_id"] = self._project_id
         self._training_run = None
-        self._file_processor = FileProcessor(settings=self._settings)
+        self._file_processor = Director(settings=self._settings)
         logger.debug("Successfully Initialised SecleaAI class")
 
     def login(self, username=None, password=None) -> None:

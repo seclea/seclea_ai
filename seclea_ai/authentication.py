@@ -4,7 +4,7 @@ from getpass import getpass
 from peewee import SqliteDatabase
 from requests import Response
 
-from seclea_ai.exceptions import AuthenticationError
+from seclea_ai.internal.exceptions import AuthenticationError
 from seclea_ai.lib.seclea_utils.core import Transmission
 
 from .internal.local_db import AuthService
