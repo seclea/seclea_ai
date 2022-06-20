@@ -1,12 +1,13 @@
 import traceback
 from getpass import getpass
 
+from peewee import SqliteDatabase
 from requests import Response
 
-from seclea_ai.exceptions import AuthenticationError
+from seclea_ai.internal.exceptions import AuthenticationError
 from seclea_ai.lib.seclea_utils.core import Transmission
 
-from .storage import Storage
+from .internal.local_db import AuthService
 
 try:
     import google.colab  # noqa F401
@@ -25,7 +26,7 @@ class AuthenticationService:
     def __init__(self, url: str, transmission: Transmission):
         self._url = url
         self._transmission = transmission
-        self._db = Storage(db_name="auth_service", root="." if IN_COLAB else None)
+        self._db = SqliteDatabase("seclea_ai.db", thread_safe=True)
         self._path_token_obtain = (
             "/api/token/obtain/"  # nosec - bandit thinks this is a pw or key..
         )
@@ -38,7 +39,7 @@ class AuthenticationService:
         self._key_token_access = "access_token"  # nosec - bandit thinks this is a pw or key..
         self._key_token_refresh = "refresh_token"  # nosec - bandit thinks this is a pw or key..
 
-    def authenticate(self, transmission: Transmission = None, username=None, password=None):
+    def authenticate(self, transmission: Transmission, username=None, password=None):
         """
         Attempts to authenticate with server and then passes credential to specified transmission
 
@@ -46,11 +47,12 @@ class AuthenticationService:
 
         :return:
         """
-        if not self.refresh_token():
-            self._obtain_initial_tokens(username=username, password=password)
+        self._db.connect()
         if not self.verify_token():
-            raise AuthenticationError("Failed to verify token")
-        # transmission.cookies = self._transmission.cookies
+            if not self.refresh_token():
+                self._obtain_initial_tokens(username=username, password=password)
+        self._db.close()
+        transmission.cookies = self._transmission.cookies
 
     def verify_token(self) -> bool:
         """
@@ -58,13 +60,13 @@ class AuthenticationService:
 
         :return: bool True if valid or False
         """
-        if not self._db.get(self._key_token_access):
+        if not AuthService.get_or_none(AuthService.key == self._key_token_access):
             return False
         self._transmission.cookies = {
-            self._key_token_access: self._db.get(self._key_token_access, default="")
+            self._key_token_access: AuthService.get(AuthService.key == self._key_token_access).value
         }
 
-        print(f"Cookies: {self._transmission.cookies}")
+        print(f"Cookies: {self._transmission.cookies}")  # TODO remove or make debug only
 
         try:
             response = self._transmission.send_json(url_path=self._path_token_verify, obj={})
@@ -81,10 +83,12 @@ class AuthenticationService:
 
         :return: bool Success
         """
-        if not self._db.get(self._key_token_refresh):
+        if not AuthService.get_or_none(AuthService.key == self._key_token_refresh):
             return False
         self._transmission.cookies = {
-            self._key_token_refresh: self._db.get(self._key_token_refresh)
+            self._key_token_refresh: AuthService.get(
+                AuthService.key == self._key_token_refresh
+            ).value
         }
         response = self._transmission.send_json(url_path=self._path_token_refresh, obj={})
         self._save_response_tokens(response)
@@ -108,9 +112,15 @@ class AuthenticationService:
         :return: None
         """
         if self._key_token_refresh in response.cookies:
-            self._db.write(self._key_token_refresh, response.cookies[self._key_token_refresh])
+            AuthService.get_or_create(
+                key=self._key_token_refresh,
+                defaults={"value": response.cookies[self._key_token_refresh]},
+            )
         if self._key_token_access in response.cookies:
-            self._db.write(self._key_token_access, response.cookies[self._key_token_access])
+            AuthService.get_or_create(
+                key=self._key_token_access,
+                defaults={"value": response.cookies[self._key_token_access]},
+            )
 
     def _obtain_initial_tokens(self, username=None, password=None) -> None:
         """

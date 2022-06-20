@@ -64,6 +64,115 @@ Need to decide whether to use cron or on restart for clean up of incomplete/fail
     s->>b_s: return response for handling
 ```
 
+## Auth sequence
+```mermaid
+  sequenceDiagram
+  
+  participant a as AuthServer
+  participant c as ClientThread 
+  participant i as Internal
+  participant s as Sender
+  participant db as DB
+  participant p as Portal
+  
+  c->>a: login or get new tokens
+  a->>c: return tokens
+  
+  par
+    c->>i: __init__/start (passes auth information)
+  and
+    c->>db: store tokens
+  end
+  i->>s: start() pass auth information
+  
+  s->>p: send data
+  p->>s: fail auth
+  s->>db: get refresh tokens
+  db->>s: return tokens
+  s->>a: refresh token
+  a->>s: new access token
+  s->>p: send data
+  p->>s: success
+  
+```
+
+
+```mermaid
+  classDiagram
+
+  SecleaAI *-- Internal
+  SecleaAI *-- Api
+  SecleaAI *-- DB
+  
+  AuthService *-- Transmission
+  AuthService *-- DB
+  
+  Internal *-- Writer
+  Internal *-- Sender
+  
+  Api *-- AuthService
+  Api *-- Transmission
+  
+  Writer *-- DB
+  
+  Sender *-- Api
+  Sender *-- DB
+
+  class SecleaAI {
+    dbms: DB
+    internal: Internal
+    api: Api
+    
+    +upload_dataset()
+    +upload_training_run()
+  }
+  
+
+  class AuthService {
+    dbms: DB
+    transmission: Transmission
+    
+    +authenticate()
+  }
+  
+  
+  class Internal {
+    store_q: Queue
+    send_q: Queue
+    store_thread: Writer(ProcessorThread)
+    send_thread: Sender(ProcessorThread)
+    
+    +store_entity()
+    +send_entity()
+    
+  }
+  
+  class Api {
+    auth: AuthService
+    transmission: Transmission
+    
+  }
+  
+  class Transmission {
+  
+  }
+  
+  class Writer {
+    dbms: DB
+  }
+  
+  class Sender {
+    dbms: DB
+    api: Api
+  }
+  
+  class DB {
+  
+  }
+  
+```
+
+
 ## Persistence classes (internal)
 These need to be serializable to JSON. Will need to deal with NaNs.
 All the Record subclasses are optional - we can start with more generic Record and add subclasses
@@ -119,11 +228,6 @@ if they make sense for validation etc.
     class ProjectRecord {
     
     }
-```
-
-## External classes
-```mermaid
-
 ```
 
 ## Network failure modes
