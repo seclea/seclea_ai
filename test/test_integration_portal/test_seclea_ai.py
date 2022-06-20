@@ -61,6 +61,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.sample_df_1_name = "Insurance Fraud Dataset"
         self.sample_df_1_meta = {
             "outcome_name": "fraud_reported",
+            "favourable_outcome": "N",
+            "unfavourable_outcome": "Y",
             "continuous_features": [
                 "total_claim_amount",
                 "policy_annual_premium",
@@ -79,6 +81,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.sample_df_2_name = "Census dataset"
         self.sample_df_2_meta = {
             "outcome_name": "income-per-year",
+            "favourable_outcome": ">50k",
+            "unfavourable_outcome": "<=50k",
             "continuous_features": [
                 "age",
                 "fnlwgt",
@@ -200,9 +204,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
         df = encode_categorical(df)
 
-        na_values = {"collision_type": -1, "property_damage": -1}
-        df = fill_na_by_col(df, na_values)
-
         ##############################
 
         output_col = "fraud_reported"
@@ -237,7 +238,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
             X=X,
             y=y,
             dataset_name=f"{self.sample_df_1_name} - Cleaned",
-            metadata=self.sample_df_1_meta,
+            metadata={"favourable_outcome": 1, "unfavourable_outcome": 0},
             transformations=self.complicated_transformations,
         )
 
@@ -269,7 +270,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
             X=self.X_sm_scaled,
             y=self.y_sm,
             dataset_name=f"{self.sample_df_1_name} Train - Balanced - Scaled",
-            metadata=self.sample_df_1_meta,
+            metadata={},
             transformations=self.complicated_transformations_train,
         )
 
@@ -294,7 +295,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
             X=self.X_test_scaled,
             y=self.y_test,
             dataset_name=f"{self.sample_df_1_name} Test - Scaled",
-            metadata=self.sample_df_1_meta,
+            metadata={},
             transformations=self.complicated_transformations_test,
         )
 
@@ -302,11 +303,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
     def step_3_upload_trainingrun(self):
         # define model
-
-        print(
-            f"""% Positive class in Train = {np.round(self.y_sm.value_counts(normalize=True)[1] * 100, 2)}
-            % Positive class in Test  = {np.round(self.y_test.value_counts(normalize=True)[1] * 100, 2)}"""
-        )
 
         from sklearn.ensemble import RandomForestClassifier
 
@@ -329,6 +325,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.controller_1.upload_training_run_split(
             model1, X_train=self.X_sm, y_train=self.y_sm, X_test=self.X_test, y_test=self.y_test
         )
+        self.controller_2.complete()
+        self.controller_1.complete()
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted

@@ -1,103 +1,63 @@
-import sys
 import datetime
+import json
+from enum import Enum
+from json import JSONDecodeError
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import Table, Column, Integer, String, DateTime, MetaData, PrimaryKeyConstraint, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
-Base = declarative_base()
+from peewee import CharField, DateTimeField, Field, IntegerField, Model, SqliteDatabase
 
-SQLITE = 'sqlite'
-DATABASE = 'seclea_db.sqlite'
-# Table Names
-DATASETMODELSTATE = 'dataset_modelstate'
-STATUSMONITOR = 'status_monitor'
-AUTHSERVICE = 'auth_service'
-
-class MyDatabase:
-    # http://docs.sqlalchemy.org/en/latest/core/engines.html
-    DB_ENGINE = {
-        SQLITE: 'sqlite:///seclea_db'
-    }
-
-    # Main DB Connection Ref Obj
-    db_engine = None
-    session = None
-    def __init__(self, dbtype=SQLITE, username='', password='', dbname=DATABASE):
-        dbtype = dbtype.lower()
-        if dbtype in self.DB_ENGINE.keys():
-            engine_url = self.DB_ENGINE[dbtype].format(DB=dbname)
-            self.db_engine = create_engine(engine_url)
-            Session = sessionmaker()
-            Session.configure(bind=self.db_engine)
-            self.session = Session()
-            DatasetModelstate.__table__.create(bind=self.db_engine, checkfirst=True)
-            StatusMonitor.__table__.create(bind=self.db_engine, checkfirst=True)
-            Authservice.__table__.create(bind=self.db_engine, checkfirst=True)
-        else:
-            print("DBType is not found in DB_ENGINE")
+# TODO improve database file spec - and auth and pragmas etc.
+db = SqliteDatabase("seclea_ai.db", thread_safe=True)
 
 
-    def save_datasetmodelstate(self, object, status):
-        self.session.add(object)
-        self.session.commit()
-        self.add_status(object.id, status)
+class RecordStatus(Enum):
+    IN_MEMORY = "in_memory"
+    STORED = "stored"
+    SENT = "sent"
+    STORE_FAIL = "store_fail"
+    SEND_FAIL = "send_fail"
 
-    def add_status(self, pid, status):
-        sm = StatusMonitor(pid=pid, status=status, timestamp=datetime.datetime.now())
-        self.session.add(sm)
-        self.session.commit()
 
-    def set_auth_key(self, key, value):
-        """
-        add auth key in auth_service table and update it if already exists
-        """
+class JsonField(Field):
+    def db_value(self, value):
+        return json.dumps(value)
+
+    def python_value(self, value):
         try:
-            auth_key = self.session.query(Authservice).filter(Authservice.key == key).first()
-            if auth_key:
-                auth_key.value = value
-                self.session.commit()
-            else:
-                self.session.add(Authservice(key=key, value=value))
-                self.session.commit()
-        except Exception as e:
-            self.session.rollback()
-            print("Exception encountered %s" % e.with_traceback(sys.exc_info()[2]))
-            return False
-        return True
-
-    def get_auth_key(self, key):
-        """
-        get auth keys from auth_service table
-        """
-        auth_key = self.session.query(Authservice).filter(Authservice.key == key).first()
-        return auth_key.value if auth_key else False
+            value = json.loads(value)
+        except JSONDecodeError:
+            value = None
+        finally:
+            return value
 
 
-class DatasetModelstate(Base):
-    __tablename__ = DATASETMODELSTATE
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    path = Column(String)
-    comp_path = Column(String)
-    project = Column(String)
-    organization = Column(String)
-    training_run = Column(String)
+class BaseModel(Model):
+    class Meta:
+        database = db
 
 
-class StatusMonitor(Base):
-    __tablename__ = STATUSMONITOR
+# TODO rethink this - may be better split up
+class Record(BaseModel):
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    pid = Column(Integer, ForeignKey('dataset_modelstate.id'))
-    status = Column(String)
-    timestamp = Column(DateTime)
+    remote_id = IntegerField(null=True)  # TODO this may change to string for uuids
+    entity = CharField(
+        null=True
+    )  # TODO remove or convert to ForeignKey - here for debugging for now.
+    key = CharField(null=True)  # mainly for tracking datasets and training runs may need to remove
+    dependencies = JsonField(null=True)  # this will be a list of ids
+    status = CharField()  # TODO change to enum
+    timestamp = DateTimeField(default=datetime.datetime.now)
+    # only used for datasets and modelstates.
+    path = CharField(null=True)
+    # only used for datasets - probably need to factor out a lot of this.
+    dataset_metadata = JsonField(null=True)
 
 
-class Authservice(Base):
-    __tablename__ = AUTHSERVICE
+class AuthService(BaseModel):
 
-    id = Column(Integer, primary_key=True)
-    key = Column(String)
-    value = Column(String)
+    key = CharField()
+    value = CharField()
+
+
+db.connect()
+db.create_tables([Record, AuthService])
+db.close()

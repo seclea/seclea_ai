@@ -4,7 +4,7 @@ import time
 from multiprocessing import Queue
 from typing import Any, Dict, List, Optional
 
-from seclea_ai.internal.api import Api
+from seclea_ai.internal.api.api_interface import Api
 from seclea_ai.internal.processors import Sender, Writer
 from seclea_ai.internal.threading import DirectorThread, ProcessLoopThread, ProcessorThread
 
