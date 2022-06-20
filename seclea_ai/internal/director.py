@@ -1,52 +1,61 @@
+"""
+File storing and uploading data to server
+"""
+import time
 from multiprocessing import Event, Queue
+from typing import Dict
+
+from .processors import Sender, Writer
+from .threading import ProcessorThread
 
 
 class Director:
+    """
+    Something to wrap backend requests. Maybe use to change the base url??
+    """
 
-    _input_q: Queue
-    _result_q: Queue
-    _stop: Event
-    _sender_q: Queue
-    _writer_q: Queue
-
-    def __init__(
-        self,
-        settings,
-        input_q: Queue,
-        result_q: Queue,
-        stop: Event,
-        sender_q: Queue,
-        writer_q: Queue,
-    ):
+    def __init__(self, settings):
+        # setup some defaults
         self._settings = settings
-        self._input_q = input_q
-        self._result_q = result_q
-        self._stop = stop
-        self._sender_q = sender_q
-        self._writer_q = writer_q
-
-    def __len__(self):
-        return self._input_q.qsize()
-
-    def handle(self, record):
-        # TODO check record type (if we have different ones)
-        self._dispatch_record(record)
-
-    def _dispatch_record(self, record):
-        # default is to write to file if not connected to the internet.
-        # TODO add congestion handling - write to file if sending q too long etc.
-        # send files from storage to send when congestion reduced. - use flag and watcher?
-        if not self._settings["offline"]:
-            self._sender_q.put(record)
-        else:
-            self._writer_q.put(record)
-
-    def handle_request_shutdown(self):
-        # TODO add request and result
-        self._stop.set()
+        # TODO probably remove
+        ##
+        self._store_q = Queue()
+        self._send_q = Queue()
+        self._stop_event = Event()
+        self._store_thread = ProcessorThread(
+            processor=Writer,
+            name="Store",
+            settings=settings,
+            input_q=self._store_q,
+            stop=self._stop_event,
+            debounce_interval_ms=5000,
+        )
+        self._send_thread = ProcessorThread(
+            processor=Sender,
+            name="Send",
+            settings=settings,
+            input_q=self._send_q,
+            stop=self._stop_event,
+            debounce_interval_ms=5000,
+        )
+        self._store_thread.start()
+        self._send_thread.start()
 
     def terminate(self):
-        # for now nothing, normally clean up of some kind
-        pass
+        # signal threads to finish - then wait and join them
+        self._stop_event.set()
+        time.sleep(2)  # TODO find a better way to wait.
+        self._store_thread.join()
+        self._send_thread.join()
 
-    # lots of thread/process handling logic to add here.
+    def complete(self):
+        # wait until send_q is empty
+        while not self._send_q.empty():
+            time.sleep(0.1)
+        self.terminate()
+
+    def store_entity(self, entity_dict: Dict) -> None:  # TODO add return for status
+        self._store_q.put(entity_dict)
+
+    def send_entity(self, entity_dict: Dict) -> None:  # TODO add return for status
+        self._send_q.put(entity_dict)
