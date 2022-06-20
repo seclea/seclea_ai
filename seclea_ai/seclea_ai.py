@@ -3,6 +3,7 @@ Description for seclea_ai.py
 """
 import copy
 import inspect
+import logging
 import os
 from typing import Any, Dict, List, Union
 
@@ -11,14 +12,15 @@ import pandas as pd
 from pandas import DataFrame, Series
 from peewee import SqliteDatabase
 
-from seclea_ai.authentication import AuthenticationService
 from seclea_ai.exceptions import AuthenticationError
-from seclea_ai.internal.api import Api, handle_response
+from seclea_ai.internal.api import Api
 from seclea_ai.internal.file_processor import FileProcessor
 from seclea_ai.internal.local_db import Record
-from seclea_ai.lib.seclea_utils.core import RequestWrapper, decode_func, encode_func
+from seclea_ai.lib.seclea_utils.core import encode_func
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
 from seclea_ai.transformations import DatasetTransformation
+
+logger = logging.getLogger(__name__)
 
 
 class SecleaAI:
@@ -57,16 +59,10 @@ class SecleaAI:
 
             >>> seclea = SecleaAI(project_name="Test Project", project_root=".")
         """
-        self._db = SqliteDatabase("seclea_ai.db", thread_safe=True)
-        self._auth_service = AuthenticationService(auth_url, RequestWrapper(auth_url))
-        self._transmission = RequestWrapper(server_root_url=platform_url)
-        self._auth_service.authenticate(self._transmission, username=username, password=password)
         self._project_name = project_name
         self._organization = organization
-        self._project_id = self._init_project(project_name=project_name)
         self._settings = {
             "project_name": project_name,
-            "project_id": self._project_id,
             "organization": organization,
             "project_root": project_root,
             "platform_url": platform_url,
@@ -74,11 +70,15 @@ class SecleaAI:
             "cache_dir": os.path.join(project_root, ".seclea/cache"),
             "offline": False,
         }
-        self._api = Api(self._settings)
+        self._db = SqliteDatabase("seclea_ai.db", thread_safe=True)
+        self._api = Api(
+            self._settings, username=username, password=password
+        )  # TODO add username and password?
+        self._project_id = self._init_project(project_name=project_name)
+        self._settings["project_id"] = self._project_id
         self._training_run = None
         self._file_processor = FileProcessor(settings=self._settings)
-
-        print("success")
+        logger.debug("Successfully Initialised SecleaAI class")
 
     def login(self, username=None, password=None) -> None:
         """
@@ -96,9 +96,7 @@ class SecleaAI:
         success = False
         for i in range(3):
             try:
-                self._auth_service.authenticate(
-                    self._transmission, username=username, password=password
-                )
+                self._api.authenticate(username=username, password=password)
                 success = True
                 break
             except AuthenticationError as e:
@@ -211,7 +209,7 @@ class SecleaAI:
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
 
         # TODO replace with dataset_hash fn
-        dataset_hash = hash(pd.util.hash_pandas_object(dataset).sum() + self._project_id)
+        dataset_id = hash(pd.util.hash_pandas_object(dataset).sum() + self._project_id)
 
         if transformations is not None:
 
@@ -220,16 +218,18 @@ class SecleaAI:
             #####
             # Validate parent exists and get metadata - check how often on portal, maybe remove?
             #####
-            parent_dset_pk = hash(pd.util.hash_pandas_object(parent).sum() + self._project_id)
+            parent_dset_id = hash(pd.util.hash_pandas_object(parent).sum() + self._project_id)
             # check parent exists - check local db if not else error.
-            res = self._transmission.get(
-                url_path=f"/collection/datasets/{parent_dset_pk}",
-                query_params={"project": self._project_id, "organization": self._organization},
-            )
-            if not res.status_code == 200:
+            try:
+                res = self._api.get_dataset(
+                    dataset_id=str(parent_dset_id),
+                    organization_id=self._organization,
+                    project_id=self._project_id,
+                )
+            except ValueError:
                 # check local db
                 self._db.connect()
-                parent_record = Record.get_or_none(Record.key == parent_dset_pk)
+                parent_record = Record.get_or_none(Record.key == parent_dset_id)
                 self._db.close()
                 if parent_record is not None:
                     parent_metadata = parent_record.dataset_metadata
@@ -245,7 +245,7 @@ class SecleaAI:
             upload_queue = self._generate_intermediate_datasets(
                 transformations=transformations,
                 dataset_name=dataset_name,
-                dataset_hash=dataset_hash,
+                dataset_id=dataset_id,
                 user_metadata=metadata,
                 parent=parent,
                 parent_metadata=parent_metadata,
@@ -301,7 +301,7 @@ class SecleaAI:
         # TODO make lack of parent more obvious??
         self._db.connect()
         dataset_record = Record.create(
-            entity="dataset", status="in_memory", key=str(dataset_hash), dataset_metadata=metadata
+            entity="dataset", status="in_memory", key=str(dataset_id), dataset_metadata=metadata
         )
         self._db.close()
 
@@ -311,7 +311,7 @@ class SecleaAI:
             "record_id": dataset_record.id,
             "dataset": dataset,
             "dataset_name": dataset_name,
-            "dataset_hash": dataset_hash,
+            "dataset_id": dataset_id,
             "metadata": metadata,
             "project": self._project_id,
         }
@@ -320,7 +320,7 @@ class SecleaAI:
         self._file_processor.send_entity(dataset_upload_kwargs)
 
     def _generate_intermediate_datasets(
-        self, transformations, dataset_name, dataset_hash, user_metadata, parent, parent_metadata
+        self, transformations, dataset_name, dataset_id, user_metadata, parent, parent_metadata
     ):
 
         # setup for generating datasets.
@@ -389,7 +389,7 @@ class SecleaAI:
             # handle the final dataset - check generated = passed in.
             if idx == last:
                 if (
-                    hash(pd.util.hash_pandas_object(dset).sum() + self._project_id) != dataset_hash
+                    hash(pd.util.hash_pandas_object(dset).sum() + self._project_id) != dataset_id
                 ):  # TODO create or find better exception
                     raise AssertionError(
                         """Generated Dataset does not match the Dataset passed in.
@@ -408,7 +408,7 @@ class SecleaAI:
                         Please remove it and try again."""
                     )
 
-            dset_hash = hash(pd.util.hash_pandas_object(dset).sum() + self._project_id)
+            dset_id = hash(pd.util.hash_pandas_object(dset).sum() + self._project_id)
 
             # find parent dataset in local db - TODO improve
             self._db.connect()
@@ -423,7 +423,7 @@ class SecleaAI:
                 entity="dataset",
                 status="in_memory",
                 dependencies=[parent_dataset_record_id],
-                key=str(dset_hash),
+                key=str(dset_id),
                 dataset_metadata=dset_metadata,
             )
 
@@ -433,7 +433,7 @@ class SecleaAI:
                 "record_id": dataset_record.id,
                 "dataset": copy.deepcopy(dset),  # TODO change keys
                 "dataset_name": copy.deepcopy(dset_name),
-                "dataset_hash": dset_hash,
+                "dataset_id": dset_id,
                 "metadata": dset_metadata,
             }
             # update the parent dataset - these chained transformations only make sense if they are pushing the
@@ -534,10 +534,11 @@ class SecleaAI:
                     dataset_name="Test Dataset",
                 )
         """
-        self._auth_service.authenticate(self._transmission)
+        # TODO check if we need this auth check here or if we can do better.
+        self._api.authenticate()
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
-        dataset_pks = [
+        dataset_ids = [
             str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project_id))
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
@@ -547,16 +548,13 @@ class SecleaAI:
         model_name = model.__class__.__name__
         framework = self._get_framework(model)
         # check the model exists upload if not TODO convert to add to queue
-        model_type_pk = self._set_model(model_name=model_name, framework=framework)
+        model_type_id = self._set_model(model_name=model_name, framework=framework)
 
         # check the latest training run TODO extract all this stuff
-        training_runs_res = self._transmission.get(
-            "/collection/training-runs",
-            query_params={
-                "project": self._project_id,
-                "model": model_type_pk,
-                "organization": self._organization,
-            },
+        training_runs_res = self._api.get_training_runs(
+            project_id=self._project_id,
+            organization_id=self._organization,
+            model=model_type_id,
         )
         training_runs = training_runs_res.json()
 
@@ -583,8 +581,8 @@ class SecleaAI:
             "record_id": training_run_record.id,
             "project": self._project_id,
             "training_run_name": training_run_name,
-            "model_pk": model_type_pk,
-            "dataset_pks": dataset_pks,
+            "model_id": model_type_id,
+            "dataset_ids": dataset_ids,
             "params": params,
         }
         self._file_processor.send_entity(training_run_details)
@@ -620,63 +618,34 @@ class SecleaAI:
         :raises: ValueError - if the framework is not one of the supported frameworks or if there is an issue uploading
          the model.
         """
-        res = handle_response(
-            self._transmission.get(
-                url_path="/collection/models",
-                query_params={
-                    "organization": self._organization,
-                    "project": self._project_id,
-                    "name": model_name,
-                    "framework": framework.name,
-                },
-            ),
-            msg="There was an issue getting the model list",
+        res = self._api.get_models(
+            organization_id=self._organization,
+            project_id=self._project_id,
+            name=model_name,
+            framework=framework.name,
         )
         models = res.json()
         if len(models) == 1:
             return models[0]["id"]
         # if we got here that means that the model has not been uploaded yet. So we upload it.
-        res = self._upload_model(model_name=model_name, framework=framework)
-        try:
-            model_pk = res.json()["id"]
-        except KeyError:
-            resp = handle_response(
-                self._transmission.get(
-                    url_path="/collection/models",
-                    query_params={
-                        "organization": self._organization,
-                        "project": self._project_id,
-                        "name": model_name,
-                        "framework": framework.name,
-                    },
-                ),
-                msg="There was an issue getting the model list",
-            )
-            model_pk = resp.json()[0]["id"]
-        return model_pk
-
-    def _upload_model(self, model_name: str, framework: ModelManagers):
-        """
-
-        :param model_name:
-        :param framework: instance of seclea_ai.Frameworks
-        :return:
-        """
-        # TODO fill in the details
-        # model_details = {}
-        # self._sender_q.put(model_details)
-
-        res = self._transmission.send_json(
-            url_path="/collection/models",
-            obj={
-                "organization": self._organization,
-                "project": self._project_id,
-                "name": model_name,
-                "framework": framework.name,
-            },
-            query_params={"organization": self._organization, "project": self._project_id},
+        res = self._api.upload_model(
+            organization_id=self._organization,
+            project_id=self._project_id,
+            model_name=model_name,
+            framework_name=framework.name,
         )
-        return res
+        # TODO find out if this checking is ever needed - ie does it ever not return the created model object?
+        try:
+            model_id = res.json()["id"]
+        except KeyError:
+            resp = self._api.get_models(
+                organization_id=self._organization,
+                project_id=self._project_id,
+                name=model_name,
+                framework=framework.name,
+            )
+            model_id = resp.json()[0]["id"]
+        return model_id
 
     @staticmethod
     def _assemble_dataset(data: Dict[str, DataFrame]) -> DataFrame:
@@ -703,15 +672,15 @@ class SecleaAI:
         """
         project = self._get_project(project_name)
         if project is None:
-            proj_res = self._create_project(project_name=project_name)
+            proj_res = self._api.upload_project(
+                name=project_name,
+                description="Please add a description...",
+                organization_id=self._organization,
+            )
             try:
                 project = proj_res.json()["id"]
             except KeyError:
-                # print(f"There was an issue: {proj_res.text}")
-                resp = self._transmission.get(
-                    url_path="/collection/projects", query_params={"name": project_name}
-                )
-                resp = handle_response(resp, "There was an issue getting the project")
+                resp = self._api.get_projects(organization_id=self._organization, name=project_name)
                 project = resp.json()[0]["id"]
         return project
 
@@ -723,53 +692,10 @@ class SecleaAI:
 
         :return: int | None The id of the project else None.
         """
-        project_res = self._transmission.get(
-            url_path="/collection/projects",
-            query_params={"name": project_name, "organization": self._organization},
-        )
-        handle_response(project_res, f"There was an issue getting the projects: {project_res.text}")
+        project_res = self._api.get_projects(organization_id=self._organization, name=project_name)
         if len(project_res.json()) == 0:
             return None
         return project_res.json()[0]["id"]
-
-    def _create_project(self, project_name: str, description: str = "Please add a description.."):
-        """
-        Creates a new project.
-
-        :param project_name: str The name of the project, must be unique within your Organisation.
-
-        :param description: str Optional The description of the project. This has a default value that can be changed
-            at a later date
-
-        :return: Response The response from the server.
-
-        :raises ValueError if the response status is not 201.
-        """
-        res = self._transmission.send_json(
-            url_path="/collection/projects",
-            obj={
-                "name": project_name,
-                "description": description,
-                "organization": self._organization,
-            },
-            query_params={"organization": self._organization},
-        )
-        return res
-
-    def _load_transformations(self, training_run_pk: int):
-        """
-        Expects a list of code_encoded as set by upload_transformations.
-        TODO replace or remove
-        """
-        res = self._transmission.get(
-            url_path="/collection/dataset-transformations",
-            query_params={"training_run": training_run_pk},
-        )
-        res = handle_response(
-            res, msg=f"There was an issue loading the transformations: {res.text}"
-        )
-        transformations = list(map(lambda x: x["code_encoded"], res.json()))
-        return list(map(decode_func, transformations))
 
     @staticmethod
     def _aggregate_dataset(datasets: List[str], index) -> DataFrame:

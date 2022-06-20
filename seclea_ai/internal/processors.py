@@ -139,7 +139,7 @@ class Writer(Processor):
         """
         record = Record.get_by_id(record_id)
         try:
-            training_run_pk = record.dependencies[0]
+            training_run_id = record.dependencies[0]
         except IndexError:
             raise ValueError(
                 "Training run must be uploaded before model state something went wrong"
@@ -148,13 +148,13 @@ class Writer(Processor):
             os.makedirs(
                 os.path.join(
                     self._settings["cache_dir"],
-                    f"{self._settings['project_name']}/{str(training_run_pk)}",
+                    f"{self._settings['project_name']}/{str(training_run_id)}",
                 ),
                 exist_ok=True,
             )
             save_path = os.path.join(
                 self._settings["cache_dir"],
-                f"{self._settings['project_name']}/{training_run_pk}/model-{sequence_num}",
+                f"{self._settings['project_name']}/{training_run_id}/model-{sequence_num}",
             )
 
             model_data = serialize(model, model_manager)
@@ -214,8 +214,8 @@ class Sender(Processor):
         record_id,
         project,
         training_run_name: str,
-        model_pk: int,
-        dataset_pks: List[str],
+        model_id: int,
+        dataset_ids: List[str],
         params: Dict,
         **kwargs,
     ):
@@ -227,28 +227,23 @@ class Sender(Processor):
         tr_record = Record.get_by_id(record_id)
         if project is None:
             raise Exception("You need to create a project before uploading a training run")
-        response = self._api.upload_training_run(
-            organization_pk=self._settings["organization"],
-            project_pk=self._settings["project_id"],
-            dataset_pks=dataset_pks,
-            model_pk=model_pk,
-            training_run_name=training_run_name,
-            params=params,
-        )
-
-        # TODO improve/factor out validation and updating status - return error codes or something
-        if response.status_code == 201:
-            # update the record TODO refactor out.
-
+        try:
+            response = self._api.upload_training_run(
+                organization_id=self._settings["organization"],
+                project_id=self._settings["project_id"],
+                dataset_ids=dataset_ids,
+                model_id=model_id,
+                training_run_name=training_run_name,
+                params=params,
+            )
             tr_record.status = RecordStatus.SENT.value
             tr_record.remote_id = response.json()["id"]
             tr_record.save()
-        else:
+        # TODO improve error handling to requeue failures - also by different failure types
+        except ValueError:
             tr_record.status = RecordStatus.SEND_FAIL.value
             tr_record.save()
-            raise ValueError(
-                f"Response Status code {response.status_code}, expected: 201. \n f'There was some issue uploading the training run: {response.text()}' - {response.reason} - {response.text}"
-            )
+            raise
 
     def _send_model_state(self, record_id, sequence_num: int, final: bool, **kwargs):
         """
@@ -270,36 +265,32 @@ class Sender(Processor):
             time.sleep(0.5)
             record = Record.get_by_id(record_id)  # TODO check if this is needed to update
 
-        response = self._api.upload_model_state(
-            model_state_file_path=record.path,
-            organization_pk=self._settings["organization"],
-            project_pk=self._settings["project_id"],
-            training_run_pk=str(parent_id),
-            sequence_num=sequence_num,
-            final_state=final,
-            delete=False,
-        )
-
-        # update the db
-        if response.status_code == 201:
-            # update record status in sqlite
+        try:
+            response = self._api.upload_model_state(
+                model_state_file_path=record.path,
+                organization_id=self._settings["organization"],
+                project_id=self._settings["project_id"],
+                training_run_id=str(parent_id),
+                sequence_num=sequence_num,
+                final_state=final,
+                delete=False,
+            )
+            # update record status in sqlite - TODO refactor out to common function.
             record.remote_id = response.json()["id"]  # TODO improve parsing.
             record.status = RecordStatus.SENT.value
             record.save()
             os.remove(record.path)
-        else:
+        except ValueError:
             record.status = RecordStatus.SEND_FAIL.value
             record.save()
-            raise ValueError(
-                f"Response Status code {response.status_code}, expected: 201. \n f'There was some issue uploading the dataset: {response.text()}' - {response.reason} - {response.text}"
-            )
+            raise
 
     def _send_dataset(
         self,
         record_id: int,
         metadata: Dict,
         dataset_name: str,
-        dataset_hash,
+        dataset_id,
         **kwargs,
     ):
 
@@ -320,39 +311,35 @@ class Sender(Processor):
             time.sleep(0.5)
             dataset_record = Record.get_by_id(record_id)
 
-        response = self._api.upload_dataset(
-            dataset_file_path=dataset_record.path,
-            project_pk=self._settings["project_id"],
-            organization_pk=self._settings["organization"],
-            name=dataset_name,
-            metadata={},
-            dataset_hash=str(dataset_hash),
-            parent_dataset_hash=parent_id,
-            delete=False,
-        )
-
-        # update the db
-        if response.status_code == 201:
+        try:
+            response = self._api.upload_dataset(
+                dataset_file_path=dataset_record.path,
+                project_id=self._settings["project_id"],
+                organization_id=self._settings["organization"],
+                name=dataset_name,
+                metadata={},
+                dataset_id=str(dataset_id),
+                parent_dataset_id=parent_id,
+                delete=False,
+            )
             # update record status in sqlite
             dataset_record.remote_id = response.json()[
                 "hash"
-            ]  # TODO improve parsing. - should be id portal issue
+            ]  # TODO improve parsing. - should be id - portal issue
             dataset_record.status = RecordStatus.SENT.value
             dataset_record.save()
             os.remove(dataset_record.path)
             # update the metadata - TODO remove and move to new uploading inside request.
             self._api.update_dataset_metadata(
-                dataset_hash=dataset_hash,
+                dataset_id=dataset_id,
                 metadata=metadata,
-                project=self._settings["project_id"],
-                organization=self._settings["organization"],
+                project_id=self._settings["project_id"],
+                organization_id=self._settings["organization"],
             )
-        else:
+        except ValueError:
             dataset_record.status = RecordStatus.SEND_FAIL.value
             dataset_record.save()
-            raise ValueError(
-                f"Response Status code {response.status_code}, expected: 201. \n f'There was some issue uploading the dataset: {response.text()}' - {response.reason} - {response.text}"
-            )
+            raise
 
     def _send_transformation(self, record_id, project, name, code_raw, code_encoded, **kwargs):
         record = Record.get_by_id(record_id)
@@ -363,23 +350,20 @@ class Sender(Processor):
         except IndexError:
             dataset_id = None
 
-        response = self._api.upload_transformation(
-            project=project,
-            organization=self._settings["organization"],
-            code_raw=code_raw,
-            code_encoded=code_encoded,
-            name=name,
-            dataset_pk=dataset_id,
-        )
-        # TODO improve/factor out validation and updating status - return error codes or something
-        if response.status_code == 201:
-            # update the record TODO refactor out.
+        try:
+            response = self._api.upload_transformation(
+                project_id=project,
+                organization_id=self._settings["organization"],
+                code_raw=code_raw,
+                code_encoded=code_encoded,
+                name=name,
+                dataset_id=dataset_id,
+            )
+            # TODO improve/factor out validation and updating status - return error codes or something
             record.status = RecordStatus.SENT.value
             record.remote_id = response.json()["id"]
             record.save()
-        else:
+        except ValueError:
             record.status = RecordStatus.SEND_FAIL.value
             record.save()
-            raise ValueError(
-                f"Response Status code {response.status_code}, expected: 201. \n f'There was some issue uploading the training run: {response.text()}' - {response.reason} - {response.text}"
-            )
+            raise
