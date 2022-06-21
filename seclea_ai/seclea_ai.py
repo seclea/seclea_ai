@@ -272,6 +272,8 @@ class SecleaAI:
             continuous_features=[],
             outcome_name=None,
             num_samples=len(dataset),
+            favourable_outcome=None,
+            unfavourable_outcome=None,
         )
         try:
             features = (
@@ -281,9 +283,6 @@ class SecleaAI:
             # this means outcome was set to None
             features = dataset.columns
 
-        required_metadata = ["favourable_outcome", "unfavourable_outcome"]
-
-        self._ensure_required_user_spec_metadata(metadata=metadata, required_spec=required_metadata)
         metadata = self._ensure_required_metadata(
             metadata=metadata, defaults_spec=metadata_defaults_spec
         )
@@ -684,22 +683,6 @@ class SecleaAI:
             except KeyError:
                 metadata[required_key] = default
         return metadata
-
-    @staticmethod
-    def _ensure_required_user_spec_metadata(metadata: Dict, required_spec: List) -> None:
-        """
-        Ensures that required metadata that can be specified by the user are filled.
-        @param metadata: The metadata dict
-        @param defaults_spec:
-        @return: None
-        @raise ValueError if any are missing.
-        """
-        for required_key in required_spec:
-            try:
-                if metadata[required_key] is None:
-                    raise ValueError(f"{required_key} must be specified in the metadata")
-            except KeyError:
-                raise ValueError(f"{required_key} must be specified in the metadata")
 
     @staticmethod
     def _add_required_metadata(metadata: Dict, required_spec: Dict) -> Dict:
