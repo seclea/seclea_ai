@@ -76,22 +76,6 @@ class Writer(Processor):
         finally:
             self._db.close()
 
-    def _write(self, record) -> None:
-        """
-        Writes a record to local storage. This is intended primarily as a buffer and backup if internet
-        connectivity is not available.
-        Record must contain:
-            {
-                username: str,
-                project_id: int,
-                entity_id: int, TODO something better that handles local uniqueness and preserves order for upload.
-            }
-
-        :param record:
-        :return:
-        """
-        # key = _assemble_key(record)
-
     def _save_dataset(
         self,
         record_id: int,
@@ -107,11 +91,16 @@ class Writer(Processor):
             if not os.path.exists(self._settings["cache_dir"]):
                 os.makedirs(self._settings["cache_dir"])
 
+            # TODO take another look at this section.
             dataset_path = os.path.join(self._settings["cache_dir"], f"{uuid.uuid4()}_tmp.csv")
             dataset.to_csv(dataset_path, index=True)
-            comp_path = os.path.join(self._settings["cache_dir"], f"{uuid.uuid4()}_compressed")
             with open(dataset_path, "rb") as rb:
-                comp_path = save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
+                comp_path = save_object(
+                    rb,
+                    file_name=f"{uuid.uuid4()}_compressed",
+                    path=self._settings["cache_dir"],
+                    compression=CompressionFactory.ZSTD,
+                )
             # tidy up intermediate file
             os.remove(dataset_path)
 
@@ -145,6 +134,7 @@ class Writer(Processor):
                 "Training run must be uploaded before model state something went wrong"
             )
         try:
+            # TODO look again at this.
             os.makedirs(
                 os.path.join(
                     self._settings["cache_dir"],
@@ -154,11 +144,16 @@ class Writer(Processor):
             )
             save_path = os.path.join(
                 self._settings["cache_dir"],
-                f"{self._settings['project_name']}/{training_run_id}/model-{sequence_num}",
+                f"{self._settings['project_name']}/{training_run_id}",
             )
 
             model_data = serialize(model, model_manager)
-            save_path = save_object(model_data, save_path, compression=CompressionFactory.ZSTD)
+            save_path = save_object(
+                model_data,
+                file_name=f"model-{sequence_num}",
+                path=save_path,
+                compression=CompressionFactory.ZSTD,
+            )
 
             # update the record TODO refactor out.
             record.path = save_path
@@ -273,12 +268,12 @@ class Sender(Processor):
                 training_run_id=str(parent_id),
                 sequence_num=sequence_num,
                 final_state=final,
-                delete=False,
             )
             # update record status in sqlite - TODO refactor out to common function.
             record.remote_id = response.json()["id"]  # TODO improve parsing.
             record.status = RecordStatus.SENT.value
             record.save()
+            # clean up file
             os.remove(record.path)
         except ValueError:
             record.status = RecordStatus.SEND_FAIL.value
@@ -317,10 +312,9 @@ class Sender(Processor):
                 project_id=self._settings["project_id"],
                 organization_id=self._settings["organization"],
                 name=dataset_name,
-                metadata={},
+                metadata=metadata,
                 dataset_id=str(dataset_id),
                 parent_dataset_id=parent_id,
-                delete=False,
             )
             # update record status in sqlite
             dataset_record.remote_id = response.json()[
@@ -328,14 +322,8 @@ class Sender(Processor):
             ]  # TODO improve parsing. - should be id - portal issue
             dataset_record.status = RecordStatus.SENT.value
             dataset_record.save()
+            # clean up file
             os.remove(dataset_record.path)
-            # update the metadata - TODO remove and move to new uploading inside request.
-            self._api.update_dataset_metadata(
-                dataset_id=dataset_id,
-                metadata=metadata,
-                project_id=self._settings["project_id"],
-                organization_id=self._settings["organization"],
-            )
         except ValueError:
             dataset_record.status = RecordStatus.SEND_FAIL.value
             dataset_record.save()

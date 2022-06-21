@@ -4,7 +4,6 @@ from multiprocessing import Event, Queue
 from threading import Thread
 from typing import Type
 
-from seclea_ai.internal.director import Director
 from seclea_ai.internal.processors import Processor
 
 
@@ -43,49 +42,51 @@ class ProcessLoopThread(Thread):
         self._terminate()
 
 
-class DirectorThread(ProcessLoopThread):
-
-    _input_q: Queue
-    _result_q: Queue
-    _stop: Event
-
-    def __init__(
-        self,
-        settings,
-        input_q: Queue,
-        result_q: Queue,
-        stop: Event,
-        debounce_interval_ms: float,
-        sender_q,
-        writer_q,
-    ):
-        super(DirectorThread, self).__init__(
-            input_q=input_q, stop=stop, debounce_interval_ms=debounce_interval_ms
-        )
-        self._settings = settings
-        self.name = "DirectorThread"
-        self._sender_q = sender_q
-        self._writer_q = writer_q
-
-    def _setup(self) -> None:
-        self._director = Director(
-            settings=self._settings,
-            input_q=self._input_q,
-            result_q=self._result_q,
-            stop=self._stop,
-            sender_q=self._sender_q,
-            writer_q=self._writer_q,
-        )
-
-    def _process(self, record) -> None:
-        self._director.handle(record)
-
-    def _terminate(self) -> None:
-        self._director.terminate()
-
-    def _debounce(self) -> None:
-        # do nothing for now, add debounce later
-        return
+# TODO decide what to do with this block - probably will use when extracting the internal stuff into
+# a background process.
+# class DirectorThread(ProcessLoopThread):
+#
+#     _input_q: Queue
+#     _result_q: Queue
+#     _stop: Event
+#
+#     def __init__(
+#         self,
+#         settings,
+#         input_q: Queue,
+#         result_q: Queue,
+#         stop: Event,
+#         debounce_interval_ms: float,
+#         sender_q,
+#         writer_q,
+#     ):
+#         super(DirectorThread, self).__init__(
+#             input_q=input_q, stop=stop, debounce_interval_ms=debounce_interval_ms
+#         )
+#         self._settings = settings
+#         self.name = "DirectorThread"
+#         self._sender_q = sender_q
+#         self._writer_q = writer_q
+#
+#     def _setup(self) -> None:
+#         self._director = Director(
+#             settings=self._settings,
+#             input_q=self._input_q,
+#             result_q=self._result_q,
+#             stop=self._stop,
+#             sender_q=self._sender_q,
+#             writer_q=self._writer_q,
+#         )
+#
+#     def _process(self, record) -> None:
+#         self._director.handle(record)
+#
+#     def _terminate(self) -> None:
+#         self._director.terminate()
+#
+#     def _debounce(self) -> None:
+#         # do nothing for now, add debounce later
+#         return
 
 
 class ProcessorThread(ProcessLoopThread):

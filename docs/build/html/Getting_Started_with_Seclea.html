@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tutorial &mdash; Seclea AI 0.0.47 documentation</title>
+  <title>Getting Started &mdash; Seclea AI 0.0.47 documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -19,8 +19,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="API Reference" href="seclea_ai.html" />
-    <link rel="prev" title="Seclea AI" href="README.html" /> 
+    <link rel="prev" title="Changelog" href="changelog.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -40,32 +39,29 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="README.html">Seclea AI </a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Tutorial</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#introduction">Introduction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#usage-guide">Usage Guide</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#example-usage">Example Usage</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#getting-started">Getting Started</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#set-up-the-project">Set up the Project</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#integrate-with-seclea-ai">Integrate with seclea-ai</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#handle-the-data">🗄 Handle the Data</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#transformations">🔀 Transformations</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data-cleaning">🧽 Data Cleaning</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#upload-intermediate-dataset">⬆️ Upload Intermediate Dataset</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#modeling">🛠️ Modeling</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#training">📈 Training</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#analysis">🔍 Analysis</a></li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="tutorial.html">Tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="seclea_ai.html">API Reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
-<li class="toctree-l1"><a class="reference internal" href="Getting_Started_with_Seclea.html">Getting Started</a></li>
-<li class="toctree-l1"><a class="reference internal" href="Getting_Started_with_Seclea.html#modeling">🛠️ Modeling</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Getting Started</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#set-up-the-project">Set up the Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#integrate-with-seclea-ai">Integrate with seclea-ai</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#handle-the-data">🗄 Handle the Data</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#evaluating-the-dataset">🔍 Evaluating the Dataset</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#transformations">🔀 Transformations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#data-cleaning">🧽 Data Cleaning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#upload-intermediate-dataset">⬆️ Upload Intermediate Dataset</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#evaluating-the-transformations">🔍 Evaluating the Transformations</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="#modeling">🛠️ Modeling</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#training">📈 Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#analysis">🔍 Analysis</a></li>
+</ul>
+</li>
 </ul>
 
         </div>
@@ -82,9 +78,9 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
-      <li>Tutorial</li>
+      <li>Getting Started</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="_sources/tutorial.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/Getting_Started_with_Seclea.md.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -92,30 +88,13 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="tutorial">
-<h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline"></a></h1>
-<section id="introduction">
-<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline"></a></h2>
-<p>The seclea-ai package is used for tracking ML model development. This means that most of the
-functions are designed to record and upload activities or data associated with your modelling.</p>
-</section>
-<section id="usage-guide">
-<h2>Usage Guide<a class="headerlink" href="#usage-guide" title="Permalink to this headline"></a></h2>
-<p>There are two main steps to using the package:</p>
-<ul class="simple">
-<li><p>Before you begin modelling you will need to upload the dataset that you are working with. This will currently need to be a csv, a Pandas DataFrame or a list of csv’s.</p></li>
-<li><p>After each time you train a new model you will upload it using <code class="docutils literal notranslate"><span class="pre">SecleaAI.upload_training_run()</span></code>.</p></li>
-</ul>
-</section>
-<section id="example-usage">
-<h2>Example Usage<a class="headerlink" href="#example-usage" title="Permalink to this headline"></a></h2>
-<img src="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logos/logo-light.png" width="400" alt="Seclea" />
+  <img src="https://github.com/seclea/seclea_ai/raw/dev/docs/media/logos/logo-light.png" width="400" alt="Seclea" />
 <section id="getting-started">
-<h3>Getting Started<a class="headerlink" href="#getting-started" title="Permalink to this headline"></a></h3>
+<h1>Getting Started<a class="headerlink" href="#getting-started" title="Permalink to this headline"></a></h1>
 <p>We will run through a sample project showing how to use Seclea’s tools to record your data science work
 and explore the results in the Seclea Platform.</p>
 <section id="set-up-the-project">
-<h4>Set up the Project<a class="headerlink" href="#set-up-the-project" title="Permalink to this headline"></a></h4>
+<h2>Set up the Project<a class="headerlink" href="#set-up-the-project" title="Permalink to this headline"></a></h2>
 <p>Head to <a class="reference external" href="https://platform.seclea.com">platform.seclea.com</a> and log in.</p>
 <p>Create a new project and give it a name and description.</p>
 <p><img alt="" src="https://github.com/seclea/seclea_ai/raw/dev/docs/media/notebooks/getting_started/create-new-project.png" />
@@ -127,7 +106,7 @@ and explore the results in the Seclea Platform.</p>
 <p>These are optional but are needed to take advantage of Checks. If in doubt leave these empty for now and come back.</p>
 </section>
 <section id="integrate-with-seclea-ai">
-<h4>Integrate with seclea-ai<a class="headerlink" href="#integrate-with-seclea-ai" title="Permalink to this headline"></a></h4>
+<h2>Integrate with seclea-ai<a class="headerlink" href="#integrate-with-seclea-ai" title="Permalink to this headline"></a></h2>
 <p>You can get the seclea-ai package from either pip or conda-forge - whichever you prefer!</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>!pip install seclea_ai
 # !conda install seclea_ai
@@ -148,7 +127,7 @@ success
 </div>
 </section>
 <section id="handle-the-data">
-<h4>🗄 Handle the Data<a class="headerlink" href="#handle-the-data" title="Permalink to this headline"></a></h4>
+<h2>🗄 Handle the Data<a class="headerlink" href="#handle-the-data" title="Permalink to this headline"></a></h2>
 <p>Download the <a class="reference external" href="https://raw.githubusercontent.com/seclea/seclea_ai/dev/docs/examples/insurance_claims.csv">data</a> for
 this tutorial if you are working on this in Colab or without reference to the repo - this is an Insurance Claims dataset with a variety of features and 1000 samples.</p>
 <p>Now we can upload the initial data to the Seclea Platform.</p>
@@ -161,7 +140,7 @@ during/after pre-processing.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
 
-<span class="c1"># load the data</span>
+<span class="c1"># load the data </span>
 <span class="n">data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s1">&#39;insurance_claims.csv&#39;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="s2">&quot;policy_number&quot;</span><span class="p">)</span>
 
 <span class="c1"># define the metadata for the dataset.</span>
@@ -186,7 +165,7 @@ during/after pre-processing.</p>
 </pre></div>
 </div>
 <section id="evaluating-the-dataset">
-<h5>🔍 Evaluating the Dataset<a class="headerlink" href="#evaluating-the-dataset" title="Permalink to this headline"></a></h5>
+<h3>🔍 Evaluating the Dataset<a class="headerlink" href="#evaluating-the-dataset" title="Permalink to this headline"></a></h3>
 <p>Head back to the platform, so we can take a look at our Dataset</p>
 <p>Navigate to the Datasets section - under Prepare tab. See the preview and use the format check/PII check.</p>
 <p>PII  and Format Check</p>
@@ -195,7 +174,7 @@ during/after pre-processing.</p>
 </section>
 </section>
 <section id="transformations">
-<h4>🔀 Transformations<a class="headerlink" href="#transformations" title="Permalink to this headline"></a></h4>
+<h2>🔀 Transformations<a class="headerlink" href="#transformations" title="Permalink to this headline"></a></h2>
 <p>When using Seclea to record your Data Science work you will have to take care with how you
 deal with transformations of the data.</p>
 <p>We require that all transformations are encapsulated in a function, that takes the data and returns the
@@ -212,7 +191,7 @@ transformed data. There are a few things to be aware of so please see the <a cla
 </div>
 </section>
 <section id="data-cleaning">
-<h4>🧽 Data Cleaning<a class="headerlink" href="#data-cleaning" title="Permalink to this headline"></a></h4>
+<h2>🧽 Data Cleaning<a class="headerlink" href="#data-cleaning" title="Permalink to this headline"></a></h2>
 <p>We will carry out some pre-processing and generate a few different datasets so that we
 can see on the platform how to track these.This also means we can train our models on some
 different data and see how that affects performance.</p>
@@ -254,7 +233,7 @@ Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdo
 </div>
 </section>
 <section id="upload-intermediate-dataset">
-<h4>⬆️ Upload Intermediate Dataset<a class="headerlink" href="#upload-intermediate-dataset" title="Permalink to this headline"></a></h4>
+<h2>⬆️ Upload Intermediate Dataset<a class="headerlink" href="#upload-intermediate-dataset" title="Permalink to this headline"></a></h2>
 <p>Before getting to balancing the datasets we will upload them to the Seclea Platform.</p>
 <ul class="simple">
 <li><p>We define the metadata for the dataset - if there have been any changes since the original dataset we need to put that here, otherwise we can reuse the original metadata. In this case we have dropped some of the continuous feature columns so we will need to redefine</p></li>
@@ -331,7 +310,7 @@ Columns to drop with correlation &gt; 0.95: [&#39;vehicle_claim&#39;]
 <span class="c1"># find columns with categorical data for both dataset</span>
 <span class="n">cat_cols</span> <span class="o">=</span> <span class="n">df_const</span><span class="o">.</span><span class="n">select_dtypes</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;object&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
 
-<span class="k">def</span> <span class="nf">encode_categorical</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">cat_cols</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">encode_categorical</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">cat_cols</span><span class="p">):</span> 
   <span class="kn">from</span> <span class="nn">sklearn.preprocessing</span> <span class="kn">import</span> <span class="n">LabelEncoder</span>
 
   <span class="n">new_df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -357,8 +336,8 @@ Columns to drop with correlation &gt; 0.95: [&#39;vehicle_claim&#39;]
 <span class="p">]</span>
 
 <span class="c1"># ⬆️ upload the constant fill dataset</span>
-<span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">df_const</span><span class="p">,</span>
-                      <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Auto Insurance Fraud - Const Fill&quot;</span><span class="p">,</span>
+<span class="n">seclea</span><span class="o">.</span><span class="n">upload_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">df_const</span><span class="p">,</span> 
+                      <span class="n">dataset_name</span><span class="o">=</span><span class="s2">&quot;Auto Insurance Fraud - Const Fill&quot;</span><span class="p">,</span> 
                       <span class="n">metadata</span><span class="o">=</span><span class="n">encoded_metadata</span><span class="p">,</span>
                       <span class="n">transformations</span><span class="o">=</span><span class="n">const_processed_transformations</span><span class="p">)</span>
 
@@ -548,18 +527,18 @@ Shape of y before SMOTE: (800,)
 </pre></div>
 </div>
 <section id="evaluating-the-transformations">
-<h5>🔍 Evaluating the Transformations<a class="headerlink" href="#evaluating-the-transformations" title="Permalink to this headline"></a></h5>
+<h3>🔍 Evaluating the Transformations<a class="headerlink" href="#evaluating-the-transformations" title="Permalink to this headline"></a></h3>
 <p>Now head to platform.seclea.com again to take another look at the Datasets section. You will see that there is a lot more to look at this time.</p>
 <p>You can see here how the transformations are used to show you the history of the data and how it arrived in its final state.</p>
 </section>
 </section>
 </section>
 <section id="modeling">
-<h3>🛠️ Modeling<a class="headerlink" href="#modeling" title="Permalink to this headline"></a></h3>
+<h1>🛠️ Modeling<a class="headerlink" href="#modeling" title="Permalink to this headline"></a></h1>
 <p>Now we get started with the modelling. We will run the same models over each of our datasets to explore how the different processing of the data has affected our results.</p>
 <p>We will use three models from sklearn for this, DecisionTree, RandomForest and GradientBoosting Classifers.</p>
 <section id="training">
-<h4>📈 Training<a class="headerlink" href="#training" title="Permalink to this headline"></a></h4>
+<h2>📈 Training<a class="headerlink" href="#training" title="Permalink to this headline"></a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">sklearn.tree</span> <span class="kn">import</span> <span class="n">DecisionTreeClassifier</span>
 <span class="kn">from</span> <span class="nn">sklearn.ensemble</span> <span class="kn">import</span> <span class="n">RandomForestClassifier</span>
 <span class="kn">from</span> <span class="nn">sklearn.ensemble</span> <span class="kn">import</span> <span class="n">GradientBoostingClassifier</span>
@@ -638,10 +617,8 @@ Classifier: GradientBoostingClassifier has a test score of 81.0% accuracy score 
 </div>
 </section>
 <section id="analysis">
-<h4>🔍 Analysis<a class="headerlink" href="#analysis" title="Permalink to this headline"></a></h4>
+<h2>🔍 Analysis<a class="headerlink" href="#analysis" title="Permalink to this headline"></a></h2>
 <p>Head back to <a class="reference external" href="https://platform.seclea.com">platform.seclea.com</a> and we can analyse our Models</p>
-</section>
-</section>
 </section>
 </section>
 
@@ -649,8 +626,7 @@ Classifier: GradientBoostingClassifier has a test score of 81.0% accuracy score 
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="README.html" class="btn btn-neutral float-left" title="Seclea AI" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="seclea_ai.html" class="btn btn-neutral float-right" title="API Reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="changelog.html" class="btn btn-neutral float-left" title="Changelog" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
     </div>
 
   <hr/>

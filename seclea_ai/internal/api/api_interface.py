@@ -2,6 +2,7 @@
 Everything to do with the API to the backend.
 """
 import json
+import os
 from typing import Dict, List
 
 import requests
@@ -59,6 +60,12 @@ class Api:
             transmission=self._transmission, username=username, password=password
         )
 
+    @staticmethod
+    def test_json_valid(d):
+        d = json.dumps(d)
+        json.loads(d)
+        pass
+
     def get_projects(self, organization_id, **filter_kwargs) -> Response:
         res = self._transmission.get(
             url_path="/collection/projects",
@@ -97,26 +104,28 @@ class Api:
         metadata: dict,
         dataset_id: str,
         parent_dataset_id: str = None,
-        delete=False,
     ) -> Response:
 
-        dataset_queryparams = {
-            "project": str(project_id),
-            "organization": organization_id,
-            "name": name,
-            "metadata": json.dumps(metadata),
-            "hash": str(dataset_id),
-        }
+        dataset_queryparams = {"project": project_id, "organization": organization_id}
+        self.test_json_valid(metadata)
 
-        if parent_dataset_id is not None:
-            dataset_queryparams["parent"] = parent_dataset_id
+        with open(dataset_file_path, "rb") as f:
+            dataset_obj = {
+                "project": (None, project_id),
+                "name": (None, name),
+                "metadata": (None, json.dumps(metadata), "application/json"),
+                "hash": (None, str(dataset_id)),
+                "dataset": (os.path.basename(dataset_file_path), f),
+            }
+            if parent_dataset_id is not None:
+                dataset_obj["parent"] = (None, parent_dataset_id)
 
-        res = self._transmission.send_file(
-            url_path=f"{self.dataset_endpoint}",
-            file_path=dataset_file_path,
-            query_params=dataset_queryparams,
-            delete_file=delete,
-        )
+            res = self._transmission.send_file(
+                url_path=f"{self.dataset_endpoint}",
+                obj=dataset_obj,
+                query_params=dataset_queryparams,
+            )
+
         res = handle_response(response=res)
 
         return res
@@ -205,23 +214,24 @@ class Api:
         training_run_id: str,
         sequence_num: int,
         final_state,
-        delete=False,
     ):
 
-        query_params = {
-            "organization": organization_id,
-            "project": str(project_id),
-            "sequence_num": sequence_num,
-            "training_run": str(training_run_id),
-            "final_state": str(final_state),
-        }
+        with open(model_state_file_path, "rb") as f:
+            res = self._transmission.send_file(
+                url_path="/collection/model-states",
+                obj={
+                    "project": (None, project_id),
+                    "sequence_num": (None, sequence_num),
+                    "training_run": (None, training_run_id),
+                    "final_state": (None, final_state),
+                    "state": (os.path.basename(model_state_file_path), f),
+                },
+                query_params={
+                    "organization": organization_id,
+                    "project": project_id,
+                },
+            )
 
-        res = self._transmission.send_file(
-            url_path=f"{self.model_states_endpoint}",
-            file_path=model_state_file_path,
-            query_params=query_params,
-            delete_file=delete,
-        )
         res = handle_response(response=res)
 
         return res
@@ -242,14 +252,4 @@ class Api:
             query_params={"organization": organization_id, "project": project_id},
         )
         res = handle_response(response=res)
-        return res
-
-    def update_dataset_metadata(self, dataset_id, metadata, organization_id, project_id):
-        res = self._transmission.patch(
-            url_path=f"/collection/datasets/{dataset_id}",
-            obj={"metadata": metadata},
-            query_params={"organization": organization_id, "project": project_id},
-        )
-        res = handle_response(response=res)
-
         return res

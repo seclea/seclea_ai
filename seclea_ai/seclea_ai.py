@@ -23,6 +23,10 @@ from seclea_ai.transformations import DatasetTransformation
 logger = logging.getLogger(__name__)
 
 
+def dataset_hash(dataset, project: int) -> str:
+    return str(hash(pd.util.hash_pandas_object(dataset).sum() + project))
+
+
 class SecleaAI:
     def __init__(
         self,
@@ -209,7 +213,7 @@ class SecleaAI:
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
 
         # TODO replace with dataset_hash fn
-        dataset_id = hash(pd.util.hash_pandas_object(dataset).sum() + self._project_id)
+        dataset_id = dataset_hash(dataset, self._project_id)
 
         if transformations is not None:
 
@@ -218,7 +222,7 @@ class SecleaAI:
             #####
             # Validate parent exists and get metadata - check how often on portal, maybe remove?
             #####
-            parent_dset_id = hash(pd.util.hash_pandas_object(parent).sum() + self._project_id)
+            parent_dset_id = dataset_hash(parent, self._project_id)
             # check parent exists - check local db if not else error.
             try:
                 res = self._api.get_dataset(
@@ -267,6 +271,8 @@ class SecleaAI:
             continuous_features=[],
             outcome_name=None,
             num_samples=len(dataset),
+            favourable_outcome=None,
+            unfavourable_outcome=None,
         )
         try:
             features = (
@@ -276,9 +282,6 @@ class SecleaAI:
             # this means outcome was set to None
             features = dataset.columns
 
-        required_metadata = ["favourable_outcome", "unfavourable_outcome"]
-
-        self._ensure_required_user_spec_metadata(metadata=metadata, required_spec=required_metadata)
         metadata = self._ensure_required_metadata(
             metadata=metadata, defaults_spec=metadata_defaults_spec
         )
@@ -389,7 +392,7 @@ class SecleaAI:
             # handle the final dataset - check generated = passed in.
             if idx == last:
                 if (
-                    hash(pd.util.hash_pandas_object(dset).sum() + self._project_id) != dataset_id
+                    dataset_hash(dset, self._project_id) != dataset_id
                 ):  # TODO create or find better exception
                     raise AssertionError(
                         """Generated Dataset does not match the Dataset passed in.
@@ -725,22 +728,6 @@ class SecleaAI:
             except KeyError:
                 metadata[required_key] = default
         return metadata
-
-    @staticmethod
-    def _ensure_required_user_spec_metadata(metadata: Dict, required_spec: List) -> None:
-        """
-        Ensures that required metadata that can be specified by the user are filled.
-        @param metadata: The metadata dict
-        @param defaults_spec:
-        @return: None
-        @raise ValueError if any are missing.
-        """
-        for required_key in required_spec:
-            try:
-                if metadata[required_key] is None:
-                    raise ValueError(f"{required_key} must be specified in the metadata")
-            except KeyError:
-                raise ValueError(f"{required_key} must be specified in the metadata")
 
     @staticmethod
     def _add_required_metadata(metadata: Dict, required_spec: Dict) -> Dict:

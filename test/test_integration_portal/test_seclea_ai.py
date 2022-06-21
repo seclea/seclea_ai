@@ -1,5 +1,4 @@
 import os
-import traceback
 import uuid
 from unittest import TestCase
 
@@ -14,7 +13,6 @@ from seclea_ai.transformations import DatasetTransformation
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
-print(folder_path)
 
 
 class TestIntegrationSecleaAIPortal(TestCase):
@@ -36,6 +34,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.organization = "Onespan"
         self.project_name_1 = f"test-project-{uuid.uuid4()}"
         self.project_name_2 = f"test-project-{uuid.uuid4()}"
+        self.project_name_4 = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller_1 = SecleaAI(
@@ -160,14 +159,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
             X_sm, y_sm = sm.fit_resample(X, y)
 
-            print(
-                f"""Shape of X before SMOTE: {X.shape}
-            Shape of X after SMOTE: {X_sm.shape}"""
-            )
-            print(
-                f"""Shape of y before SMOTE: {y.shape}
-            Shape of y after SMOTE: {y_sm.shape}"""
-            )
             return X_sm, y_sm
             # returns X, y
 
@@ -328,6 +319,60 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.controller_2.complete()
         self.controller_1.complete()
 
+    # TODO fix the sequential uploading issues
+    def step_4_time_series(self):
+
+        # create second project for second dataset
+        self.controller_4 = SecleaAI(
+            self.project_name_4,
+            self.organization,
+            self.portal_url,
+            self.auth_url,
+            username=self.username,
+            password=self.password,
+        )
+
+        self.sample_df_4 = pd.read_csv(f"{folder_path}/energydata_complete.csv", index_col="date")
+        self.sample_df_4_name = "Energy Data"
+        self.sample_df_4_meta = {
+            "outcome_name": "appliances",
+            "favourable_outcome": None,
+            "unfavourable_outcome": None,
+            "continuous_features": [
+                "lights",
+                "T1",
+                "T1",
+                "RH_1",
+                "T2",
+                "RH_2",
+                "T3",
+                "RH_3",
+                "T4",
+                "RH_4",
+                "T5",
+                "RH_5",
+                "T6",
+                "RH_6",
+                "T7",
+                "RH_7",
+                "T8",
+                "RH_8",
+                "T9",
+                "RH_9",
+                "To",
+                "Pressure",
+                "RH_out",
+                "Wind speed",
+                "Visibility",
+                "Tdewpoint",
+                "rv1",
+                "rv2",
+            ],
+        }
+        self.controller_4.upload_dataset(
+            self.sample_df_4, self.sample_df_4_name, self.sample_df_4_meta
+        )
+
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
             if name.startswith("step"):
@@ -339,5 +384,4 @@ class TestIntegrationSecleaAIPortal(TestCase):
                 step()
                 print("STEP COMPLETE")
             except Exception as e:
-                traceback.print_exc()
                 self.fail(f"{step} failed ({type(e)}: {e})")

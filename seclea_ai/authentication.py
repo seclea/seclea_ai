@@ -1,3 +1,4 @@
+import logging
 import traceback
 from getpass import getpass
 
@@ -17,11 +18,15 @@ except ImportError:
     IN_COLAB = False
 
 
+logger = logging.getLogger(__name__)
+
+
 def handle_response(res: Response, msg):
     if not res.ok:
         print(f"{msg}: {res.status_code} - {res.reason} - {res.text}")
 
 
+# TODO fix this - the flow either here or in the threads is not working consistently.
 class AuthenticationService:
     def __init__(self, url: str, transmission: Transmission):
         self._url = url
@@ -57,8 +62,7 @@ class AuthenticationService:
     def verify_token(self) -> bool:
         """
         Verifies if access token in database is valid
-
-        :return: bool True if valid or False
+        :return: bool valid
         """
         if not AuthService.get_or_none(AuthService.key == self._key_token_access):
             return False
@@ -66,7 +70,7 @@ class AuthenticationService:
             self._key_token_access: AuthService.get(AuthService.key == self._key_token_access).value
         }
 
-        print(f"Cookies: {self._transmission.cookies}")  # TODO remove or make debug only
+        logger.debug(f"Cookies: {self._transmission.cookies}")  # TODO remove
 
         try:
             response = self._transmission.send_json(url_path=self._path_token_verify, obj={})
@@ -77,9 +81,7 @@ class AuthenticationService:
 
     def refresh_token(self) -> bool:
         """
-        Refreshes the access token for the transmission if successful.
-
-        :param transmission: Transmission The transmission which needs the refreshed token.
+        Refreshes the access token by posting the refresh token.
 
         :return: bool Success
         """
@@ -139,7 +141,7 @@ class AuthenticationService:
             print("Warning - Avoid storing credentials in code where possible!")
             credentials = {"username": username, "password": password}
         response = self._transmission.send_json(url_path=self._path_token_obtain, obj=credentials)
-        print(
+        logger.debug(
             f"Initial Tokens - Status: {response.status_code} - content {response.content} - cookies - {response.cookies}"
         )
         if response.status_code != 200:
