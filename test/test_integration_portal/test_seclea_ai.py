@@ -34,6 +34,7 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.organization = "Onespan"
         self.project_name_1 = f"test-project-{uuid.uuid4()}"
         self.project_name_2 = f"test-project-{uuid.uuid4()}"
+        self.project_name_4 = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller_1 = SecleaAI(
@@ -314,6 +315,59 @@ class TestIntegrationSecleaAIPortal(TestCase):
         model1.fit(self.X_sm, self.y_sm)
         self.controller_1.upload_training_run_split(
             model1, X_train=self.X_sm, y_train=self.y_sm, X_test=self.X_test, y_test=self.y_test
+        )
+
+    def step_4_time_series(self):
+
+        # create second project for second dataset
+        self.controller_4 = SecleaAI(
+            self.project_name_4,
+            self.organization,
+            self.portal_url,
+            self.auth_url,
+            username=self.username,
+            password=self.password,
+        )
+
+        self.sample_df_4 = pd.read_csv(f"{folder_path}/energydata_complete.csv", index_col="date")
+        self.sample_df_4_name = "Energy Data"
+        self.sample_df_4_meta = {
+            "outcome_name": "appliances",
+            "favourable_outcome": None,
+            "unfavourable_outcome": None,
+            "continuous_features": [
+                "lights",
+                "T1",
+                "T1",
+                "RH_1",
+                "T2",
+                "RH_2",
+                "T3",
+                "RH_3",
+                "T4",
+                "RH_4",
+                "T5",
+                "RH_5",
+                "T6",
+                "RH_6",
+                "T7",
+                "RH_7",
+                "T8",
+                "RH_8",
+                "T9",
+                "RH_9",
+                "To",
+                "Pressure",
+                "RH_out",
+                "Wind speed",
+                "Visibility",
+                "Tdewpoint",
+                "rv1",
+                "rv2",
+            ],
+        }
+        self.controller_4.upload_dataset(
+            self.sample_df_4, self.sample_df_4_name, self.sample_df_4_meta
         )
 
     def _steps(self):
