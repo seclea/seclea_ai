@@ -877,12 +877,15 @@ class SecleaAI:
     @staticmethod
     def _get_framework(model) -> ModelManagers:
         module = model.__class__.__module__
+        print(f"Model module name - {module}")
         # order is important as xgboost and lightgbm contain sklearn compliant packages.
         # TODO check if we can treat them as sklearn but for now we avoid that issue by doing sklearn last.
         if "xgboost" in module:
             return ModelManagers.XGBOOST
         elif "lightgbm" in module:
             return ModelManagers.LIGHTGBM
+        elif "tensorflow" in module:
+            return ModelManagers.TENSORFLOW
         elif "sklearn" in module:
             return ModelManagers.SKLEARN
         else:
