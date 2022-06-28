@@ -50,8 +50,16 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
     return res
 
 
+def column_hash(dataset: DataFrame) -> int:
+    """Invariant to ordering of columns/rows"""
+    sum = 0
+    for col in dataset.columns:
+        sum += int(pd.util.hash_pandas_object(dataset[col]).sum())
+    return sum
+
+
 def dataset_hash(dataset, project: int) -> str:
-    return str(hash(pd.util.hash_pandas_object(dataset).sum() + project))
+    return str(hash(column_hash(dataset) + project))
 
 
 class SecleaAI:
@@ -483,7 +491,7 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_pks = [
-            str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project))
+            dataset_hash(dataset, self._project)
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
         ]
@@ -877,14 +885,14 @@ class SecleaAI:
     @staticmethod
     def _get_framework(model) -> ModelManagers:
         module = model.__class__.__module__
-        print(f"Model module name - {module}")
         # order is important as xgboost and lightgbm contain sklearn compliant packages.
         # TODO check if we can treat them as sklearn but for now we avoid that issue by doing sklearn last.
         if "xgboost" in module:
             return ModelManagers.XGBOOST
         elif "lightgbm" in module:
             return ModelManagers.LIGHTGBM
-        elif "tensorflow" in module:
+        # TODO improve to exclude other keras backends...
+        elif "tensorflow" in module or "keras" in module:
             return ModelManagers.TENSORFLOW
         elif "sklearn" in module:
             return ModelManagers.SKLEARN
