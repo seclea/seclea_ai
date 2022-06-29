@@ -22,7 +22,7 @@ from seclea_ai.lib.seclea_utils.core import (
     save_object,
 )
 import uuid
-from .lib.seclea_utils.dataset_management.dataset_utils import save_dataset
+from .lib.seclea_utils.dataset_management.dataset_utils import save_dataset, dataset_hash
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
 from .svc.api.collection.dataset import post_dataset
@@ -48,18 +48,6 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
     if not res.status_code == expected:
         raise ValueError(f"Response Status code {res.status_code}, expected:{expected}. \n{msg}")
     return res
-
-
-def column_hash(dataset: DataFrame) -> int:
-    """Invariant to ordering of columns/rows"""
-    sum = 0
-    for col in dataset.columns:
-        sum += int(pd.util.hash_pandas_object(dataset[col]).sum())
-    return sum
-
-
-def dataset_hash(dataset, project: int) -> str:
-    return str(hash(column_hash(dataset) + project))
 
 
 class SecleaAI:
