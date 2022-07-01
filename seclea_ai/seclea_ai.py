@@ -22,7 +22,7 @@ from seclea_ai.lib.seclea_utils.core import (
     save_object,
 )
 import uuid
-from .lib.seclea_utils.dataset_management.dataset_utils import save_dataset
+from .lib.seclea_utils.dataset_management.dataset_utils import save_dataset, dataset_hash
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
 from .svc.api.collection.dataset import post_dataset
@@ -48,10 +48,6 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
     if not res.status_code == expected:
         raise ValueError(f"Response Status code {res.status_code}, expected:{expected}. \n{msg}")
     return res
-
-
-def dataset_hash(dataset, project: int) -> str:
-    return str(hash(pd.util.hash_pandas_object(dataset).sum() + project))
 
 
 class SecleaAI:
@@ -483,7 +479,7 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_pks = [
-            str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project))
+            dataset_hash(dataset, self._project)
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
         ]
@@ -883,6 +879,9 @@ class SecleaAI:
             return ModelManagers.XGBOOST
         elif "lightgbm" in module:
             return ModelManagers.LIGHTGBM
+        # TODO improve to exclude other keras backends...
+        elif "tensorflow" in module or "keras" in module:
+            return ModelManagers.TENSORFLOW
         elif "sklearn" in module:
             return ModelManagers.SKLEARN
         else:
