@@ -250,10 +250,7 @@ class SecleaAI:
 
             # check for duplicates
             for up_kwargs in upload_queue:
-                if (
-                    pd.util.hash_pandas_object(up_kwargs["dataset"]).sum()
-                    == up_kwargs["parent_hash"]
-                ):
+                if dataset_hash(up_kwargs["dataset"], self._project) == up_kwargs["parent_hash"]:
                     raise AssertionError(
                         f"""The transformation {up_kwargs['transformation'].func.__name__} does not change the dataset.
                         Please remove it and try again."""
