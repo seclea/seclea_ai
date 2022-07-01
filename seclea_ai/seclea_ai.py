@@ -17,14 +17,12 @@ from seclea_ai.internal.director import Director
 from seclea_ai.internal.exceptions import AuthenticationError
 from seclea_ai.internal.local_db import Record
 from seclea_ai.lib.seclea_utils.core import encode_func
+
+from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
 from seclea_ai.transformations import DatasetTransformation
 
 logger = logging.getLogger(__name__)
-
-
-def dataset_hash(dataset, project: int) -> str:
-    return str(hash(pd.util.hash_pandas_object(dataset).sum() + project))
 
 
 class SecleaAI:
@@ -542,7 +540,7 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_ids = [
-            str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project_id))
+            dataset_hash(dataset, self._project)
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
         ]
@@ -750,6 +748,9 @@ class SecleaAI:
             return ModelManagers.XGBOOST
         elif "lightgbm" in module:
             return ModelManagers.LIGHTGBM
+        # TODO improve to exclude other keras backends...
+        elif "tensorflow" in module or "keras" in module:
+            return ModelManagers.TENSORFLOW
         elif "sklearn" in module:
             return ModelManagers.SKLEARN
         else:
