@@ -235,8 +235,20 @@ if they make sense for validation etc.
 We will also have classes for Users to use in their code. These will be added here.
 
 ## Network failure modes
+
+- 400 Bad Request - There is probably a mismatch with acceptable data types or wrong format out of date]
+- 401
+- 402
+- 403 Unauthorized
+- 404 Not found
+- 405
+- timeout
+- 500 Internal Server Error
+
 ```mermaid
     flowchart TD
+    
+    400
     
     401
     402

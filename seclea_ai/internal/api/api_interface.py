@@ -9,7 +9,6 @@ import requests
 from requests import Response
 
 from seclea_ai.authentication import AuthenticationService
-from seclea_ai.lib.seclea_utils.core.transmission import RequestWrapper
 
 
 # TODO return specific Exceptions for specific non success responses.
@@ -39,26 +38,20 @@ class Api:
     def __init__(self, settings, username=None, password=None):
         # setup some defaults
         self._settings = settings
-        self.transport = requests.Session()
-        self._transmission = RequestWrapper(
-            server_root_url=settings["platform_url"]
-        )  # TODO replace
-        self.auth = AuthenticationService(
-            url=settings["auth_url"],
-            transmission=RequestWrapper(server_root_url=settings["auth_url"]),
-        )
+        self._session = requests.Session()
+        self.auth = AuthenticationService(url=settings["auth_url"])
         # TODO maybe remove auth on creation - only when needed?
-        self.auth.authenticate(self._transmission, username=username, password=password)
-        self.project_endpoint = "/collection/projects"
-        self.dataset_endpoint = "/collection/datasets"
-        self.model_endpoint = "/collection/models"
-        self.training_run_endpoint = "/collection/training-runs"
-        self.model_states_endpoint = "/collection/model-states"
+        self.auth.authenticate(self._session, username=username, password=password)
+        self._root_url = settings["platform_url"]
+        self._project_endpoint = "collection/projects"
+        self._dataset_endpoint = "collection/datasets"
+        self._dataset_transformations_endpoint = "collection/dataset-transformations"
+        self._model_endpoint = "collection/models"
+        self._training_run_endpoint = "collection/training-runs"
+        self._model_states_endpoint = "collection/model-states"
 
     def authenticate(self, username=None, password=None):
-        self.auth.authenticate(
-            transmission=self._transmission, username=username, password=password
-        )
+        self.auth.authenticate(session=self._session, username=username, password=password)
 
     @staticmethod
     def test_json_valid(d):
@@ -67,30 +60,30 @@ class Api:
         pass
 
     def get_projects(self, organization_id, **filter_kwargs) -> Response:
-        res = self._transmission.get(
-            url_path="/collection/projects",
-            query_params={"organization": organization_id, **filter_kwargs},
+        res = self._session.get(
+            url=f"{self._root_url}/{self._project_endpoint}",
+            params={"organization": organization_id, **filter_kwargs},
         )
         res = handle_response(response=res)
         return res
 
     def upload_project(self, name, description, organization_id) -> Response:
-        res = self._transmission.send_json(
-            url_path="/collection/projects",
-            obj={
+        res = self._session.post(
+            url=f"{self._root_url}/{self._project_endpoint}",
+            data={
                 "name": name,
                 "description": description,
                 "organization": organization_id,
             },
-            query_params={"organization": organization_id},
+            params={"organization": organization_id},
         )
         res = handle_response(response=res)
         return res
 
     def get_dataset(self, dataset_id: str, project_id, organization_id) -> Response:
-        res = self._transmission.get(
-            url_path=f"/collection/datasets/{dataset_id}",
-            query_params={"project": project_id, "organization": organization_id},
+        res = self._session.get(
+            url=f"{self._root_url}/{self._dataset_endpoint}/{dataset_id}",
+            params={"project": project_id, "organization": organization_id},
         )
         res = handle_response(response=res)
         return res
@@ -120,14 +113,12 @@ class Api:
             if parent_dataset_id is not None:
                 dataset_obj["parent"] = (None, parent_dataset_id)
 
-            res = self._transmission.send_file(
-                url_path=f"{self.dataset_endpoint}",
-                obj=dataset_obj,
-                query_params=dataset_queryparams,
+            res = self._session.post(
+                url=f"{self._root_url}/{self._dataset_endpoint}",
+                files=dataset_obj,
+                params=dataset_queryparams,
             )
-
         res = handle_response(response=res)
-
         return res
 
     def get_models(self, project_id, organization_id, **filter_kwargs) -> Response:
@@ -145,32 +136,32 @@ class Api:
 
         :return: Response
         """
-        res = self._transmission.get(
-            url_path="/collection/models",
-            query_params={"organization": organization_id, "project": project_id, **filter_kwargs},
+        res = self._session.get(
+            url=f"{self._root_url}/{self._model_endpoint}",
+            params={"organization": organization_id, "project": project_id, **filter_kwargs},
         )
         res = handle_response(response=res)
         return res
 
     def upload_model(self, organization_id, project_id, model_name, framework_name) -> Response:
-        res = self._transmission.send_json(
-            url_path="/collection/models",
-            obj={
+        res = self._session.post(
+            url=f"{self._root_url}/{self._model_endpoint}",
+            data={
                 "organization": organization_id,
                 "project": project_id,
                 "name": model_name,
                 "framework": framework_name,
             },
-            query_params={"organization": organization_id, "project": project_id},
+            params={"organization": organization_id, "project": project_id},
         )
         res = handle_response(response=res)
         return res
 
     # TODO review if use of id is confusing - may need to standardise id params
     def get_training_runs(self, project_id: int, organization_id: str, **filter_kwargs) -> Response:
-        res = self._transmission.get(
-            "/collection/training-runs",
-            query_params={
+        res = self._session.get(
+            url=f"{self._root_url}/{self._training_run_endpoint}",
+            params={
                 "project": project_id,
                 "organization": organization_id,
                 **filter_kwargs,
@@ -197,11 +188,12 @@ class Api:
             "name": training_run_name,
             "params": params,
         }
+        self.test_json_valid(data)
 
-        res = self._transmission.send_json(
-            url_path="/collection/training-runs",
-            obj=data,
-            query_params={"organization": organization_id, "project": project_id},
+        res = self._session.post(
+            url=f"{self._root_url}/{self._training_run_endpoint}",
+            data=data,
+            params={"organization": organization_id, "project": project_id},
         )
         res = handle_response(response=res)
         return res
@@ -215,25 +207,22 @@ class Api:
         sequence_num: int,
         final_state,
     ):
-
         with open(model_state_file_path, "rb") as f:
-            res = self._transmission.send_file(
-                url_path="/collection/model-states",
-                obj={
+            res = self._session.post(
+                url=f"{self._root_url}/{self._model_states_endpoint}",
+                files={
                     "project": (None, project_id),
                     "sequence_num": (None, sequence_num),
                     "training_run": (None, training_run_id),
                     "final_state": (None, final_state),
                     "state": (os.path.basename(model_state_file_path), f),
                 },
-                query_params={
+                params={
                     "organization": organization_id,
                     "project": project_id,
                 },
             )
-
         res = handle_response(response=res)
-
         return res
 
     def upload_transformation(
@@ -246,10 +235,10 @@ class Api:
             "code_encoded": code_encoded,
             "dataset": dataset_id,
         }
-        res = self._transmission.send_json(
-            url_path="/collection/dataset-transformations",
-            obj=data,
-            query_params={"organization": organization_id, "project": project_id},
+        res = self._session.post(
+            url=f"{self._root_url}/{self._dataset_transformations_endpoint}",
+            data=data,
+            params={"organization": organization_id, "project": project_id},
         )
         res = handle_response(response=res)
         return res

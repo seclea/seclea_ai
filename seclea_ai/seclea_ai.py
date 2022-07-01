@@ -400,22 +400,20 @@ class SecleaAI:
                 else:
                     dset_name = dataset_name
             else:
-                if (
-                    pd.util.hash_pandas_object(dset).sum()
-                    == pd.util.hash_pandas_object(parent_dset).sum()
+                if dataset_hash(dset, self._project_id) == dataset_hash(
+                    parent_dset, self._project_id
                 ):
                     raise AssertionError(
                         f"""The transformation {trans.func.__name__} does not change the dataset.
                         Please remove it and try again."""
                     )
 
-            dset_id = hash(pd.util.hash_pandas_object(dset).sum() + self._project_id)
+            dset_id = dataset_hash(dset, self._project_id)
 
             # find parent dataset in local db - TODO improve
             self._db.connect()
             parent_record = Record.get_or_none(
-                Record.key
-                == str(hash(pd.util.hash_pandas_object(parent_dset).sum() + self._project_id))
+                Record.key == dataset_hash(parent_dset, self._project_id)
             )
             parent_dataset_record_id = parent_record.id
 
@@ -540,7 +538,7 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_ids = [
-            dataset_hash(dataset, self._project)
+            dataset_hash(dataset, self._project_id)
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
         ]
