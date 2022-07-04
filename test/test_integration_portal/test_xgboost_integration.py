@@ -35,14 +35,14 @@ class TestIntegrationXGBoost(TestCase):
         self.password = "asdf"  # nosec
         self.username = "onespanadmin"  # nosec
         self.organization = "Onespan"
-        self.project_name_1 = f"test-project-{uuid.uuid4()}"
+        self.project_name = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
-        self.controller_1 = SecleaAI(
-            self.project_name_1,
-            self.organization,
-            self.portal_url,
-            self.auth_url,
+        self.controller = SecleaAI(
+            project_name=self.project_name,
+            organization=self.organization,
+            platform_url=self.portal_url,
+            auth_url=self.auth_url,
             username=self.username,
             password=self.password,
         )
@@ -64,7 +64,7 @@ class TestIntegrationXGBoost(TestCase):
                 "incident_hour_of_the_day",
             ],
         }
-        self.controller_1.upload_dataset(
+        self.controller.upload_dataset(
             self.sample_df_1, self.sample_df_1_name, self.sample_df_1_meta
         )
 
@@ -171,7 +171,7 @@ class TestIntegrationXGBoost(TestCase):
         ]
 
         # upload dataset here
-        self.controller_1.upload_dataset_split(
+        self.controller.upload_dataset_split(
             X=X,
             y=y,
             dataset_name=f"{self.sample_df_1_name} - Cleaned",
@@ -200,7 +200,7 @@ class TestIntegrationXGBoost(TestCase):
         ]
 
         # upload dataset here
-        self.controller_1.upload_dataset_split(
+        self.controller.upload_dataset_split(
             X=self.X_sm,
             y=self.y_sm,
             dataset_name=f"{self.sample_df_1_name} Train - Balanced",
@@ -222,7 +222,7 @@ class TestIntegrationXGBoost(TestCase):
         ]
 
         # upload dataset here
-        self.controller_1.upload_dataset_split(
+        self.controller.upload_dataset_split(
             X=self.X_test,
             y=self.y_test,
             dataset_name=f"{self.sample_df_1_name} Test - Scaled",
@@ -240,13 +240,14 @@ class TestIntegrationXGBoost(TestCase):
         num_rounds = 5
         model = xgb.train(params=params, dtrain=dtrain, num_boost_round=num_rounds)
 
-        self.controller_1.upload_training_run_split(
+        self.controller.upload_training_run_split(
             model,
             X_train=self.X_sm,
             y_train=self.y_sm,
             X_test=self.X_test,
             y_test=self.y_test,
         )
+        self.controller.complete()
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted

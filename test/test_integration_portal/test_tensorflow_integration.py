@@ -34,10 +34,10 @@ class TestIntegrationTensorflow(TestCase):
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
-            self.project_name,
-            self.organization,
-            self.portal_url,
-            self.auth_url,
+            project_name=self.project_name,
+            organization=self.organization,
+            platform_url=self.portal_url,
+            auth_url=self.auth_url,
             username=self.username,
             password=self.password,
         )
@@ -181,6 +181,7 @@ class TestIntegrationTensorflow(TestCase):
             X_test=self.X_test,
             y_test=self.y_test,
         )
+        self.controller.complete()
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
