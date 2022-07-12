@@ -524,6 +524,7 @@ class SecleaAI:
         self._upload_model_state(
             model=model,
             training_run_pk=self._training_run,
+            dataset_pks=dataset_pks,
             sequence_num=0,
             final=True,
             model_manager=framework,
@@ -784,6 +785,7 @@ class SecleaAI:
         self,
         model,
         training_run_pk: int,
+        dataset_pks: List[int],
         sequence_num: int,
         final: bool,
         model_manager: ModelManagers,
@@ -793,7 +795,7 @@ class SecleaAI:
             exist_ok=True,
         )
         model_data = serialize(model, model_manager)
-        file_name = f"model-{sequence_num}"
+        file_name = f"data-{dataset_pks[0]}-model-{sequence_num}"
         save_path = os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_pk}")
         save_path = save_object(
             model_data, file_name, save_path, compression=CompressionFactory.ZSTD
