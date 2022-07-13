@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Union
 import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
+from pandas.errors import ParserError
 from requests import Response
 
 from seclea_ai.authentication import AuthenticationService
@@ -267,6 +268,7 @@ class SecleaAI:
             num_samples=len(dataset),
             favourable_outcome=None,
             unfavourable_outcome=None,
+            dataset_type=self._get_dataset_type(dataset),
         )
         try:
             features = (
@@ -883,3 +885,13 @@ class SecleaAI:
             return ModelManagers.SKLEARN
         else:
             return ModelManagers.NOT_IMPORTED
+
+    @staticmethod
+    def _get_dataset_type(dataset: DataFrame) -> str:
+        if dataset.index.dtype != int:
+            try:
+                pd.to_datetime(dataset.index.values)
+            except (ParserError, ValueError):  # Can't cnvrt some
+                return "tabular"
+            return "time_series"
+        return "tabular"
