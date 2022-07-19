@@ -888,7 +888,7 @@ class SecleaAI:
 
     @staticmethod
     def _get_dataset_type(dataset: DataFrame) -> str:
-        if dataset.index.dtype != int:
+        if not np.issubdtype(dataset.index.dtype, np.integer):
             try:
                 pd.to_datetime(dataset.index.values)
             except (ParserError, ValueError):  # Can't cnvrt some
