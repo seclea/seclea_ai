@@ -1,3 +1,4 @@
+import datetime
 import os
 import uuid
 from unittest import TestCase
@@ -5,10 +6,12 @@ from unittest import TestCase
 import numpy as np
 import pandas as pd
 from imblearn.over_sampling import SMOTE
+from peewee import SqliteDatabase
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 from seclea_ai import SecleaAI
+from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.transformations import DatasetTransformation
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -29,14 +32,15 @@ class TestIntegrationSKLearn(TestCase):
     """
 
     def step_0_project_setup(self):
+        self.start_timestamp = datetime.datetime.now()
         self.password = "asdf"  # nosec
         self.username = "onespanadmin"  # nosec
         self.organization = "Onespan"
-        self.project_name_1 = f"test-project-{uuid.uuid4()}"
+        self.project_name = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
-        self.controller_1 = SecleaAI(
-            project_name=self.project_name_1,
+        self.controller = SecleaAI(
+            project_name=self.project_name,
             organization=self.organization,
             platform_url=self.portal_url,
             auth_url=self.auth_url,
@@ -61,7 +65,7 @@ class TestIntegrationSKLearn(TestCase):
                 "incident_hour_of_the_day",
             ],
         }
-        self.controller_1.upload_dataset(
+        self.controller.upload_dataset(
             self.sample_df_1, self.sample_df_1_name, self.sample_df_1_meta
         )
 
@@ -195,7 +199,7 @@ class TestIntegrationSKLearn(TestCase):
         ]
 
         # upload dataset here
-        self.controller_1.upload_dataset_split(
+        self.controller.upload_dataset_split(
             X=X,
             y=y,
             dataset_name=f"{self.sample_df_1_name} - Cleaned",
@@ -227,7 +231,7 @@ class TestIntegrationSKLearn(TestCase):
         ]
 
         # upload dataset here
-        self.controller_1.upload_dataset_split(
+        self.controller.upload_dataset_split(
             X=self.X_sm_scaled,
             y=self.y_sm,
             dataset_name=f"{self.sample_df_1_name} Train - Balanced - Scaled",
@@ -252,7 +256,7 @@ class TestIntegrationSKLearn(TestCase):
         ]
 
         # upload dataset here
-        self.controller_1.upload_dataset_split(
+        self.controller.upload_dataset_split(
             X=self.X_test_scaled,
             y=self.y_test,
             dataset_name=f"{self.sample_df_1_name} Test - Scaled",
@@ -273,7 +277,7 @@ class TestIntegrationSKLearn(TestCase):
         model.fit(self.X_sm_scaled, self.y_sm)
         # preds = model.predict(self.X_test_scaled)
 
-        self.controller_1.upload_training_run_split(
+        self.controller.upload_training_run_split(
             model,
             X_train=self.X_sm_scaled,
             y_train=self.y_sm,
@@ -283,10 +287,23 @@ class TestIntegrationSKLearn(TestCase):
 
         model1 = RandomForestClassifier(random_state=42, n_estimators=32)
         model1.fit(self.X_sm, self.y_sm)
-        self.controller_1.upload_training_run_split(
+        self.controller.upload_training_run_split(
             model1, X_train=self.X_sm, y_train=self.y_sm, X_test=self.X_test, y_test=self.y_test
         )
-        self.controller_1.complete()
+        self.controller.complete()
+
+    def step_4_check_all_sent(self):
+        # check that all record statuses are RecordStatus.SENT.value
+        db = SqliteDatabase("seclea_ai.db", thread_safe=True)
+        db.connect()
+        records = Record.select().where(Record.timestamp > self.start_timestamp)
+        for idx, record in enumerate(records):
+            self.assertEqual(
+                record.status,
+                RecordStatus.SENT.value,
+                f"Entity {record.entity} at position {idx}, with id {record.id} not sent, current status: {record.status}",
+            )
+        db.close()
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted

@@ -10,12 +10,14 @@ from typing import Any, Dict, List, Union
 import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
+from pandas.errors import ParserError
 from peewee import SqliteDatabase
+
 
 from seclea_ai.internal.api.api_interface import Api
 from seclea_ai.internal.director import Director
 from seclea_ai.internal.exceptions import AuthenticationError
-from seclea_ai.internal.local_db import Record
+from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.lib.seclea_utils.core import encode_func
 
 from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
@@ -79,7 +81,7 @@ class SecleaAI:
         self._project_id = self._init_project(project_name=project_name)
         self._settings["project_id"] = self._project_id
         self._training_run = None
-        self._file_processor = Director(settings=self._settings)
+        self._director = Director(settings=self._settings)
         logger.debug("Successfully Initialised SecleaAI class")
 
     def login(self, username=None, password=None) -> None:
@@ -108,10 +110,10 @@ class SecleaAI:
 
     def complete(self):
         # TODO change to make terminate happen after timeout if specified or something.
-        self._file_processor.complete()
+        self._director.complete()
 
     def terminate(self):
-        self._file_processor.terminate()
+        self._director.terminate()
 
     def upload_dataset_split(
         self,
@@ -258,8 +260,8 @@ class SecleaAI:
                 up_kwargs["project"] = self._project_id
                 # add to storage and sending queues
                 if up_kwargs["entity"] == "dataset":
-                    self._file_processor.store_entity(up_kwargs)
-                self._file_processor.send_entity(up_kwargs)
+                    self._director.store_entity(up_kwargs)
+                self._director.send_entity(up_kwargs)
             return
 
         # this only happens if this has no transformations ie. it is a Raw Dataset.
@@ -271,6 +273,7 @@ class SecleaAI:
             num_samples=len(dataset),
             favourable_outcome=None,
             unfavourable_outcome=None,
+            dataset_type=self._get_dataset_type(dataset),
         )
         try:
             features = (
@@ -302,7 +305,10 @@ class SecleaAI:
         # TODO make lack of parent more obvious??
         self._db.connect()
         dataset_record = Record.create(
-            entity="dataset", status="in_memory", key=str(dataset_id), dataset_metadata=metadata
+            entity="dataset",
+            status=RecordStatus.IN_MEMORY.value,
+            key=str(dataset_id),
+            dataset_metadata=metadata,
         )
         self._db.close()
 
@@ -317,8 +323,8 @@ class SecleaAI:
             "project": self._project_id,
         }
         # add to storage and sending queues
-        self._file_processor.store_entity(dataset_upload_kwargs)
-        self._file_processor.send_entity(dataset_upload_kwargs)
+        self._director.store_entity(dataset_upload_kwargs)
+        self._director.send_entity(dataset_upload_kwargs)
 
     def _generate_intermediate_datasets(
         self, transformations, dataset_name, dataset_id, user_metadata, parent, parent_metadata
@@ -400,29 +406,27 @@ class SecleaAI:
                 else:
                     dset_name = dataset_name
             else:
-                if (
-                    pd.util.hash_pandas_object(dset).sum()
-                    == pd.util.hash_pandas_object(parent_dset).sum()
+                if dataset_hash(dset, self._project_id) == dataset_hash(
+                    parent_dset, self._project_id
                 ):
                     raise AssertionError(
                         f"""The transformation {trans.func.__name__} does not change the dataset.
                         Please remove it and try again."""
                     )
 
-            dset_id = hash(pd.util.hash_pandas_object(dset).sum() + self._project_id)
+            dset_id = dataset_hash(dset, self._project_id)
 
             # find parent dataset in local db - TODO improve
             self._db.connect()
             parent_record = Record.get_or_none(
-                Record.key
-                == str(hash(pd.util.hash_pandas_object(parent_dset).sum() + self._project_id))
+                Record.key == dataset_hash(parent_dset, self._project_id)
             )
             parent_dataset_record_id = parent_record.id
 
             # create local db record.
             dataset_record = Record.create(
                 entity="dataset",
-                status="in_memory",
+                status=RecordStatus.IN_MEMORY.value,
                 dependencies=[parent_dataset_record_id],
                 key=str(dset_id),
                 dataset_metadata=dset_metadata,
@@ -445,7 +449,9 @@ class SecleaAI:
 
             # add dependency to dataset
             trans_record = Record.create(
-                entity="transformation", status="in_memory", dependencies=[dataset_record.id]
+                entity="transformation",
+                status=RecordStatus.IN_MEMORY.value,
+                dependencies=[dataset_record.id],
             )
             self._db.close()
 
@@ -540,7 +546,7 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_ids = [
-            dataset_hash(dataset, self._project)
+            dataset_hash(dataset, self._project_id)
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
         ]
@@ -574,7 +580,9 @@ class SecleaAI:
 
         # create record
         self._db.connect()
-        training_run_record = Record.create(entity="training_run", status="in_memory")
+        training_run_record = Record.create(
+            entity="training_run", status=RecordStatus.IN_MEMORY.value
+        )
 
         # sent training run for upload.
         training_run_details = {
@@ -586,11 +594,13 @@ class SecleaAI:
             "dataset_ids": dataset_ids,
             "params": params,
         }
-        self._file_processor.send_entity(training_run_details)
+        self._director.send_entity(training_run_details)
 
         # create local db record
         model_state_record = Record.create(
-            entity="model_state", status="in_memory", dependencies=[training_run_record.id]
+            entity="model_state",
+            status=RecordStatus.IN_MEMORY.value,
+            dependencies=[training_run_record.id],
         )
         self._db.close()
 
@@ -604,8 +614,8 @@ class SecleaAI:
             "final": True,
             "model_manager": framework,  # TODO move framework to sender.
         }
-        self._file_processor.store_entity(model_state_details)
-        self._file_processor.send_entity(model_state_details)
+        self._director.store_entity(model_state_details)
+        self._director.send_entity(model_state_details)
 
     def _set_model(self, model_name: str, framework: ModelManagers) -> int:
         """
@@ -755,3 +765,13 @@ class SecleaAI:
             return ModelManagers.SKLEARN
         else:
             return ModelManagers.NOT_IMPORTED
+
+    @staticmethod
+    def _get_dataset_type(dataset: DataFrame) -> str:
+        if not np.issubdtype(dataset.index.dtype, np.integer):
+            try:
+                pd.to_datetime(dataset.index.values)
+            except (ParserError, ValueError):  # Can't cnvrt some
+                return "tabular"
+            return "time_series"
+        return "tabular"
