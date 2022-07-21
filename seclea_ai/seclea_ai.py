@@ -79,7 +79,7 @@ class SecleaAI:
         self._project_id = self._init_project(project_name=project_name)
         self._settings["project_id"] = self._project_id
         self._training_run = None
-        self._file_processor = Director(settings=self._settings)
+        self._director = Director(settings=self._settings)
         logger.debug("Successfully Initialised SecleaAI class")
 
     def login(self, username=None, password=None) -> None:
@@ -108,10 +108,10 @@ class SecleaAI:
 
     def complete(self):
         # TODO change to make terminate happen after timeout if specified or something.
-        self._file_processor.complete()
+        self._director.complete()
 
     def terminate(self):
-        self._file_processor.terminate()
+        self._director.terminate()
 
     def upload_dataset_split(
         self,
@@ -258,8 +258,8 @@ class SecleaAI:
                 up_kwargs["project"] = self._project_id
                 # add to storage and sending queues
                 if up_kwargs["entity"] == "dataset":
-                    self._file_processor.store_entity(up_kwargs)
-                self._file_processor.send_entity(up_kwargs)
+                    self._director.store_entity(up_kwargs)
+                self._director.send_entity(up_kwargs)
             return
 
         # this only happens if this has no transformations ie. it is a Raw Dataset.
@@ -320,8 +320,8 @@ class SecleaAI:
             "project": self._project_id,
         }
         # add to storage and sending queues
-        self._file_processor.store_entity(dataset_upload_kwargs)
-        self._file_processor.send_entity(dataset_upload_kwargs)
+        self._director.store_entity(dataset_upload_kwargs)
+        self._director.send_entity(dataset_upload_kwargs)
 
     def _generate_intermediate_datasets(
         self, transformations, dataset_name, dataset_id, user_metadata, parent, parent_metadata
@@ -591,7 +591,7 @@ class SecleaAI:
             "dataset_ids": dataset_ids,
             "params": params,
         }
-        self._file_processor.send_entity(training_run_details)
+        self._director.send_entity(training_run_details)
 
         # create local db record
         model_state_record = Record.create(
@@ -611,8 +611,8 @@ class SecleaAI:
             "final": True,
             "model_manager": framework,  # TODO move framework to sender.
         }
-        self._file_processor.store_entity(model_state_details)
-        self._file_processor.send_entity(model_state_details)
+        self._director.store_entity(model_state_details)
+        self._director.send_entity(model_state_details)
 
     def _set_model(self, model_name: str, framework: ModelManagers) -> int:
         """
