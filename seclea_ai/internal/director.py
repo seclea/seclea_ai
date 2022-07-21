@@ -1,12 +1,18 @@
 """
 File storing and uploading data to server
 """
+import os
 import time
 from multiprocessing import Event, Queue
 from typing import Dict
 
+from peewee import SqliteDatabase
+
+from .local_db import RecordStatus, Record
 from .processors import Sender, Writer
 from .threading import ProcessorThread
+from ..lib.seclea_utils.core import CompressionFactory, save_object
+from ..lib.seclea_utils.model_management import ModelManagers, serialize
 
 
 class Director:
@@ -19,6 +25,7 @@ class Director:
         self._settings = settings
         # TODO probably remove
         ##
+        self._db = SqliteDatabase("seclea_ai.db", thread_safe=True)
         self._store_q = Queue()
         self._send_q = Queue()
         self._stop_event = Event()
@@ -55,7 +62,66 @@ class Director:
         self.terminate()
 
     def store_entity(self, entity_dict: Dict) -> None:  # TODO add return for status
-        self._store_q.put(entity_dict)
+        if entity_dict.get("model_manager", None) == ModelManagers.TENSORFLOW:
+            self._save_model_state(**entity_dict)
+        else:
+            self._store_q.put(entity_dict)
 
     def send_entity(self, entity_dict: Dict) -> None:  # TODO add return for status
         self._send_q.put(entity_dict)
+
+    def _save_model_state(
+        self,
+        record_id,
+        model,
+        sequence_num: int,
+        model_manager: ModelManagers,
+        **kwargs,
+    ):
+        """
+        Save model state in local temp directory
+        """
+        self._db.connect()
+        record = Record.get_by_id(record_id)
+        try:
+            training_run_id = record.dependencies[0]
+        except IndexError:
+            raise ValueError(
+                "Training run must be uploaded before model state something went wrong"
+            )
+        finally:
+            self._db.close()
+        try:
+            # TODO look again at this.
+            os.makedirs(
+                os.path.join(
+                    self._settings["cache_dir"],
+                    f"{self._settings['project_name']}/{str(training_run_id)}",
+                ),
+                exist_ok=True,
+            )
+            save_path = os.path.join(
+                self._settings["cache_dir"],
+                f"{self._settings['project_name']}/{training_run_id}",
+            )
+
+            model_data = serialize(model, model_manager)
+            save_path = save_object(
+                model_data,
+                file_name=f"model-{sequence_num}",
+                path=save_path,
+                compression=CompressionFactory.ZSTD,
+            )
+
+            # update the record TODO refactor out.
+            record.path = save_path
+            record.status = RecordStatus.STORED.value
+            record.save()
+
+        except Exception as e:
+            # update the record TODO refactor out.
+            record.status = RecordStatus.STORE_FAIL.value
+            record.save()
+            print(e)
+        finally:
+            self._db.close()
