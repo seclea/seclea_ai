@@ -70,7 +70,7 @@ class Api:
     def upload_project(self, name, description, organization_id) -> Response:
         res = self._session.post(
             url=f"{self._root_url}/{self._project_endpoint}",
-            data={
+            json={
                 "name": name,
                 "description": description,
                 "organization": organization_id,
@@ -146,7 +146,7 @@ class Api:
     def upload_model(self, organization_id, project_id, model_name, framework_name) -> Response:
         res = self._session.post(
             url=f"{self._root_url}/{self._model_endpoint}",
-            data={
+            json={
                 "organization": organization_id,
                 "project": project_id,
                 "name": model_name,
@@ -192,7 +192,7 @@ class Api:
 
         res = self._session.post(
             url=f"{self._root_url}/{self._training_run_endpoint}",
-            data=data,
+            json=data,
             params={"organization": organization_id, "project": project_id},
         )
         res = handle_response(response=res)
@@ -237,7 +237,7 @@ class Api:
         }
         res = self._session.post(
             url=f"{self._root_url}/{self._dataset_transformations_endpoint}",
-            data=data,
+            json=data,
             params={"organization": organization_id, "project": project_id},
         )
         res = handle_response(response=res)
