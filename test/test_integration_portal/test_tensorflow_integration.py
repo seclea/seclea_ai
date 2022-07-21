@@ -1,12 +1,15 @@
+import datetime
 import os
 import uuid
 from unittest import TestCase
 
 import pandas as pd
+from peewee import SqliteDatabase
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 
 from seclea_ai import SecleaAI
+from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.transformations import DatasetTransformation
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -27,6 +30,8 @@ class TestIntegrationTensorflow(TestCase):
     """
 
     def step_0_project_setup(self):
+        self.start_timestamp = datetime.datetime.now()
+        print(self.start_timestamp)
         self.password = "asdf"  # nosec
         self.username = "onespanadmin"  # nosec
         self.organization = "Onespan"
@@ -182,6 +187,19 @@ class TestIntegrationTensorflow(TestCase):
             y_test=self.y_test,
         )
         self.controller.complete()
+
+    def step_4_check_all_sent(self):
+        # check that all record statuses are RecordStatus.SENT.value
+        db = SqliteDatabase("seclea_ai.db", thread_safe=True)
+        db.connect()
+        records = Record.select().where(Record.timestamp > self.start_timestamp)
+        for idx, record in enumerate(records):
+            self.assertEqual(
+                record.status,
+                RecordStatus.SENT.value,
+                f"Entity {record.entity} at position {idx}, with id {record.id} not sent, current status: {record.status}",
+            )
+        db.close()
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
