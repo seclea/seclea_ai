@@ -15,7 +15,7 @@ from peewee import SqliteDatabase
 from seclea_ai.internal.api.api_interface import Api
 from seclea_ai.internal.director import Director
 from seclea_ai.internal.exceptions import AuthenticationError
-from seclea_ai.internal.local_db import Record
+from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.lib.seclea_utils.core import encode_func
 
 from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
@@ -302,7 +302,10 @@ class SecleaAI:
         # TODO make lack of parent more obvious??
         self._db.connect()
         dataset_record = Record.create(
-            entity="dataset", status="in_memory", key=str(dataset_id), dataset_metadata=metadata
+            entity="dataset",
+            status=RecordStatus.IN_MEMORY.value,
+            key=str(dataset_id),
+            dataset_metadata=metadata,
         )
         self._db.close()
 
@@ -420,7 +423,7 @@ class SecleaAI:
             # create local db record.
             dataset_record = Record.create(
                 entity="dataset",
-                status="in_memory",
+                status=RecordStatus.IN_MEMORY.value,
                 dependencies=[parent_dataset_record_id],
                 key=str(dset_id),
                 dataset_metadata=dset_metadata,
@@ -443,7 +446,9 @@ class SecleaAI:
 
             # add dependency to dataset
             trans_record = Record.create(
-                entity="transformation", status="in_memory", dependencies=[dataset_record.id]
+                entity="transformation",
+                status=RecordStatus.IN_MEMORY.value,
+                dependencies=[dataset_record.id],
             )
             self._db.close()
 
@@ -572,7 +577,9 @@ class SecleaAI:
 
         # create record
         self._db.connect()
-        training_run_record = Record.create(entity="training_run", status="in_memory")
+        training_run_record = Record.create(
+            entity="training_run", status=RecordStatus.IN_MEMORY.value
+        )
 
         # sent training run for upload.
         training_run_details = {
@@ -588,7 +595,9 @@ class SecleaAI:
 
         # create local db record
         model_state_record = Record.create(
-            entity="model_state", status="in_memory", dependencies=[training_run_record.id]
+            entity="model_state",
+            status=RecordStatus.IN_MEMORY.value,
+            dependencies=[training_run_record.id],
         )
         self._db.close()
 
