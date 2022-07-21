@@ -50,6 +50,9 @@ class Api:
         self._training_run_endpoint = "collection/training-runs"
         self._model_states_endpoint = "collection/model-states"
 
+    def __del__(self):
+        self._session.close()
+
     def authenticate(self, username=None, password=None):
         self.auth.authenticate(session=self._session, username=username, password=password)
 
