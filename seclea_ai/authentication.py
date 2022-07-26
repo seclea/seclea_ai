@@ -1,6 +1,7 @@
 import logging
 import traceback
 from getpass import getpass
+from pathlib import Path
 
 from peewee import SqliteDatabase
 from requests import Response, Session
@@ -29,7 +30,7 @@ def handle_response(res: Response, msg):
 class AuthenticationService:
     def __init__(self, url: str):
         self._url = url
-        self._db = SqliteDatabase("seclea_ai.db", thread_safe=True)
+        self._db = SqliteDatabase(Path.home() / ".seclea" / "seclea_ai.db", thread_safe=True)
         self._path_token_obtain = "api/token/obtain/"  # nosec - bandit thinks this is a pw or key..
         self._path_token_refresh = (
             "api/token/refresh/"  # nosec - bandit thinks this is a pw or key..

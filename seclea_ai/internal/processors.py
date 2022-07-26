@@ -5,6 +5,7 @@ import time
 import uuid
 from abc import ABC
 from multiprocessing import Queue
+from pathlib import Path
 from typing import Dict, List
 
 from pandas import DataFrame
@@ -29,7 +30,7 @@ class Processor(ABC):
         self._settings = settings
         self._input_q = input_q
         # self._result_q = result_q
-        self._db = SqliteDatabase("seclea_ai.db", thread_safe=True)
+        self._db = SqliteDatabase(Path.home() / ".seclea" / "seclea_ai.db", thread_safe=True)
 
     def __len__(self):
         return self._input_q.qsize()
@@ -88,16 +89,16 @@ class Writer(Processor):
         dataset_record = Record.get_by_id(record_id)
         try:
             # upload a dataset - only works for a single transformation.
-            if not os.path.exists(self._settings["cache_dir"]):
-                os.makedirs(self._settings["cache_dir"])
+            os.makedirs(self._settings["cache_dir"], exist_ok=True)
 
             # TODO take another look at this section.
-            dataset_path = os.path.join(self._settings["cache_dir"], f"{uuid.uuid4()}_tmp.csv")
+            path_root = uuid.uuid4()
+            dataset_path = self._settings["cache_dir"] / f"{path_root}_tmp.csv"
             dataset.to_csv(dataset_path, index=True)
             with open(dataset_path, "rb") as rb:
                 comp_path = save_object(
                     rb,
-                    file_name=f"{uuid.uuid4()}_compressed",
+                    file_name=f"{path_root}_compressed",
                     path=self._settings["cache_dir"],
                     compression=CompressionFactory.ZSTD,
                 )
@@ -135,33 +136,22 @@ class Writer(Processor):
             )
         try:
             # TODO look again at this.
-            os.makedirs(
-                os.path.join(
-                    self._settings["cache_dir"],
-                    f"{self._settings['project_name']}/{str(training_run_id)}",
-                ),
-                exist_ok=True,
-            )
-            save_path = os.path.join(
-                self._settings["cache_dir"],
-                f"{self._settings['project_name']}/{training_run_id}",
-            )
+            save_path = self._settings["cache_dir"] / f"{str(training_run_id)}"
+            os.makedirs(save_path, exist_ok=True)
 
             model_data = serialize(model, model_manager)
             save_path = save_object(
                 model_data,
-                file_name=f"model-{sequence_num}",
+                file_name=f"model-{sequence_num}",  # TODO include more identifying info in filename - seclea_ai 798
                 path=save_path,
                 compression=CompressionFactory.ZSTD,
             )
 
-            # update the record TODO refactor out.
             record.path = save_path
             record.status = RecordStatus.STORED.value
             record.save()
 
         except Exception as e:
-            # update the record TODO refactor out.
             record.status = RecordStatus.STORE_FAIL.value
             record.save()
             print(e)

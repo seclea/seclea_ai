@@ -1,6 +1,7 @@
 import os
 import uuid
 import datetime
+from pathlib import Path
 from unittest import TestCase
 
 import lightgbm as lgb
@@ -209,7 +210,7 @@ class TestIntegrationLGBM(TestCase):
 
     def step_4_check_all_sent(self):
         # check that all record statuses are RecordStatus.SENT.value
-        db = SqliteDatabase("seclea_ai.db", thread_safe=True)
+        db = SqliteDatabase(Path.home() / ".seclea" / "seclea_ai.db", thread_safe=True)
         db.connect()
         records = Record.select().where(Record.timestamp > self.start_timestamp)
         for idx, record in enumerate(records):
