@@ -4,6 +4,7 @@ File storing and uploading data to server
 import os
 import time
 from multiprocessing import Event, Queue
+from pathlib import Path
 from typing import Dict
 
 from peewee import SqliteDatabase
@@ -25,7 +26,7 @@ class Director:
         self._settings = settings
         # TODO probably remove
         ##
-        self._db = SqliteDatabase("seclea_ai.db", thread_safe=True)
+        self._db = SqliteDatabase(Path.home() / ".seclea" / "seclea_ai.db", thread_safe=True)
         self._store_q = Queue()
         self._send_q = Queue()
         self._stop_event = Event()
@@ -93,33 +94,26 @@ class Director:
             self._db.close()
         try:
             # TODO look again at this.
-            os.makedirs(
-                os.path.join(
-                    self._settings["cache_dir"],
-                    f"{self._settings['project_name']}/{str(training_run_id)}",
-                ),
-                exist_ok=True,
+            save_path = (
+                self._settings["cache_dir"]
+                / f"{self._settings['project_name']}"
+                / f"{str(training_run_id)}"
             )
-            save_path = os.path.join(
-                self._settings["cache_dir"],
-                f"{self._settings['project_name']}/{training_run_id}",
-            )
+            os.makedirs(save_path, exist_ok=True)
 
             model_data = serialize(model, model_manager)
             save_path = save_object(
                 model_data,
-                file_name=f"model-{sequence_num}",
+                file_name=f"model-{sequence_num}",  # TODO include more identifying info in filename - seclea_ai 798
                 path=save_path,
                 compression=CompressionFactory.ZSTD,
             )
 
-            # update the record TODO refactor out.
             record.path = save_path
             record.status = RecordStatus.STORED.value
             record.save()
 
         except Exception as e:
-            # update the record TODO refactor out.
             record.status = RecordStatus.STORE_FAIL.value
             record.save()
             print(e)

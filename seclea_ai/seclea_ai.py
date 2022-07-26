@@ -4,7 +4,7 @@ Description for seclea_ai.py
 import copy
 import inspect
 import logging
-import os
+from pathlib import PurePath, Path
 from typing import Any, Dict, List, Union
 
 import numpy as np
@@ -65,16 +65,17 @@ class SecleaAI:
         """
         self._project_name = project_name
         self._organization = organization
+
         self._settings = {
             "project_name": project_name,
             "organization": organization,
             "project_root": project_root,
             "platform_url": platform_url,
             "auth_url": auth_url,
-            "cache_dir": os.path.join(project_root, ".seclea/cache"),
+            "cache_dir": PurePath(project_root) / ".seclea" / "cache" / project_name,
             "offline": False,
         }
-        self._db = SqliteDatabase("seclea_ai.db", thread_safe=True)
+        self._db = SqliteDatabase(Path.home() / ".seclea" / "seclea_ai.db", thread_safe=True)
         self._api = Api(
             self._settings, username=username, password=password
         )  # TODO add username and password?
@@ -771,7 +772,7 @@ class SecleaAI:
         if not np.issubdtype(dataset.index.dtype, np.integer):
             try:
                 pd.to_datetime(dataset.index.values)
-            except (ParserError, ValueError):  # Can't cnvrt some
+            except (ParserError, ValueError):  # Can't convert some
                 return "tabular"
             return "time_series"
         return "tabular"

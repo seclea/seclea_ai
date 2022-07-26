@@ -2,11 +2,12 @@ import datetime
 import json
 from enum import Enum
 from json import JSONDecodeError
+from pathlib import Path
 
 from peewee import CharField, DateTimeField, Field, IntegerField, Model, SqliteDatabase
 
-# TODO improve database file spec - and auth and pragmas etc.
-db = SqliteDatabase("seclea_ai.db", thread_safe=True)
+# TODO improve auth and pragmas etc.
+db = SqliteDatabase(Path.home() / ".seclea" / "seclea_ai.db", thread_safe=True)
 
 
 class RecordStatus(Enum):
