@@ -5,7 +5,7 @@ import os
 import time
 from multiprocessing import Event, Queue
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Set
 
 from peewee import SqliteDatabase
 
@@ -59,10 +59,11 @@ class Director:
         )
         self._store_thread.start()
         self._send_thread.start()
-        self._check_started()
+        self._check_started(
+            thread_started_events={self._store_started, self._store_started}, timeout=5.0
+        )
 
     def __del__(self):
-        # TODO check status better? vary the kill speeds in some situations?
         self.terminate()
 
     def terminate(self):
@@ -73,6 +74,7 @@ class Director:
         self._complete_event.set()
         self._stop_event.set()
         # wait until both completed to release this class to gc - which triggers terminate.
+        # TODO replace with thread.join once the deadlock on join issue is resolved.
         while not (self._send_completed.is_set() and self._store_completed.is_set()):
             time.sleep(0.05)
 
@@ -85,21 +87,28 @@ class Director:
     def send_entity(self, entity_dict: Dict) -> None:  # TODO add return for status
         self._send_q.put(entity_dict)
 
-    def _check_started(self, timeout=5.0):
+    @staticmethod
+    def _check_started(thread_started_events: Set[Event], timeout: float = 5.0) -> None:
+        """
+        Checks that the child threads have started
+        :param thread_started_events: Set[Event] The events that the threads call when they have successfully started
+        :param timeout: float The amount of time to wait before throwing an error - seconds.
+        :return: None
+        :raises: RuntimeError
+        """
         start = time.time()
-        unstarted = {self._store_started, self._store_started}
         to_remove = set()
         while time.time() - start < timeout:
-            for idx, ev in enumerate(unstarted):
+            for idx, ev in enumerate(thread_started_events):
                 if ev.is_set():
                     to_remove.add(ev)
-            unstarted = unstarted.difference(to_remove)
+            thread_started_events = thread_started_events.difference(to_remove)
             to_remove = set()
-            if len(unstarted) == 0:
+            if len(thread_started_events) == 0:
                 return
             print(time.time() - start)
             time.sleep(0.1)
-        raise RuntimeError(f"Thread/s not started: {unstarted}")
+        raise RuntimeError(f"Thread/s not started: {thread_started_events}")
 
     def _save_model_state(
         self,
@@ -147,5 +156,6 @@ class Director:
             record.status = RecordStatus.STORE_FAIL.value
             record.save()
             print(e)
+            raise
         finally:
             self._db.close()
