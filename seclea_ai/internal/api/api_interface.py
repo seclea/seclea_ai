@@ -8,7 +8,7 @@ from typing import Dict, List
 import requests
 from requests import Response
 
-from seclea_ai.authentication import AuthenticationService
+from seclea_ai.internal.authentication import AuthenticationService
 
 
 # TODO return specific Exceptions for specific non success responses.

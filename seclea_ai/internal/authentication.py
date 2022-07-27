@@ -8,7 +8,7 @@ from requests import Response, Session
 
 from seclea_ai.internal.exceptions import AuthenticationError
 
-from .internal.local_db import AuthService
+from seclea_ai.internal.local_db import AuthService
 
 try:
     import google.colab  # noqa F401
