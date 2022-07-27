@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Union
 import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
+from pandas.errors import ParserError
 from requests import Response
 
 from seclea_ai.authentication import AuthenticationService
@@ -21,9 +22,10 @@ from seclea_ai.lib.seclea_utils.core import (
     encode_func,
     save_object,
 )
+import uuid
+from .lib.seclea_utils.dataset_management.dataset_utils import save_dataset, dataset_hash
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
-
 from .svc.api.collection.dataset import post_dataset
 from .svc.api.collection.model_state import post_model_state
 
@@ -45,9 +47,7 @@ def handle_response(res: Response, expected: int, msg: str) -> Response:
 
     """
     if not res.status_code == expected:
-        raise ValueError(
-            f"Response Status code {res.status_code}, expected:{expected}. \n{msg} - {res.reason} - {res.text}"
-        )
+        raise ValueError(f"Response Status code {res.status_code}, expected:{expected}. \n{msg}")
     return res
 
 
@@ -217,7 +217,7 @@ class SecleaAI:
         elif isinstance(dataset, str):
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
 
-        dataset_hash = pd.util.hash_pandas_object(dataset).sum()
+        dset_pk = dataset_hash(dataset, self._project)
 
         if transformations is not None:
 
@@ -226,10 +226,10 @@ class SecleaAI:
             #####
             # Validate parent exists and get metadata - can factor out
             #####
-            parent_hash = hash(pd.util.hash_pandas_object(parent).sum() + self._project)
+            parent_dset_pk = dataset_hash(parent, self._project)
             # check parent exists - throw an error if not.
             res = self._transmission.get(
-                url_path=f"/collection/datasets/{parent_hash}",
+                url_path=f"/collection/datasets/{parent_dset_pk}",
                 query_params={"project": self._project, "organization": self._organization},
             )
             if not res.status_code == 200:
@@ -243,7 +243,7 @@ class SecleaAI:
             upload_queue = self._generate_intermediate_datasets(
                 transformations=transformations,
                 dataset_name=dataset_name,
-                dataset_hash=dataset_hash,
+                dset_pk=dset_pk,
                 user_metadata=metadata,
                 parent=parent,
                 parent_metadata=parent_metadata,
@@ -251,10 +251,7 @@ class SecleaAI:
 
             # check for duplicates
             for up_kwargs in upload_queue:
-                if (
-                    pd.util.hash_pandas_object(up_kwargs["dataset"]).sum()
-                    == up_kwargs["parent_hash"]
-                ):
+                if dataset_hash(up_kwargs["dataset"], self._project) == up_kwargs["parent_hash"]:
                     raise AssertionError(
                         f"""The transformation {up_kwargs['transformation'].func.__name__} does not change the dataset.
                         Please remove it and try again."""
@@ -269,6 +266,9 @@ class SecleaAI:
             continuous_features=[],
             outcome_name=None,
             num_samples=len(dataset),
+            favourable_outcome=None,
+            unfavourable_outcome=None,
+            dataset_type=self._get_dataset_type(dataset),
         )
         try:
             features = (
@@ -278,9 +278,6 @@ class SecleaAI:
             # this means outcome was set to None
             features = dataset.columns
 
-        required_metadata = ["favourable_outcome", "unfavourable_outcome"]
-
-        self._ensure_required_user_spec_metadata(metadata=metadata, required_spec=required_metadata)
         metadata = self._ensure_required_metadata(
             metadata=metadata, defaults_spec=metadata_defaults_spec
         )
@@ -308,7 +305,7 @@ class SecleaAI:
         )
 
     def _generate_intermediate_datasets(
-        self, transformations, dataset_name, dataset_hash, user_metadata, parent, parent_metadata
+        self, transformations, dataset_name, dset_pk, user_metadata, parent, parent_metadata
     ):
         # setup for generating datasets.
         last = len(transformations) - 1
@@ -376,7 +373,7 @@ class SecleaAI:
             # handle the final dataset - check generated = passed in.
             if idx == last:
                 if (
-                    pd.util.hash_pandas_object(dset).sum() != dataset_hash
+                    dataset_hash(dset, self._project) != dset_pk
                 ):  # TODO create or find better exception
                     raise AssertionError(
                         """Generated Dataset does not match the Dataset passed in.
@@ -391,9 +388,7 @@ class SecleaAI:
                 "dataset": copy.deepcopy(dset),  # TODO change keys
                 "dataset_name": copy.deepcopy(dset_name),
                 "metadata": dset_metadata,
-                "parent_hash": str(
-                    hash(pd.util.hash_pandas_object(parent_dset).sum()) + self._project
-                ),
+                "parent_hash": dataset_hash(parent_dset, self._project),
                 "transformation": copy.deepcopy(trans),
             }
             # update the parent dataset - these chained transformations only make sense if they are pushing the
@@ -483,7 +478,7 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_pks = [
-            str(hash(pd.util.hash_pandas_object(dataset).sum() + self._project))
+            dataset_hash(dataset, self._project)
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
         ]
@@ -531,6 +526,7 @@ class SecleaAI:
         self._upload_model_state(
             model=model,
             training_run_pk=self._training_run,
+            dataset_pks=dataset_pks,
             sequence_num=0,
             final=True,
             model_manager=framework,
@@ -570,7 +566,7 @@ class SecleaAI:
                     url_path="/collection/projects", query_params={"name": project_name}
                 )
                 resp = handle_response(
-                    resp, 200, f"There was an issue getting the project: {resp.text}"
+                    resp, 200, f"There was an issue getting the project: {resp.reason}"
                 )
                 self._project = resp.json()[0]["id"]
 
@@ -587,7 +583,7 @@ class SecleaAI:
             query_params={"name": project_name, "organization": self._organization},
         )
         handle_response(
-            project_res, 200, f"There was an issue getting the projects: {project_res.text}"
+            project_res, 200, f"There was an issue getting the projects: {project_res.reason}"
         )
         if len(project_res.json()) == 0:
             return None
@@ -616,7 +612,7 @@ class SecleaAI:
             query_params={"organization": self._organization},
         )
         return handle_response(
-            res, expected=201, msg=f"There was an issue creating the project: {res.text}"
+            res, expected=201, msg=f"There was an issue creating the project: {res.reason}"
         )
 
     def _set_model(self, model_name: str, framework: ModelManagers) -> int:
@@ -685,22 +681,6 @@ class SecleaAI:
         return metadata
 
     @staticmethod
-    def _ensure_required_user_spec_metadata(metadata: Dict, required_spec: List) -> None:
-        """
-        Ensures that required metadata that can be specified by the user are filled.
-        @param metadata: The metadata dict
-        @param defaults_spec:
-        @return: None
-        @raise ValueError if any are missing.
-        """
-        for required_key in required_spec:
-            try:
-                if metadata[required_key] is None:
-                    raise ValueError(f"{required_key} must be specified in the metadata")
-            except KeyError:
-                raise ValueError(f"{required_key} must be specified in the metadata")
-
-    @staticmethod
     def _add_required_metadata(metadata: Dict, required_spec: Dict) -> Dict:
         """
         Adds required - non user specified fields to the metadata
@@ -725,37 +705,34 @@ class SecleaAI:
             os.makedirs(self._cache_dir)
 
         # TODO refactor to make multithreading safe.
-        dataset_path = os.path.join(self._cache_dir, "tmp.csv")
-        dataset.to_csv(dataset_path, index=True)
-        comp_path = os.path.join(self._cache_dir, "compressed")
-        rb = open(dataset_path, "rb")
-        comp_path = save_object(rb, comp_path, compression=CompressionFactory.ZSTD)
-
-        dataset_hash = hash(pd.util.hash_pandas_object(dataset).sum() + self._project)
+        dataset_file_path = save_dataset(
+            dataset, dataset_name, os.path.join(self._cache_dir, uuid.uuid4().__str__())
+        )
+        dset_pk = dataset_hash(dataset, self._project)
 
         response = post_dataset(
             transmission=self._transmission,
-            dataset_file_path=comp_path,
+            dataset_file_path=dataset_file_path,
             project_pk=self._project,
             organization_pk=self._organization,
             name=dataset_name,
-            metadata={},
-            dataset_hash=str(dataset_hash),
+            metadata=metadata,
+            dataset_pk=dset_pk,
             parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
-            delete=True,
         )
         handle_response(
-            response, 201, f"There was some issue uploading the dataset: {response.text}"
+            response, 201, f"There was some issue uploading the dataset: {response.reason}"
         )
+        # tidy up files.
+        os.remove(dataset_file_path)
 
         # upload the transformations
         if response.status_code == 201:
-            self._update_dataset_metadata(dataset_hash=dataset_hash, metadata=metadata)
             if transformation is not None:
                 # upload transformations.
                 self._upload_transformation(
                     transformation=transformation,
-                    dataset_pk=str(dataset_hash),
+                    dataset_pk=dset_pk,
                 )
 
     def _upload_model(self, model_name: str, framework: ModelManagers):
@@ -776,7 +753,7 @@ class SecleaAI:
             query_params={"organization": self._organization, "project": self._project},
         )
         return handle_response(
-            res, expected=201, msg=f"There was an issue uploading the model: {res.text}"
+            res, expected=201, msg=f"There was an issue uploading the model: {res.reason}"
         )
 
     def _upload_training_run(
@@ -803,13 +780,14 @@ class SecleaAI:
             query_params={"organization": self._organization, "project": self._project},
         )
         return handle_response(
-            res, expected=201, msg=f"There was an issue uploading the training run: {res.text}"
+            res, expected=201, msg=f"There was an issue uploading the training run: {res.reason}"
         )
 
     def _upload_model_state(
         self,
         model,
         training_run_pk: int,
+        dataset_pks: List[int],
         sequence_num: int,
         final: bool,
         model_manager: ModelManagers,
@@ -819,10 +797,11 @@ class SecleaAI:
             exist_ok=True,
         )
         model_data = serialize(model, model_manager)
-        save_path = os.path.join(
-            Path.home(), f".seclea/{self._project_name}/{training_run_pk}/model-{sequence_num}"
+        file_name = f"data-{dataset_pks[0]}-model-{sequence_num}"
+        save_path = os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_pk}")
+        save_path = save_object(
+            model_data, file_name, save_path, compression=CompressionFactory.ZSTD
         )
-        save_path = save_object(model_data, save_path, compression=CompressionFactory.ZSTD)
 
         res = post_model_state(
             self._transmission,
@@ -832,11 +811,13 @@ class SecleaAI:
             str(training_run_pk),
             sequence_num,
             final,
-            True,
         )
 
+        # tidy up files.
+        os.remove(save_path)
+
         res = handle_response(
-            res, expected=201, msg=f"There was an issue uploading a model state: {res}"
+            res, expected=201, msg=f"There was an issue uploading a model state: {res.reason}"
         )
         return res
 
@@ -858,7 +839,7 @@ class SecleaAI:
         res = handle_response(
             res,
             expected=201,
-            msg=f"There was an issue uploading the transformations on transformation {idx} with name {transformation.func.__name__}: {res.text}",
+            msg=f"There was an issue uploading the transformations on transformation {idx} with name {transformation.func.__name__}: {res.reason}",
         )
         return res
 
@@ -872,7 +853,7 @@ class SecleaAI:
             query_params={"training_run": training_run_pk},
         )
         res = handle_response(
-            res, expected=200, msg=f"There was an issue loading the transformations: {res.text}"
+            res, expected=200, msg=f"There was an issue loading the transformations: {res.reason}"
         )
         transformations = list(map(lambda x: x["code_encoded"], res.json()))
         return list(map(decode_func, transformations))
@@ -899,25 +880,20 @@ class SecleaAI:
             return ModelManagers.XGBOOST
         elif "lightgbm" in module:
             return ModelManagers.LIGHTGBM
+        # TODO improve to exclude other keras backends...
+        elif "tensorflow" in module or "keras" in module:
+            return ModelManagers.TENSORFLOW
         elif "sklearn" in module:
             return ModelManagers.SKLEARN
         else:
             return ModelManagers.NOT_IMPORTED
 
-    def _update_dataset_metadata(self, dataset_hash, metadata):
-        """
-        Update the dataset's metadata. For use when the metadata is too large to encode in the url.
-        @param dataset_hash:
-        @param metadata:
-        @return:
-        """
-        res = self._transmission.patch(
-            url_path=f"/collection/datasets/{dataset_hash}",
-            obj={
-                "metadata": metadata,
-            },
-            query_params={"organization": self._organization, "project": self._project},
-        )
-        return handle_response(
-            res, expected=200, msg=f"There was an issue updating the metadata: {res.text}"
-        )
+    @staticmethod
+    def _get_dataset_type(dataset: DataFrame) -> str:
+        if not np.issubdtype(dataset.index.dtype, np.integer):
+            try:
+                pd.to_datetime(dataset.index.values)
+            except (ParserError, ValueError):  # Can't cnvrt some
+                return "tabular"
+            return "time_series"
+        return "tabular"

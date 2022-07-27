@@ -1,23 +1,24 @@
 import os
-import traceback
 import uuid
 from unittest import TestCase
 
-import numpy as np
 import pandas as pd
+import numpy as np
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import LabelEncoder
 
 from seclea_ai import SecleaAI
 from seclea_ai.transformations import DatasetTransformation
 
+import xgboost as xgb
+from xgboost import DMatrix
+
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
-print(folder_path)
 
 
-class TestIntegrationSecleaAIPortal(TestCase):
+class TestIntegrationXGBoost(TestCase):
     """
     Monolithic testing of the Seclea AI file
     order of functions is preserved.
@@ -35,20 +36,10 @@ class TestIntegrationSecleaAIPortal(TestCase):
         self.username = "onespanadmin"  # nosec
         self.organization = "Onespan"
         self.project_name_1 = f"test-project-{uuid.uuid4()}"
-        self.project_name_2 = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller_1 = SecleaAI(
             self.project_name_1,
-            self.organization,
-            self.portal_url,
-            self.auth_url,
-            username=self.username,
-            password=self.password,
-        )
-        # create second project for second dataset
-        self.controller_2 = SecleaAI(
-            self.project_name_2,
             self.organization,
             self.portal_url,
             self.auth_url,
@@ -75,25 +66,6 @@ class TestIntegrationSecleaAIPortal(TestCase):
         }
         self.controller_1.upload_dataset(
             self.sample_df_1, self.sample_df_1_name, self.sample_df_1_meta
-        )
-
-        self.sample_df_2 = pd.read_csv(f"{folder_path}/adult_data.csv")
-        self.sample_df_2_name = "Census dataset"
-        self.sample_df_2_meta = {
-            "outcome_name": "income-per-year",
-            "favourable_outcome": ">50k",
-            "unfavourable_outcome": "<=50k",
-            "continuous_features": [
-                "age",
-                "fnlwgt",
-                "education-num",
-                "capital-gain",
-                "capital-loss",
-                "hours-per-week",
-            ],
-        }
-        self.controller_2.upload_dataset(
-            self.sample_df_2, self.sample_df_2_name, self.sample_df_2_meta
         )
 
     def step_2_define_transformations(self):
@@ -160,39 +132,8 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
             X_sm, y_sm = sm.fit_resample(X, y)
 
-            print(
-                f"""Shape of X before SMOTE: {X.shape}
-            Shape of X after SMOTE: {X_sm.shape}"""
-            )
-            print(
-                f"""Shape of y before SMOTE: {y.shape}
-            Shape of y after SMOTE: {y_sm.shape}"""
-            )
             return X_sm, y_sm
             # returns X, y
-
-        def fit_and_scale(X, y):
-
-            scaler = StandardScaler()
-
-            scaler.fit(X)
-            X_transformed = X.copy()
-            X_transformed[:] = scaler.transform(X_transformed[:])
-            return X_transformed, y, scaler
-
-        def fit(X):  # how do we handle these that don't affect directly the dataset..
-
-            # ie. the scaler (as the input to another function) but that's not general..
-            scaler = StandardScaler()
-
-            # MAJOR question is. could we identify if they fitted it over the whole dataset... let's test
-            scaler.fit(X)
-            return scaler
-
-        def scale(X, y, scaler):
-            X_transformed = X.copy()
-            X_transformed[:] = scaler.transform(X_transformed[:])
-            return X_transformed, y
 
         df = encode_nans(self.sample_df_1)
 
@@ -211,14 +152,10 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
         test_size = 0.2
         random_state = 42
-        X_train, self.X_test, y_train, self.y_test = get_test_train_splits(
+        self.X_train, self.X_test, self.y_train, self.y_test = get_test_train_splits(
             X, y, test_size=test_size, random_state=random_state
         )
-        self.X_sm, self.y_sm = smote_balance(X_train, y_train, random_state=random_state)
-        # deliberate test of datasnooping.
-        scaler = fit(pd.concat([self.X_sm, self.X_test], axis=0))
-        self.X_sm_scaled, _ = scale(self.X_sm, self.y_sm, scaler)
-        self.X_test_scaled, _ = scale(self.X_test, self.y_test, scaler)
+        self.X_sm, self.y_sm = smote_balance(self.X_train, self.y_train, random_state=random_state)
 
         self.complicated_transformations = [
             DatasetTransformation(
@@ -260,16 +197,13 @@ class TestIntegrationSecleaAIPortal(TestCase):
                 {"random_state": random_state},
                 ["X", "y"],
             ),
-            DatasetTransformation(
-                scale, {"X": "inherit", "y": "inherit"}, {"scaler": scaler}, ["X", "y", None]
-            ),
         ]
 
         # upload dataset here
         self.controller_1.upload_dataset_split(
-            X=self.X_sm_scaled,
+            X=self.X_sm,
             y=self.y_sm,
-            dataset_name=f"{self.sample_df_1_name} Train - Balanced - Scaled",
+            dataset_name=f"{self.sample_df_1_name} Train - Balanced",
             metadata={},
             transformations=self.complicated_transformations_train,
         )
@@ -285,14 +219,11 @@ class TestIntegrationSecleaAIPortal(TestCase):
                 [None, "X", None, "y"],
                 split="test",
             ),
-            DatasetTransformation(
-                scale, {"X": "inherit", "y": "inherit"}, {"scaler": scaler}, ["X", "y"]
-            ),
         ]
 
         # upload dataset here
         self.controller_1.upload_dataset_split(
-            X=self.X_test_scaled,
+            X=self.X_test,
             y=self.y_test,
             dataset_name=f"{self.sample_df_1_name} Test - Scaled",
             metadata={},
@@ -303,32 +234,18 @@ class TestIntegrationSecleaAIPortal(TestCase):
 
     def step_3_upload_trainingrun(self):
         # define model
-
-        print(
-            f"""% Positive class in Train = {np.round(self.y_sm.value_counts(normalize=True)[1] * 100, 2)}
-            % Positive class in Test  = {np.round(self.y_test.value_counts(normalize=True)[1] * 100, 2)}"""
-        )
-
-        from sklearn.ensemble import RandomForestClassifier
-
-        # from sklearn.metrics import accuracy_score
-        # Train
-        model = RandomForestClassifier(random_state=42)
-        model.fit(self.X_sm_scaled, self.y_sm)
-        # preds = model.predict(self.X_test_scaled)
+        # setup training
+        dtrain = DMatrix(data=self.X_sm, label=self.y_sm, enable_categorical=True)
+        params = dict(max_depth=2, eta=1, objective="binary:logistic", nthread=4, eval_metric="auc")
+        num_rounds = 5
+        model = xgb.train(params=params, dtrain=dtrain, num_boost_round=num_rounds)
 
         self.controller_1.upload_training_run_split(
             model,
-            X_train=self.X_sm_scaled,
+            X_train=self.X_sm,
             y_train=self.y_sm,
-            X_test=self.X_test_scaled,
+            X_test=self.X_test,
             y_test=self.y_test,
-        )
-
-        model1 = RandomForestClassifier(random_state=42, n_estimators=32)
-        model1.fit(self.X_sm, self.y_sm)
-        self.controller_1.upload_training_run_split(
-            model1, X_train=self.X_sm, y_train=self.y_sm, X_test=self.X_test, y_test=self.y_test
         )
 
     def _steps(self):
@@ -342,5 +259,4 @@ class TestIntegrationSecleaAIPortal(TestCase):
                 step()
                 print("STEP COMPLETE")
             except Exception as e:
-                traceback.print_exc()
                 self.fail(f"{step} failed ({type(e)}: {e})")
