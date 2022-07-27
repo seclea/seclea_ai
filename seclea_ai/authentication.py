@@ -1,11 +1,8 @@
 import traceback
 from getpass import getpass
 
-from requests import Response
-
 from seclea_ai.exceptions import AuthenticationError
 from seclea_ai.lib.seclea_utils.core import Transmission
-
 from .storage import Storage
 
 try:
@@ -14,11 +11,6 @@ try:
     IN_COLAB = True
 except ImportError:
     IN_COLAB = False
-
-
-def handle_response(res: Response, msg):
-    if not res.ok:
-        print(f"{msg}: {res.status_code} - {res.reason} - {res.text}")
 
 
 class AuthenticationService:
@@ -56,9 +48,6 @@ class AuthenticationService:
         :return: bool valid
         """
         self._transmission.cookies = {self._key_token_access: self._db.get(self._key_token_access)}
-
-        print(f"Cookies: {self._transmission.cookies}")
-
         try:
             response = self._transmission.send_json(url_path=self._path_token_verify, obj={})
         except TypeError:
@@ -104,9 +93,7 @@ class AuthenticationService:
         else:
             credentials = {"username": username, "password": password}
         response = self._transmission.send_json(url_path=self._path_token_obtain, obj=credentials)
-        print(
-            f"Initial Tokens - Status: {response.status_code} - content {response.content} - cookies - {response.cookies}"
-        )
+
         if response.status_code != 200:
             raise AuthenticationError(f"status:{response.status_code}, content:{response.content}")
         self._save_response_tokens(response)
