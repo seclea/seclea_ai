@@ -30,12 +30,20 @@ class Director:
         self._store_q = Queue()
         self._send_q = Queue()
         self._stop_event = Event()
+        self._complete_event = Event()
+        self._store_started = Event()
+        self._send_started = Event()
+        self._send_completed = Event()
+        self._store_completed = Event()
         self._store_thread = ProcessorThread(
             processor=Writer,
             name="Store",
             settings=settings,
             input_q=self._store_q,
+            started=self._store_started,
             stop=self._stop_event,
+            complete=self._complete_event,
+            completed=self._store_completed,
             debounce_interval_ms=5000,
         )
         self._send_thread = ProcessorThread(
@@ -43,24 +51,30 @@ class Director:
             name="Send",
             settings=settings,
             input_q=self._send_q,
+            started=self._send_started,
             stop=self._stop_event,
+            complete=self._complete_event,
+            completed=self._send_completed,
             debounce_interval_ms=5000,
         )
         self._store_thread.start()
         self._send_thread.start()
+        self._check_started()
+
+    def __del__(self):
+        # TODO check status better? vary the kill speeds in some situations?
+        self.terminate()
 
     def terminate(self):
-        # signal threads to finish - then wait and join them
         self._stop_event.set()
-        time.sleep(2)  # TODO find a better way to wait.
-        self._store_thread.join()
-        self._send_thread.join()
 
     def complete(self):
-        # wait until send_q is empty
-        while not self._send_q.empty():
-            time.sleep(0.1)
-        self.terminate()
+        # set complete and stop events to trigger the completion in threads
+        self._complete_event.set()
+        self._stop_event.set()
+        # wait until both completed to release this class to gc - which triggers terminate.
+        while not (self._send_completed.is_set() and self._store_completed.is_set()):
+            time.sleep(0.05)
 
     def store_entity(self, entity_dict: Dict) -> None:  # TODO add return for status
         if entity_dict.get("model_manager", None) == ModelManagers.TENSORFLOW:
@@ -70,6 +84,22 @@ class Director:
 
     def send_entity(self, entity_dict: Dict) -> None:  # TODO add return for status
         self._send_q.put(entity_dict)
+
+    def _check_started(self, timeout=5.0):
+        start = time.time()
+        unstarted = {self._store_started, self._store_started}
+        to_remove = set()
+        while time.time() - start < timeout:
+            for idx, ev in enumerate(unstarted):
+                if ev.is_set():
+                    to_remove.add(ev)
+            unstarted = unstarted.difference(to_remove)
+            to_remove = set()
+            if len(unstarted) == 0:
+                return
+            print(time.time() - start)
+            time.sleep(0.1)
+        raise RuntimeError(f"Thread/s not started: {unstarted}")
 
     def _save_model_state(
         self,

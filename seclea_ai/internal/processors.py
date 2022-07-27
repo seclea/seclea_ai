@@ -26,9 +26,10 @@ class Processor(ABC):
     _input_q: Queue
     # _result_q: Queue
 
-    def __init__(self, settings, input_q: Queue, **kwargs):
+    def __init__(self, settings, input_q: Queue, completed, **kwargs):
         self._settings = settings
         self._input_q = input_q
+        self._completed = completed
         # self._result_q = result_q
         self._db = SqliteDatabase(Path.home() / ".seclea" / "seclea_ai.db", thread_safe=True)
 
@@ -40,20 +41,29 @@ class Processor(ABC):
         pass
 
     @abc.abstractmethod
+    def complete(self):
+        pass
+
+    @abc.abstractmethod
     def terminate(self):
         pass
 
 
 class Writer(Processor):
-
-    _input_q: Queue
-    # _result_q: Queue
-
-    def __init__(self, settings, input_q: Queue):
-        super().__init__(settings=settings, input_q=input_q)
+    def __init__(self, settings, input_q: Queue, completed):
+        super().__init__(settings=settings, input_q=input_q, completed=completed)
         self._settings = settings
         self._input_q = input_q
         # self._result_q = result_q
+
+    def complete(self) -> None:
+        while True:
+            try:
+                record = self._input_q.get(timeout=0.01)
+            except queue.Empty:
+                self._completed.set()
+                return
+            self.handle(record)
 
     def terminate(self) -> None:
         # need to finish processing all items in the queue otherwise we have data loss.
@@ -110,11 +120,11 @@ class Writer(Processor):
             dataset_record.status = RecordStatus.STORED.value
             dataset_record.save()
 
-        except Exception as e:
+        except Exception:
             # update the record TODO refactor out.
             dataset_record.status = RecordStatus.STORE_FAIL.value
             dataset_record.save()
-            print(e)
+            raise
 
     def _save_model_state(
         self,
@@ -151,10 +161,10 @@ class Writer(Processor):
             record.status = RecordStatus.STORED.value
             record.save()
 
-        except Exception as e:
+        except Exception:
             record.status = RecordStatus.STORE_FAIL.value
             record.save()
-            print(e)
+            raise
 
 
 class Sender(Processor):
@@ -162,8 +172,8 @@ class Sender(Processor):
     # _result_q: Queue
     _publish_q: Queue
 
-    def __init__(self, settings, input_q: Queue):
-        super().__init__(settings=settings, input_q=input_q)
+    def __init__(self, settings, input_q: Queue, completed):
+        super().__init__(settings=settings, input_q=input_q, completed=completed)
         self._settings = settings
         self._input_q = input_q
         # self._result_q = result_q
@@ -184,6 +194,15 @@ class Sender(Processor):
             target_function(**record)
         finally:
             self._db.close()
+
+    def complete(self) -> None:
+        while True:
+            try:
+                record = self._input_q.get(timeout=0.01)
+            except queue.Empty:
+                self._completed.set()
+                return
+            self.handle(record)
 
     def terminate(self) -> None:
         # clear the queue otherwise will never join
