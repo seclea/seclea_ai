@@ -330,6 +330,7 @@ class SecleaAI:
                 num_samples=len(dset),
                 favourable_outcome=parent_mdata["favourable_outcome"],
                 unfavourable_outcome=parent_mdata["unfavourable_outcome"],
+                dataset_type=self._get_dataset_type(dset),
             )
             dset_metadata = self._ensure_required_metadata(
                 metadata=dset_metadata, defaults_spec=metadata_defaults_spec
