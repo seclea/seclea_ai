@@ -75,14 +75,18 @@ class SecleaAI:
             "cache_dir": PurePath(project_root) / ".seclea" / "cache" / project_name,
             "offline": False,
         }
-        self._db = SqliteDatabase(Path.home() / ".seclea" / "seclea_ai.db", thread_safe=True)
+        self._db = SqliteDatabase(
+            Path.home() / ".seclea" / "seclea_ai.db",
+            thread_safe=True,
+            pragmas={"journal_mode": "wal"},
+        )
         self._api = Api(
             self._settings, username=username, password=password
         )  # TODO add username and password?
         self._project_id = self._init_project(project_name=project_name)
         self._settings["project_id"] = self._project_id
         self._training_run = None
-        self._director = Director(settings=self._settings)
+        self._director = Director(settings=self._settings, api=self._api)
         logger.debug("Successfully Initialised SecleaAI class")
 
     def login(self, username=None, password=None) -> None:

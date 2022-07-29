@@ -98,7 +98,7 @@ class Api:
         organization_id: str,
         name: str,
         metadata: dict,
-        dataset_id: str,
+        dataset_id: int,
         parent_dataset_id: str = None,
     ) -> Response:
 
@@ -115,6 +115,7 @@ class Api:
             }
             if parent_dataset_id is not None:
                 dataset_obj["parent"] = (None, parent_dataset_id)
+                print(f"dataset_obj dataset field: {dataset_obj['parent']}")
 
             res = self._session.post(
                 url=f"{self._root_url}/{self._dataset_endpoint}",
@@ -206,7 +207,7 @@ class Api:
         model_state_file_path: str,
         organization_id: str,
         project_id: str,
-        training_run_id: str,
+        training_run_id: int,
         sequence_num: int,
         final_state,
     ):
@@ -229,7 +230,7 @@ class Api:
         return res
 
     def upload_transformation(
-        self, name: str, code_raw, code_encoded, dataset_id, organization_id, project_id
+        self, name: str, code_raw, code_encoded, dataset_id: int, organization_id, project_id
     ):
 
         data = {

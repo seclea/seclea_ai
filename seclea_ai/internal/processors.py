@@ -1,6 +1,4 @@
-import abc
 import os
-import queue
 import time
 import uuid
 from abc import ABC
@@ -22,26 +20,14 @@ def _assemble_key(record) -> str:
 
 
 class Processor(ABC):
-
-    _input_q: Queue
-    # _result_q: Queue
-
-    def __init__(self, settings, input_q: Queue, **kwargs):
+    def __init__(self, settings, **kwargs):
         self._settings = settings
-        self._input_q = input_q
         # self._result_q = result_q
-        self._db = SqliteDatabase(Path.home() / ".seclea" / "seclea_ai.db", thread_safe=True)
-
-    def __len__(self):
-        return self._input_q.qsize()
-
-    @abc.abstractmethod
-    def handle(self, record):
-        pass
-
-    @abc.abstractmethod
-    def terminate(self):
-        pass
+        self._db = SqliteDatabase(
+            Path.home() / ".seclea" / "seclea_ai.db",
+            thread_safe=True,
+            pragmas={"journal_mode": "wal"},
+        )
 
 
 class Writer(Processor):
@@ -49,33 +35,14 @@ class Writer(Processor):
     _input_q: Queue
     # _result_q: Queue
 
-    def __init__(self, settings, input_q: Queue):
-        super().__init__(settings=settings, input_q=input_q)
+    def __init__(self, settings):
+        super().__init__(settings=settings)
         self._settings = settings
-        self._input_q = input_q
-        # self._result_q = result_q
-
-    def terminate(self) -> None:
-        # need to finish processing all items in the queue otherwise we have data loss.
-        while not self._input_q.empty():
-            record = self._input_q.get(timeout=0.01)
-            self.handle(record)
-
-    def handle(self, record) -> None:
-        # TODO check record type (if we have different ones) - maybe come back to this
-        # self._write(record)
-        funcs = {
+        self.funcs = {
             "dataset": self._save_dataset,
             "model_state": self._save_model_state,
         }
-        entity = record["entity"]
-        target_function = funcs[entity]
-        del record["entity"]
-        self._db.connect()
-        try:
-            target_function(**record)
-        finally:
-            self._db.close()
+        # self._result_q = result_q
 
     def _save_dataset(
         self,
@@ -109,6 +76,7 @@ class Writer(Processor):
             dataset_record.path = comp_path
             dataset_record.status = RecordStatus.STORED.value
             dataset_record.save()
+            return record_id
 
         except Exception as e:
             # update the record TODO refactor out.
@@ -150,6 +118,7 @@ class Writer(Processor):
             record.path = save_path
             record.status = RecordStatus.STORED.value
             record.save()
+            return record_id
 
         except Exception as e:
             record.status = RecordStatus.STORE_FAIL.value
@@ -158,41 +127,16 @@ class Writer(Processor):
 
 
 class Sender(Processor):
-    _input_q: Queue
-    # _result_q: Queue
-    _publish_q: Queue
-
-    def __init__(self, settings, input_q: Queue):
-        super().__init__(settings=settings, input_q=input_q)
+    def __init__(self, settings, api: Api):
+        super().__init__(settings=settings)
         self._settings = settings
-        self._input_q = input_q
-        # self._result_q = result_q
-        self._api = Api(settings=settings)
-
-    def handle(self, record) -> None:
-        funcs = {
+        self._api = api
+        self.funcs = {
             "dataset": self._send_dataset,
             "model_state": self._send_model_state,
             "transformation": self._send_transformation,
             "training_run": self._send_training_run,
         }
-        entity = record["entity"]
-        target_function = funcs[entity]
-        del record["entity"]
-        self._db.connect(reuse_if_open=True)
-        try:
-            target_function(**record)
-        finally:
-            self._db.close()
-
-    def terminate(self) -> None:
-        # clear the queue otherwise will never join
-        try:
-            while True:
-                self._input_q.get_nowait()
-        except queue.Empty:
-            print("exited")
-            return
 
     def _send_training_run(
         self,
@@ -224,6 +168,7 @@ class Sender(Processor):
             tr_record.status = RecordStatus.SENT.value
             tr_record.remote_id = response.json()["id"]
             tr_record.save()
+            return record_id
         # TODO improve error handling to requeue failures - also by different failure types
         except ValueError:
             tr_record.status = RecordStatus.SEND_FAIL.value
@@ -247,7 +192,7 @@ class Sender(Processor):
 
         # wait for storage to complete if it hasn't
         while record.status != RecordStatus.STORED.value:
-            time.sleep(0.5)
+            time.sleep(0.1)
             record = Record.get_by_id(record_id)  # TODO check if this is needed to update
 
         try:
@@ -255,7 +200,7 @@ class Sender(Processor):
                 model_state_file_path=record.path,
                 organization_id=self._settings["organization"],
                 project_id=self._settings["project_id"],
-                training_run_id=str(parent_id),
+                training_run_id=parent_id,
                 sequence_num=sequence_num,
                 final_state=final,
             )
@@ -265,6 +210,7 @@ class Sender(Processor):
             record.save()
             # clean up file
             os.remove(record.path)
+            return record_id
         except ValueError:
             record.status = RecordStatus.SEND_FAIL.value
             record.save()
@@ -293,7 +239,7 @@ class Sender(Processor):
         # wait for storage to complete if it hasn't
         while dataset_record.status != RecordStatus.STORED.value:
             print(dataset_record.status)
-            time.sleep(0.5)
+            time.sleep(0.1)
             dataset_record = Record.get_by_id(record_id)
 
         try:
@@ -303,7 +249,7 @@ class Sender(Processor):
                 organization_id=self._settings["organization"],
                 name=dataset_name,
                 metadata=metadata,
-                dataset_id=str(dataset_id),
+                dataset_id=dataset_id,
                 parent_dataset_id=parent_id,
             )
             # update record status in sqlite
@@ -314,6 +260,7 @@ class Sender(Processor):
             dataset_record.save()
             # clean up file
             os.remove(dataset_record.path)
+            return record_id
         except ValueError:
             dataset_record.status = RecordStatus.SEND_FAIL.value
             dataset_record.save()
@@ -324,6 +271,13 @@ class Sender(Processor):
         try:
             dataset_record_id = record.dependencies[0]
             dataset_record = Record.get_by_id(dataset_record_id)
+
+            # wait for storage to complete if it hasn't
+            while dataset_record.status != RecordStatus.SENT.value:
+                print(dataset_record.status)
+                time.sleep(0.1)
+                dataset_record = Record.get_by_id(record_id)
+
             dataset_id = dataset_record.remote_id
         except IndexError:
             dataset_id = None
@@ -341,6 +295,7 @@ class Sender(Processor):
             record.status = RecordStatus.SENT.value
             record.remote_id = response.json()["id"]
             record.save()
+            return record_id
         except ValueError:
             record.status = RecordStatus.SEND_FAIL.value
             record.save()
