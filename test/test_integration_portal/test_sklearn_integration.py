@@ -37,11 +37,11 @@ class TestIntegrationSKLearn(TestCase):
         self.password = "asdf"  # nosec
         self.username = "onespanadmin"  # nosec
         self.organization = "Onespan"
-        self.project_name = f"test-project-{uuid.uuid4()}"
+        self.project = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
-            project_name=self.project_name,
+            project=self.project,
             organization=self.organization,
             platform_url=self.portal_url,
             auth_url=self.auth_url,

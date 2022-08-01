@@ -135,7 +135,7 @@ class Director:
             # TODO look again at this.
             save_path = (
                 self._settings["cache_dir"]
-                / f"{self._settings['project_name']}"
+                / f"{self._settings['project']}"
                 / f"{str(training_run_id)}"
             )
             os.makedirs(save_path, exist_ok=True)
