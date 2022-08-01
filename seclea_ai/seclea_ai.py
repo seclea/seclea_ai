@@ -29,14 +29,14 @@ logger = logging.getLogger(__name__)
 
 class SecleaAI:
     def __init__(
-            self,
-            project: str,
-            organization: str,
-            project_root: str = ".",
-            platform_url: str = "https://platform.seclea.com",
-            auth_url: str = "https://auth.seclea.com",
-            username: str = None,
-            password: str = None,
+        self,
+        project: str,
+        organization: str,
+        project_root: str = ".",
+        platform_url: str = "https://platform.seclea.com",
+        auth_url: str = "https://auth.seclea.com",
+        username: str = None,
+        password: str = None,
     ):
         """
         Create a SecleaAI object to manage a session. Requires a project name and framework.
@@ -102,7 +102,7 @@ class SecleaAI:
             try:
                 self._api.authenticate(username=username, password=password)
             except AuthenticationError as e:
-                print(f'Login attempt {i} failed: {e}')
+                print(f"Login attempt {i} failed: {e}")
             else:
                 return
         raise AuthenticationError("Failed to login.")
@@ -115,12 +115,12 @@ class SecleaAI:
         self._director.terminate()
 
     def upload_dataset_split(
-            self,
-            X: Union[DataFrame, np.ndarray],
-            y: Union[DataFrame, np.ndarray],
-            dataset_name: str,
-            metadata: Dict,
-            transformations: List[DatasetTransformation] = None,
+        self,
+        X: Union[DataFrame, np.ndarray],
+        y: Union[DataFrame, np.ndarray],
+        dataset_name: str,
+        metadata: Dict,
+        transformations: List[DatasetTransformation] = None,
     ) -> None:
         """
         Uploads a dataset.
@@ -154,11 +154,11 @@ class SecleaAI:
         self.upload_dataset(dataset, dataset_name, metadata, transformations)
 
     def upload_dataset(
-            self,
-            dataset: Union[str, List[str], DataFrame],
-            dataset_name: str,
-            metadata: Dict,
-            transformations: List[DatasetTransformation] = None,
+        self,
+        dataset: Union[str, List[str], DataFrame],
+        dataset_name: str,
+        metadata: Dict,
+        transformations: List[DatasetTransformation] = None,
     ) -> None:
         """
         Uploads a dataset.
@@ -326,7 +326,7 @@ class SecleaAI:
         self._director.send_entity(dataset_upload_kwargs)
 
     def _generate_intermediate_datasets(
-            self, transformations, dataset_name, dataset_id, user_metadata, parent, parent_metadata
+        self, transformations, dataset_name, dataset_id, user_metadata, parent, parent_metadata
     ):
 
         # setup for generating datasets.
@@ -384,7 +384,7 @@ class SecleaAI:
 
             # constraints
             if not set(dset_metadata["continuous_features"]).issubset(
-                    set(dset_metadata["features"])
+                set(dset_metadata["features"])
             ):
                 raise ValueError(
                     "Continuous features must be a subset of features. Please check and try again."
@@ -395,7 +395,7 @@ class SecleaAI:
             # handle the final dataset - check generated = passed in.
             if idx == last:
                 if (
-                        dataset_hash(dset, self._project_id) != dataset_id
+                    dataset_hash(dset, self._project_id) != dataset_id
                 ):  # TODO create or find better exception
                     raise AssertionError(
                         """Generated Dataset does not match the Dataset passed in.
@@ -406,7 +406,7 @@ class SecleaAI:
                     dset_name = dataset_name
             else:
                 if dataset_hash(dset, self._project_id) == dataset_hash(
-                        parent_dset, self._project_id
+                    parent_dset, self._project_id
                 ):
                     raise AssertionError(
                         f"""The transformation {trans.func.__name__} does not change the dataset.
@@ -470,14 +470,14 @@ class SecleaAI:
         return upload_queue
 
     def upload_training_run_split(
-            self,
-            model,
-            X_train: DataFrame,
-            y_train: Union[DataFrame, Series],
-            X_test: DataFrame = None,
-            y_test: Union[DataFrame, Series] = None,
-            X_val: Union[DataFrame, Series] = None,
-            y_val: Union[DataFrame, Series] = None,
+        self,
+        model,
+        X_train: DataFrame,
+        y_train: Union[DataFrame, Series],
+        X_test: DataFrame = None,
+        y_test: Union[DataFrame, Series] = None,
+        X_val: Union[DataFrame, Series] = None,
+        y_val: Union[DataFrame, Series] = None,
     ) -> None:
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -509,11 +509,11 @@ class SecleaAI:
         self.upload_training_run(model, train_dataset, test_dataset, val_dataset)
 
     def upload_training_run(
-            self,
-            model,
-            train_dataset: DataFrame,
-            test_dataset: DataFrame = None,
-            val_dataset: DataFrame = None,
+        self,
+        model,
+        train_dataset: DataFrame,
+        test_dataset: DataFrame = None,
+        val_dataset: DataFrame = None,
     ) -> None:
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -658,7 +658,9 @@ class SecleaAI:
         return model_id
 
     @staticmethod
-    def _assemble_dataset(x: Union[DataFrame, Series], y: Union[DataFrame, Series] = None) -> DataFrame:
+    def _assemble_dataset(
+        x: Union[DataFrame, Series], y: Union[DataFrame, Series] = None
+    ) -> DataFrame:
         try:
             expected_arg_type = Union[DataFrame, Series]
             if not isinstance(x, expected_arg_type.__args__):
@@ -672,7 +674,7 @@ class SecleaAI:
                 y = DataFrame(y)
             return pd.concat([x, y], axis=1)
         except Exception as e:
-            raise TypeError(f'Failed to assemble datasets: {type(x), type(y)} with error: {e}')
+            raise TypeError(f"Failed to assemble datasets: {type(x), type(y)} with error: {e}")
 
     def _init_project(self, project) -> int:
         """

@@ -1,6 +1,7 @@
 boto3>=1.22.0
 certifi==2021.5.30
 chardet==3.0.4
+coverage
 dill>=0.3.4
 idna>=2.9
 imbalanced_learn<=0.9.0
@@ -23,4 +24,3 @@ tensorflow>=2.0.0
 urllib3>=1.26.5
 xgboost>=1.5.1
 zstandard>=0.15.1
-coverage
