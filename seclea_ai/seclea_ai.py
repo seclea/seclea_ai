@@ -619,7 +619,7 @@ class SecleaAI:
     def _set_model(self, model_name: str, framework: ModelManagers) -> int:
         """
         Set the model for this session.
-        Checks if it has already been uploaded. If not it will upload it.
+        Checks if it has already been uploaded. If not it will upload it.zg
 
         :param model_name: The name for the architecture/algorithm. eg. "GradientBoostedMachine" or "3-layer CNN".
 
