@@ -8,26 +8,41 @@ from typing import Dict, List
 import requests
 from requests import Response
 
-from seclea_ai.internal.authentication import AuthenticationService
+from ..exceptions import (
+    BadRequestError,
+    AuthenticationError,
+    AuthorizationError,
+    APIError,
+    NotFoundError,
+    ServerError,
+)
+from ...internal.authentication import AuthenticationService
 
 
-# TODO return specific Exceptions for specific non success responses.
 def handle_response(response: Response, msg: str = ""):
     if response.status_code in [200, 201]:  # or requests.code.ok
         return response
     err_msg = f"{response.status_code} Error \n{msg} - {response.reason} - {response.text}"
     if response.status_code == 400:
-        err_msg = f"400 Error - Bad Request\n +{msg} - {response.reason} - {response.text}"
+        raise BadRequestError(
+            f"400 Error - Bad Request\n +{msg} - {response.reason} - {response.text}"
+        )
     if response.status_code == 401:
-        err_msg = f"401 Error - Unauthorized\n +{msg} - {response.reason} - {response.text}"
+        raise AuthenticationError(
+            f"401 Error - Unauthorized\n +{msg} - {response.reason} - {response.text}"
+        )
     if response.status_code == 403:
-        err_msg = f"403 Error - Forbidden\n +{msg} - {response.reason} - {response.text}"
+        raise AuthorizationError(
+            f"403 Error - Forbidden\n +{msg} - {response.reason} - {response.text}"
+        )
+    if response.status_code == 404:
+        raise NotFoundError(f"404 Error - Not Found\n +{msg} - {response.reason} - {response.text}")
     if response.status_code == 500:
-        err_msg = (
+        raise ServerError(
             f"500 Error - Internal Server Error\n +{msg} - {response.reason} - {response.text}"
         )
 
-    raise ValueError(err_msg)
+    raise APIError(err_msg)
 
 
 class Api:
@@ -61,6 +76,14 @@ class Api:
         d = json.dumps(d)
         json.loads(d)
         pass
+
+    def get_project(self, project_id, organization_id, **filter_kwargs) -> Response:
+        return handle_response(
+            self._session.get(
+                url=f"{self._root_url}/{self._project_endpoint}/{project_id}",
+                params={"organization": organization_id, **filter_kwargs},
+            )
+        )
 
     def get_projects(self, organization_id, **filter_kwargs) -> Response:
         res = self._session.get(
@@ -98,7 +121,7 @@ class Api:
         organization_id: str,
         name: str,
         metadata: dict,
-        dataset_id: str,
+        dataset_id: int,
         parent_dataset_id: str = None,
     ) -> Response:
 
@@ -115,6 +138,7 @@ class Api:
             }
             if parent_dataset_id is not None:
                 dataset_obj["parent"] = (None, parent_dataset_id)
+                print(f"dataset_obj dataset field: {dataset_obj['parent']}")
 
             res = self._session.post(
                 url=f"{self._root_url}/{self._dataset_endpoint}",
@@ -206,7 +230,7 @@ class Api:
         model_state_file_path: str,
         organization_id: str,
         project_id: str,
-        training_run_id: str,
+        training_run_id: int,
         sequence_num: int,
         final_state,
     ):
@@ -229,7 +253,7 @@ class Api:
         return res
 
     def upload_transformation(
-        self, name: str, code_raw, code_encoded, dataset_id, organization_id, project_id
+        self, name: str, code_raw, code_encoded, dataset_id: int, organization_id, project_id
     ):
 
         data = {

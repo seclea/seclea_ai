@@ -4,8 +4,9 @@ Description for seclea_ai.py
 import copy
 import inspect
 import logging
+import traceback
 from pathlib import PurePath, Path
-from typing import Any, Dict, List, Union
+from typing import Dict, List, Union
 
 import numpy as np
 import pandas as pd
@@ -13,20 +14,19 @@ from pandas import DataFrame, Series
 from pandas.errors import ParserError
 from peewee import SqliteDatabase
 
-
 from seclea_ai.internal.api.api_interface import Api
 from seclea_ai.internal.director import Director
-from seclea_ai.internal.exceptions import AuthenticationError
+from seclea_ai.internal.exceptions import AuthenticationError, NotFoundError
 from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.lib.seclea_utils.core import encode_func
-
-from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
 from seclea_ai.transformations import DatasetTransformation
+from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
 
 logger = logging.getLogger(__name__)
 
 
+# TODO make context manager
 class SecleaAI:
     def __init__(
         self,
@@ -75,14 +75,18 @@ class SecleaAI:
             "cache_dir": PurePath(project_root) / ".seclea" / "cache" / project_name,
             "offline": False,
         }
-        self._db = SqliteDatabase(Path.home() / ".seclea" / "seclea_ai.db", thread_safe=True)
+        self._db = SqliteDatabase(
+            Path.home() / ".seclea" / "seclea_ai.db",
+            thread_safe=True,
+            pragmas={"journal_mode": "wal"},
+        )
         self._api = Api(
             self._settings, username=username, password=password
         )  # TODO add username and password?
         self._project_id = self._init_project(project_name=project_name)
         self._settings["project_id"] = self._project_id
         self._training_run = None
-        self._director = Director(settings=self._settings)
+        self._director = Director(settings=self._settings, api=self._api)
         logger.debug("Successfully Initialised SecleaAI class")
 
     def login(self, username=None, password=None) -> None:
@@ -231,7 +235,7 @@ class SecleaAI:
                     organization_id=self._organization,
                     project_id=self._project_id,
                 )
-            except ValueError:
+            except NotFoundError:
                 # check local db
                 self._db.connect()
                 parent_record = Record.get_or_none(Record.key == parent_dset_id)
@@ -637,6 +641,7 @@ class SecleaAI:
             framework=framework.name,
         )
         models = res.json()
+        # not checking for more because there is a unique constraint across name and framework on backend.
         if len(models) == 1:
             return models[0]["id"]
         # if we got here that means that the model has not been uploaded yet. So we upload it.
@@ -650,6 +655,7 @@ class SecleaAI:
         try:
             model_id = res.json()["id"]
         except KeyError:
+            traceback.print_exc()
             resp = self._api.get_models(
                 organization_id=self._organization,
                 project_id=self._project_id,
@@ -682,8 +688,11 @@ class SecleaAI:
 
         :return: None
         """
-        project = self._get_project(project_name)
-        if project is None:
+        try:
+            project = self._api.get_project(
+                project_id=project_name, organization_id=self._organization
+            )
+        except NotFoundError:
             proj_res = self._api.upload_project(
                 name=project_name,
                 description="Please add a description...",
@@ -692,22 +701,11 @@ class SecleaAI:
             try:
                 project = proj_res.json()["id"]
             except KeyError:
+                # we want to know when this happens as this is unusual condition.
+                traceback.print_exc()
                 resp = self._api.get_projects(organization_id=self._organization, name=project_name)
                 project = resp.json()[0]["id"]
         return project
-
-    def _get_project(self, project_name: str) -> Any:
-        """
-        Checks if a project exists on the server. If it does not it will return None otherwise the id of the project.
-
-        :param project_name: str The name of the project.
-
-        :return: int | None The id of the project else None.
-        """
-        project_res = self._api.get_projects(organization_id=self._organization, name=project_name)
-        if len(project_res.json()) == 0:
-            return None
-        return project_res.json()[0]["id"]
 
     @staticmethod
     def _aggregate_dataset(datasets: List[str], index) -> DataFrame:

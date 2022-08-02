@@ -2,6 +2,8 @@
 
 # Seclea AI [![pypi](https://img.shields.io/pypi/v/seclea-ai.svg)](https://pypi.python.org/pypi/seclea-ai)
 
+[comment]: <> (# ![Build status]&#40;https://github.com/seclea/seclea_ai/actions/workflows/unit_test.yml/badge.svg?branch=dev&#41;)
+
 Build better models, stay compliant and manage your Data Science risks more effectively with Seclea.
 We help you and your organisation to manage Data Science projects the way you want, with the tools you want, while helping
 you ensure that you build safe, effective products.
@@ -10,10 +12,7 @@ you ensure that you build safe, effective products.
 
 ## Features
 
-What's all the bells and whistles this project can perform?
-
-- What's the main functionality
-- You can also do another thing
+- Record datasets and models during development for later analysis
 
 ## Integrate with your workflow
 
@@ -38,10 +37,14 @@ seclea = SecleaAI(project_name="My Project", organization="My Org")
 
 [@rogermilroy](https://github.com/rogermilroy)
 
+[@occy88](https://github.com/occy88)
+
+[@oldi92](https://github.com/oldi92)
+
 ## Contributing
 
 The best way to contribute at the moment is by giving us feedback in [Issues](https://github.com/seclea/seclea_ai/issues).
-Both bug reports as well as feature requests are welcome.
+Both bug reports and feature requests are welcome.
 
 In case of sensitive bugs like security vulnerabilities, please contact
 security@seclea.com directly instead of using issue tracker. We value your effort
