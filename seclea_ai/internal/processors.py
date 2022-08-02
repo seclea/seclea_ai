@@ -2,7 +2,6 @@ import os
 import time
 import uuid
 from abc import ABC
-from multiprocessing import Queue
 from pathlib import Path
 from typing import Dict, List
 
@@ -22,7 +21,6 @@ def _assemble_key(record) -> str:
 class Processor(ABC):
     def __init__(self, settings, **kwargs):
         self._settings = settings
-        # self._result_q = result_q
         self._db = SqliteDatabase(
             Path.home() / ".seclea" / "seclea_ai.db",
             thread_safe=True,
@@ -34,10 +32,6 @@ class Processor(ABC):
 
 
 class Writer(Processor):
-
-    _input_q: Queue
-    # _result_q: Queue
-
     def __init__(self, settings):
         super().__init__(settings=settings)
         self._settings = settings
@@ -45,7 +39,6 @@ class Writer(Processor):
             "dataset": self._save_dataset,
             "model_state": self._save_model_state,
         }
-        # self._result_q = result_q
 
     def _save_dataset(
         self,
@@ -123,10 +116,10 @@ class Writer(Processor):
             record.save()
             return record_id
 
-        except Exception as e:
+        except Exception:
             record.status = RecordStatus.STORE_FAIL.value
             record.save()
-            print(e)
+            raise
 
 
 class Sender(Processor):

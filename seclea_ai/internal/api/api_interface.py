@@ -16,7 +16,7 @@ from ..exceptions import (
     NotFoundError,
     ServerError,
 )
-from ...authentication import AuthenticationService
+from ...internal.authentication import AuthenticationService
 
 
 def handle_response(response: Response, msg: str = ""):
