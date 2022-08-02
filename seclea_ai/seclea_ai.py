@@ -235,7 +235,7 @@ class SecleaAI:
                     organization_id=self._organization,
                     project_id=self._project_id,
                 )
-            except ValueError:
+            except NotFoundError:
                 # check local db
                 self._db.connect()
                 parent_record = Record.get_or_none(Record.key == parent_dset_id)
