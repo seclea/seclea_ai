@@ -30,6 +30,9 @@ class Processor(ABC):
         )
 
 
+# TODO wrap all db requests in transactions to reduce clashes.
+
+
 class Writer(Processor):
 
     _input_q: Queue
@@ -78,11 +81,11 @@ class Writer(Processor):
             dataset_record.save()
             return record_id
 
-        except Exception as e:
+        except Exception:
             # update the record TODO refactor out.
             dataset_record.status = RecordStatus.STORE_FAIL.value
             dataset_record.save()
-            print(e)
+            raise
 
     def _save_model_state(
         self,
@@ -191,7 +194,11 @@ class Sender(Processor):
             )
 
         # wait for storage to complete if it hasn't
+        start = time.time()
+        give_up = 1.0
         while record.status != RecordStatus.STORED.value:
+            if time.time() - start >= give_up:
+                raise TimeoutError("Waited too long for Model State storage")
             time.sleep(0.1)
             record = Record.get_by_id(record_id)  # TODO check if this is needed to update
 
@@ -237,8 +244,12 @@ class Sender(Processor):
             parent_id = None
 
         # wait for storage to complete if it hasn't
+        start = time.time()
+        give_up = 1.0
         while dataset_record.status != RecordStatus.STORED.value:
             print(dataset_record.status)
+            if time.time() - start >= give_up:
+                raise TimeoutError("Waited too long for Dataset Storage")
             time.sleep(0.1)
             dataset_record = Record.get_by_id(record_id)
 
@@ -273,8 +284,12 @@ class Sender(Processor):
             dataset_record = Record.get_by_id(dataset_record_id)
 
             # wait for storage to complete if it hasn't
+            start = time.time()
+            give_up = 1.0
             while dataset_record.status != RecordStatus.SENT.value:
                 print(dataset_record.status)
+                if time.time() - start >= give_up:
+                    raise TimeoutError("Waited too long for Dataset upload")
                 time.sleep(0.1)
                 dataset_record = Record.get_by_id(record_id)
 
