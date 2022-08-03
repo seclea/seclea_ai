@@ -101,15 +101,15 @@ Some wait for background to complete in the User Thread but should have timeout.
 ```mermaid
   classDiagram
 
-  SecleaAI *-- Internal
+  SecleaAI *-- Director
   SecleaAI *-- Api
   SecleaAI *-- DB
   
   AuthService *-- Transmission
   AuthService *-- DB
   
-  Internal *-- Writer
-  Internal *-- Sender
+  Director *-- Writer
+  Director *-- Sender
   
   Api *-- AuthService
   Api *-- Transmission
@@ -120,8 +120,8 @@ Some wait for background to complete in the User Thread but should have timeout.
   Sender *-- DB
 
   class SecleaAI {
-    dbms: DB
-    internal: Internal
+    db: DB
+    director: Director
     api: Api
     
     +upload_dataset()
@@ -130,16 +130,16 @@ Some wait for background to complete in the User Thread but should have timeout.
   
 
   class AuthService {
-    dbms: DB
-    transmission: Transmission
+    db: DB
     
     +authenticate()
   }
   
   
-  class Internal {
+  class Director {
     store_q: Queue
     send_q: Queue
+    db: DB
     store_thread: Writer(ProcessorThread)
     send_thread: Sender(ProcessorThread)
     
@@ -150,20 +150,15 @@ Some wait for background to complete in the User Thread but should have timeout.
   
   class Api {
     auth: AuthService
-    transmission: Transmission
     
   }
   
-  class Transmission {
-  
-  }
-  
   class Writer {
-    dbms: DB
+    db: DB
   }
   
   class Sender {
-    dbms: DB
+    db: DB
     api: Api
   }
   
@@ -234,7 +229,38 @@ if they make sense for validation etc.
 ## External classes
 We will also have classes for Users to use in their code. These will be added here.
 
-## Network failure modes
+## Error Handling
+
+### Error modes:
+- Run out of space/memory - later
+- Request failures - later
+  - API
+  - Auth
+- DB errors
+- Saving errors
+  - save_model_state
+- Threading errors
+  - ~~fail to start~~
+  - ~~error in parent - children need to exit~~
+  - queue errors
+    - encoding
+    - full?
+  - error during operation
+    - saving
+      - os issues
+    - API
+      - fail to auth
+      - various error responses
+    - DB
+      - fail to connect
+      - deadlock
+  - error on complete
+    - queue not empty
+    - not sent
+    - partial send?
+
+
+### Network failure modes
 
 - 400 Bad Request - There is probably a mismatch with acceptable data types or wrong format out of date]
 - 401

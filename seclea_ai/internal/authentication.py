@@ -8,7 +8,7 @@ from requests import Response, Session
 
 from seclea_ai.internal.exceptions import AuthenticationError
 
-from .internal.local_db import AuthService
+from seclea_ai.internal.local_db import AuthService
 
 try:
     import google.colab  # noqa F401
@@ -30,7 +30,11 @@ def handle_response(res: Response, msg):
 class AuthenticationService:
     def __init__(self, url: str):
         self._url = url
-        self._db = SqliteDatabase(Path.home() / ".seclea" / "seclea_ai.db", thread_safe=True)
+        self._db = SqliteDatabase(
+            Path.home() / ".seclea" / "seclea_ai.db",
+            thread_safe=True,
+            pragmas={"journal_mode": "wal"},
+        )
         self._path_token_obtain = "api/token/obtain/"  # nosec - bandit thinks this is a pw or key..
         self._path_token_refresh = (
             "api/token/refresh/"  # nosec - bandit thinks this is a pw or key..
