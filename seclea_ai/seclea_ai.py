@@ -1,14 +1,15 @@
 """
 Description for seclea_ai.py
 """
+import os
 import copy
 import inspect
 import logging
+import traceback
 from pathlib import PurePath, Path
-from typing import Any, Dict, List, Union
+from typing import Dict, List, Union
 
 import numpy as np
-import pandas
 import pandas as pd
 from pandas import DataFrame, Series
 from pandas.errors import ParserError
@@ -16,32 +17,31 @@ from peewee import SqliteDatabase
 
 from seclea_ai.internal.api.api_interface import Api
 from seclea_ai.internal.director import Director
-from seclea_ai.internal.exceptions import AuthenticationError
+from seclea_ai.internal.exceptions import AuthenticationError, NotFoundError
 from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.lib.seclea_utils.core import encode_func
-
-from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
 from seclea_ai.transformations import DatasetTransformation
+from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
 
 logger = logging.getLogger(__name__)
 
 
 class SecleaAI:
     def __init__(
-        self,
-        project: str,
-        organization: str,
-        project_root: str = ".",
-        platform_url: str = "https://platform.seclea.com",
-        auth_url: str = "https://auth.seclea.com",
-        username: str = None,
-        password: str = None,
+            self,
+            project_name: str,
+            organization: str,
+            project_root: str = ".",
+            platform_url: str = "https://platform.seclea.com",
+            auth_url: str = "https://auth.seclea.com",
+            username: str = None,
+            password: str = None,
     ):
         """
         Create a SecleaAI object to manage a session. Requires a project name and framework.
 
-        :param project: The name of the project.
+        :param project_name: The name of the project.
 
         :param organization: The name of the project's organization.
 
@@ -63,26 +63,30 @@ class SecleaAI:
 
             >>> seclea = SecleaAI(project="Test Project", project_root=".")
         """
-        self._project = project
+        self._project = project_name
         self._organization = organization
 
         self._settings = {
-            "project": project,
+            "project": project_name,
             "organization": organization,
             "project_root": project_root,
             "platform_url": platform_url,
             "auth_url": auth_url,
-            "cache_dir": PurePath(project_root) / ".seclea" / "cache" / project,
+            "cache_dir": PurePath(project_root) / ".seclea" / "cache" / project_name,
             "offline": False,
         }
-        self._db = SqliteDatabase(Path.home() / ".seclea" / "seclea_ai.db", thread_safe=True)
+        self._db = SqliteDatabase(
+            Path.home() / ".seclea" / "seclea_ai.db",
+            thread_safe=True,
+            pragmas={"journal_mode": "wal"},
+        )
         self._api = Api(
             self._settings, username=username, password=password
         )  # TODO add username and password?
-        self._project_id = self._init_project(project=project)
+        self._project_id = self._init_project(project_name=project_name)
         self._settings["project_id"] = self._project_id
         self._training_run = None
-        self._director = Director(settings=self._settings)
+        self._director = Director(settings=self._settings, api=self._api)
         logger.debug("Successfully Initialised SecleaAI class")
 
     def login(self, username=None, password=None) -> None:
@@ -115,17 +119,17 @@ class SecleaAI:
         self._director.terminate()
 
     def upload_dataset_split(
-        self,
-        X: Union[DataFrame, np.ndarray],
-        y: Union[DataFrame, np.ndarray],
-        dataset_name: str,
-        metadata: Dict,
-        transformations: List[DatasetTransformation] = None,
+            self,
+            x: Union[DataFrame, np.ndarray],
+            y: Union[DataFrame, np.ndarray],
+            dataset_name: str,
+            metadata: Dict,
+            transformations: List[DatasetTransformation] = None,
     ) -> None:
         """
         Uploads a dataset.
 
-        :param X: DataFrame The samples of the Dataset.
+        :param x: DataFrame The samples of the Dataset.
 
         :param y: Dataframe The labels of the Dataset
 
@@ -143,22 +147,22 @@ class SecleaAI:
 
         :return: None
         """
-        dataset = self._assemble_dataset({"X": X, "y": y})
+        dataset = self._assemble_dataset(x=x, y=y)
         # potentially fragile vvv TODO check this vvv
         metadata["outcome_name"] = y.name
         # try and extract the index automatically
         try:
-            metadata["index"] = X.index.name
+            metadata["index"] = x.index.name
         except AttributeError:
             metadata["index"] = 0
         self.upload_dataset(dataset, dataset_name, metadata, transformations)
 
     def upload_dataset(
-        self,
-        dataset: Union[str, List[str], DataFrame],
-        dataset_name: str,
-        metadata: Dict,
-        transformations: List[DatasetTransformation] = None,
+            self,
+            dataset: Union[str, List[str], DataFrame],
+            dataset_name: str,
+            metadata: Dict,
+            transformations: List[DatasetTransformation] = None,
     ) -> None:
         """
         Uploads a dataset.
@@ -182,7 +186,7 @@ class SecleaAI:
         :return: None
 
         Example:: TODO update docs
-            >>> seclea = SecleaAI(project="Test Project")
+            >>> seclea = SecleaAI(project_name="Test Project")
             >>> dataset = pd.read_csv("/test_folder/dataset_file.csv")
             >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
             >>> seclea.upload_dataset(dataset=dataset, dataset_name="Multifile Dataset", metadata=dataset_metadata)
@@ -190,13 +194,13 @@ class SecleaAI:
         Example with file::
 
             >>> seclea.upload_dataset(dataset="/test_folder/dataset_file.csv", dataset_name="Test Dataset", metadata={})
-            >>> seclea = SecleaAI(project="Test Project", organization="Test Organization")
+            >>> seclea = SecleaAI(project_name="Test Project", organization="Test Organization")
 
         Assuming the files are all in the /test_folder/dataset directory.
         Example with multiple files::
 
             >>> files = os.listdir("/test_folder/dataset")
-            >>> seclea = SecleaAI(project="Test Project")
+            >>> seclea = SecleaAI(project_name="Test Project")
             >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
             >>> seclea.upload_dataset(dataset=files, dataset_name="Multifile Dataset", metadata=dataset_metadata)
 
@@ -215,8 +219,7 @@ class SecleaAI:
         dataset_id = dataset_hash(dataset, self._project_id)
 
         if transformations is not None:
-
-            parent = self._assemble_dataset(transformations[0].raw_data_kwargs)
+            parent = self._assemble_dataset(*transformations[0].raw_data_kwargs.values())
 
             #####
             # Validate parent exists and get metadata - check how often on portal, maybe remove?
@@ -229,7 +232,7 @@ class SecleaAI:
                     organization_id=self._organization,
                     project_id=self._project_id,
                 )
-            except ValueError:
+            except NotFoundError:
                 # check local db
                 self._db.connect()
                 parent_record = Record.get_or_none(Record.key == parent_dset_id)
@@ -326,7 +329,7 @@ class SecleaAI:
         self._director.send_entity(dataset_upload_kwargs)
 
     def _generate_intermediate_datasets(
-        self, transformations, dataset_name, dataset_id, user_metadata, parent, parent_metadata
+            self, transformations, dataset_name, dataset_id, user_metadata, parent, parent_metadata
     ):
 
         # setup for generating datasets.
@@ -342,7 +345,7 @@ class SecleaAI:
             output = trans(output)
 
             # construct the generated dataset from outputs
-            dset = self._assemble_dataset(output)
+            dset = self._assemble_dataset(*output.values())
 
             dset_metadata = copy.deepcopy(user_metadata)
             # validate and ensure required metadata
@@ -384,7 +387,7 @@ class SecleaAI:
 
             # constraints
             if not set(dset_metadata["continuous_features"]).issubset(
-                set(dset_metadata["features"])
+                    set(dset_metadata["features"])
             ):
                 raise ValueError(
                     "Continuous features must be a subset of features. Please check and try again."
@@ -395,7 +398,7 @@ class SecleaAI:
             # handle the final dataset - check generated = passed in.
             if idx == last:
                 if (
-                    dataset_hash(dset, self._project_id) != dataset_id
+                        dataset_hash(dset, self._project_id) != dataset_id
                 ):  # TODO create or find better exception
                     raise AssertionError(
                         """Generated Dataset does not match the Dataset passed in.
@@ -406,7 +409,7 @@ class SecleaAI:
                     dset_name = dataset_name
             else:
                 if dataset_hash(dset, self._project_id) == dataset_hash(
-                    parent_dset, self._project_id
+                        parent_dset, self._project_id
                 ):
                     raise AssertionError(
                         f"""The transformation {trans.func.__name__} does not change the dataset.
@@ -470,14 +473,14 @@ class SecleaAI:
         return upload_queue
 
     def upload_training_run_split(
-        self,
-        model,
-        X_train: DataFrame,
-        y_train: Union[DataFrame, Series],
-        X_test: DataFrame = None,
-        y_test: Union[DataFrame, Series] = None,
-        X_val: Union[DataFrame, Series] = None,
-        y_val: Union[DataFrame, Series] = None,
+            self,
+            model,
+            X_train: DataFrame,
+            y_train: Union[DataFrame, Series],
+            X_test: DataFrame = None,
+            y_test: Union[DataFrame, Series] = None,
+            X_val: Union[DataFrame, Series] = None,
+            y_val: Union[DataFrame, Series] = None,
     ) -> None:
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -498,22 +501,22 @@ class SecleaAI:
 
         :return: None
         """
-        train_dataset = self._assemble_dataset({"X": X_train, "y": y_train})
+        train_dataset = self._assemble_dataset(x=X_train,y=y_train)
         test_dataset = None
         val_dataset = None
         if X_test is not None and y_test is not None:
-            test_dataset = self._assemble_dataset({"X": X_test, "y": y_test})
+            test_dataset = self._assemble_dataset(x=X_test,y=y_test)
         if X_val is not None and y_val is not None:
-            val_dataset = self._assemble_dataset({"X": X_val, "y": y_val})
+            val_dataset = self._assemble_dataset(x=X_val,y=y_val)
 
         self.upload_training_run(model, train_dataset, test_dataset, val_dataset)
 
     def upload_training_run(
-        self,
-        model,
-        train_dataset: DataFrame,
-        test_dataset: DataFrame = None,
-        val_dataset: DataFrame = None,
+            self,
+            model,
+            train_dataset: DataFrame,
+            test_dataset: DataFrame = None,
+            val_dataset: DataFrame = None,
     ) -> None:
         """
         Takes a model and extracts the necessary data for uploading the training run.
@@ -530,10 +533,10 @@ class SecleaAI:
 
         Example::
 
-            >>> seclea = SecleaAI(project="Test Project")
+            >>> seclea = SecleaAI(project_name="Test Project")
             >>> dataset = pd.read_csv(<dataset_name>)
             >>> model = LogisticRegressionClassifier()
-            >>> model.fit(X, y)
+            >>> model.fit(x, y)
             >>> seclea.upload_training_run(
                     model,
                     framework=seclea_ai.Frameworks.SKLEARN,
@@ -619,7 +622,7 @@ class SecleaAI:
     def _set_model(self, model_name: str, framework: ModelManagers) -> int:
         """
         Set the model for this session.
-        Checks if it has already been uploaded. If not it will upload it.zg
+        Checks if it has already been uploaded. If not it will upload it.
 
         :param model_name: The name for the architecture/algorithm. eg. "GradientBoostedMachine" or "3-layer CNN".
 
@@ -635,6 +638,7 @@ class SecleaAI:
             framework=framework.name,
         )
         models = res.json()
+        # not checking for more because there is a unique constraint across name and framework on backend.
         if len(models) == 1:
             return models[0]["id"]
         # if we got here that means that the model has not been uploaded yet. So we upload it.
@@ -648,6 +652,7 @@ class SecleaAI:
         try:
             model_id = res.json()["id"]
         except KeyError:
+            traceback.print_exc()
             resp = self._api.get_models(
                 organization_id=self._organization,
                 project_id=self._project_id,
@@ -659,7 +664,7 @@ class SecleaAI:
 
     @staticmethod
     def _assemble_dataset(
-        x: Union[DataFrame, Series], y: Union[DataFrame, Series] = None
+            x: Union[DataFrame, Series], y: Union[DataFrame, Series] = None
     ) -> DataFrame:
         try:
             expected_arg_type = Union[DataFrame, Series]
@@ -676,7 +681,7 @@ class SecleaAI:
         except Exception as e:
             raise TypeError(f"Failed to assemble datasets: {type(x), type(y)} with error: {e}")
 
-    def _init_project(self, project) -> int:
+    def _init_project(self, project_name) -> int:
         """
         Initialises the project for the object. If the project does not exist on the server it will be created.
 
@@ -684,32 +689,22 @@ class SecleaAI:
 
         :return: None
         """
-        project = self._get_project(project)
-        if project is None:
+        try:
+            project = self._api.get_project(
+                project_id=project_name, organization_id=self._organization
+            )
+        except NotFoundError:
             proj_res = self._api.upload_project(
-                name=project,
+                name=project_name,
                 description="Please add a description...",
                 organization_id=self._organization,
             )
             try:
                 project = proj_res.json()["id"]
             except KeyError:
-                resp = self._api.get_projects(organization_id=self._organization, name=project)
+                resp = self._api.get_projects(organization_id=self._organization, name=project_name)
                 project = resp.json()[0]["id"]
         return project
-
-    def _get_project(self, project: str) -> Any:
-        """
-        Checks if a project exists on the server. If it does not it will return None otherwise the id of the project.
-
-        :param project: str The name of the project.
-
-        :return: int | None The id of the project else None.
-        """
-        project_res = self._api.get_projects(organization_id=self._organization, name=project)
-        if len(project_res.json()) == 0:
-            return None
-        return project_res.json()[0]["id"]
 
     @staticmethod
     def _aggregate_dataset(datasets: List[str], index) -> DataFrame:
