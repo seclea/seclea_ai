@@ -1,4 +1,10 @@
-class BadRequestError(Exception):
+class APIError(Exception):
+    """
+    Raised for API error responses that don't fit into the specific ones above
+    """
+
+
+class BadRequestError(APIError):
     """
     Raised for API errors
     400
@@ -7,7 +13,7 @@ class BadRequestError(Exception):
     pass
 
 
-class AuthenticationError(Exception):
+class AuthenticationError(APIError):
     """
     Raised for authentication errors - ie. the user is not authenticated (not known to server)
     401
@@ -16,7 +22,7 @@ class AuthenticationError(Exception):
     pass
 
 
-class AuthorizationError(Exception):
+class AuthorizationError(APIError):
     """
     Raised for authorization errors - ie. user is known but doesn't have permission.
     403
@@ -25,24 +31,46 @@ class AuthorizationError(Exception):
     pass
 
 
-class NotFoundError(Exception):
+class NotFoundError(APIError):
     """
-    Raised for resource not found errors - 404.
-    """
-
-    pass
-
-
-class ServerError(Exception):
-    """
-    Raised for server error responses (500 codes)
-    500 - 511 - maybe split some out later
+    Raised for resource not found errors
+    404
     """
 
     pass
 
 
-class APIError(Exception):
+class RequestTimeoutError(APIError):
     """
-    Raised for API error responses that don't fit into the specific ones above
+    Raised on request timeout
+    408
     """
+
+    pass
+
+
+class ImATeapotError(APIError):
+    """
+    Raised on I'm a teapot error code
+    418
+    """
+
+    pass
+
+
+class ServerError(APIError):
+    """
+    Raised for non service degradation server internal error responses
+    501, 505 - 511
+    """
+
+    pass
+
+
+class ServiceDegradedError(APIError):
+    """
+    Raised for server errors indicating service degradation.
+    500, 502, 503, 504
+    """
+
+    pass
