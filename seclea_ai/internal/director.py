@@ -8,7 +8,8 @@ from concurrent.futures import ThreadPoolExecutor, Future
 from queue import Queue
 from typing import Dict, List, Any
 
-from .processors import Sender, Writer
+from .processors.sender import Sender
+from .processors.writer import Writer
 
 logger = logging.getLogger("seclea_ai")
 
