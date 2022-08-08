@@ -3,6 +3,7 @@ import time
 from typing import Dict, List
 
 from .processor import Processor
+from ..exceptions import APIError
 from ...internal.api.api_interface import Api
 from ...internal.local_db import RecordStatus, Record
 
@@ -54,15 +55,16 @@ class Sender(Processor):
                 training_run_name=training_run_name,
                 params=params,
             )
+        # something went wrong - record in status and raise for handling in director.
+        except APIError:
+            tr_record.status = RecordStatus.SEND_FAIL.value
+            tr_record.save()
+            raise
+        else:
             tr_record.status = RecordStatus.SENT.value
             tr_record.remote_id = response.json()["id"]
             tr_record.save()
             return record_id
-        # TODO improve error handling to requeue failures - also by different failure types
-        except ValueError:
-            tr_record.status = RecordStatus.SEND_FAIL.value
-            tr_record.save()
-            raise
 
     def _send_model_state(self, record_id, sequence_num: int, final: bool, **kwargs):
         """
@@ -97,6 +99,12 @@ class Sender(Processor):
                 sequence_num=sequence_num,
                 final_state=final,
             )
+        # something went wrong - record in status and raise for handling in director.
+        except APIError:
+            record.status = RecordStatus.SEND_FAIL.value
+            record.save()
+            raise
+        else:
             # update record status in sqlite - TODO refactor out to common function.
             record.remote_id = response.json()["id"]  # TODO improve parsing.
             record.status = RecordStatus.SENT.value
@@ -104,10 +112,6 @@ class Sender(Processor):
             # clean up file
             os.remove(record.path)
             return record_id
-        except ValueError:
-            record.status = RecordStatus.SEND_FAIL.value
-            record.save()
-            raise
 
     def _send_dataset(
         self,
@@ -149,6 +153,12 @@ class Sender(Processor):
                 dataset_id=dataset_id,
                 parent_dataset_id=parent_id,
             )
+        # something went wrong - record in status and raise for handling in director.
+        except APIError:
+            dataset_record.status = RecordStatus.SEND_FAIL.value
+            dataset_record.save()
+            raise
+        else:
             # update record status in sqlite
             dataset_record.remote_id = response.json()[
                 "hash"
@@ -158,10 +168,6 @@ class Sender(Processor):
             # clean up file
             os.remove(dataset_record.path)
             return record_id
-        except ValueError:
-            dataset_record.status = RecordStatus.SEND_FAIL.value
-            dataset_record.save()
-            raise
 
     def _send_transformation(self, record_id, project, name, code_raw, code_encoded, **kwargs):
         record = Record.get_by_id(record_id)
@@ -193,11 +199,13 @@ class Sender(Processor):
                 dataset_id=dataset_id,
             )
             # TODO improve/factor out validation and updating status - return error codes or something
+        # something went wrong - record in status and raise for handling in director.
+        except APIError:
+            record.status = RecordStatus.SEND_FAIL.value
+            record.save()
+            raise
+        else:
             record.status = RecordStatus.SENT.value
             record.remote_id = response.json()["id"]
             record.save()
             return record_id
-        except ValueError:
-            record.status = RecordStatus.SEND_FAIL.value
-            record.save()
-            raise

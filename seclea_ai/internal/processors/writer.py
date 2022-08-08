@@ -13,7 +13,6 @@ from ...lib.seclea_utils.model_management import ModelManagers, serialize
 """
 Exceptions to handle
 - Database errors
-- Http errors
 """
 
 

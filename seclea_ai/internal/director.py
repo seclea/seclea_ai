@@ -99,8 +99,8 @@ class Director:
             return
         else:
             future = self.threadpool.submit(self.sender.funcs[entity_dict["entity"]], **entity_dict)
-            future.add_done_callback(self._send_completed)
             self.send_executing.append(future)
+            future.add_done_callback(self._send_completed)
 
     def _check_and_throw(self):
         """Check the error queue and throw any errors in there. Needed for user thread to deal with them"""
