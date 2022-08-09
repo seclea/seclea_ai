@@ -101,3 +101,5 @@ test/testing/MNIST
 
 # Jupyter stuff
 .ipynb_checkpoints
+
+test/data

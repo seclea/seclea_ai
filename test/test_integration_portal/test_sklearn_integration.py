@@ -41,7 +41,7 @@ class TestIntegrationSKLearn(TestCase):
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
-            project=self.project,
+            project_name=self.project,
             organization=self.organization,
             platform_url=self.portal_url,
             auth_url=self.auth_url,
@@ -201,7 +201,7 @@ class TestIntegrationSKLearn(TestCase):
 
         # upload dataset here
         self.controller.upload_dataset_split(
-            X=X,
+            x=X,
             y=y,
             dataset_name=f"{self.sample_df_1_name} - Cleaned",
             metadata={"favourable_outcome": 1, "unfavourable_outcome": 0},
@@ -233,7 +233,7 @@ class TestIntegrationSKLearn(TestCase):
 
         # upload dataset here
         self.controller.upload_dataset_split(
-            X=self.X_sm_scaled,
+            x=self.X_sm_scaled,
             y=self.y_sm,
             dataset_name=f"{self.sample_df_1_name} Train - Balanced - Scaled",
             metadata={},
@@ -258,7 +258,7 @@ class TestIntegrationSKLearn(TestCase):
 
         # upload dataset here
         self.controller.upload_dataset_split(
-            X=self.X_test_scaled,
+            x=self.X_test_scaled,
             y=self.y_test,
             dataset_name=f"{self.sample_df_1_name} Test - Scaled",
             metadata={},
