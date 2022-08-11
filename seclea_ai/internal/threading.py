@@ -4,7 +4,7 @@ import threading
 from concurrent.futures import Future, Executor
 from typing import Callable, Any
 
-from ..queue import PreemptableQueue
+from ..internal.queue import PreemptableQueue
 
 logger = logging.getLogger("seclea_ai")
 
