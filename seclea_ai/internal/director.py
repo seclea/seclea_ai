@@ -5,7 +5,13 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, Future
 from typing import Dict, List, Any, Callable
 
-from .exceptions import APIError, AuthenticationError, RequestTimeoutError, ServiceDegradedError
+from .exceptions import (
+    APIError,
+    AuthenticationError,
+    RequestTimeoutError,
+    ServiceDegradedError,
+    ImATeapotError,
+)
 from .processors.sender import Sender
 from .processors.writer import Writer
 from .threading import SingleThreadTaskExecutor
@@ -95,6 +101,8 @@ class Director:
             self._try_resend_with_action(future=future)
         except ServiceDegradedError:
             self._try_resend_with_action(future=future)
+        except ImATeapotError:
+            print("I'm a teapot, short and stout, here is my handle, here is my spout. ")
         except APIError as e:
             # remove dependencies from queue?
             self.errors.append(e)
