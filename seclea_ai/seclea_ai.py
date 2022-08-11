@@ -23,7 +23,7 @@ from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelM
 from seclea_ai.transformations import DatasetTransformation
 from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("seclea_ai")
 
 
 # TODO make context manager
@@ -217,7 +217,6 @@ class SecleaAI:
         elif isinstance(dataset, str):
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
 
-        # TODO replace with dataset_hash fn
         dataset_id = dataset_hash(dataset, self._project_id)
 
         if transformations is not None:
@@ -248,7 +247,7 @@ class SecleaAI:
                         "that you have uploaded the parent dataset already"
                     )
             else:
-                parent_metadata = res.json()["metadata"]
+                parent_metadata = res["metadata"]
             #####
 
             upload_queue = self._generate_intermediate_datasets(
@@ -568,7 +567,7 @@ class SecleaAI:
             organization_id=self._organization,
             model=model_type_id,
         )
-        training_runs = training_runs_res.json()
+        training_runs = training_runs_res
 
         # Create the training run name
         largest = -1
@@ -640,7 +639,7 @@ class SecleaAI:
             name=model_name,
             framework=framework.name,
         )
-        models = res.json()
+        models = res
         # not checking for more because there is a unique constraint across name and framework on backend.
         if len(models) == 1:
             return models[0]["id"]
@@ -653,7 +652,7 @@ class SecleaAI:
         )
         # TODO find out if this checking is ever needed - ie does it ever not return the created model object?
         try:
-            model_id = res.json()["id"]
+            model_id = res["id"]
         except KeyError:
             traceback.print_exc()
             resp = self._api.get_models(
@@ -662,7 +661,7 @@ class SecleaAI:
                 name=model_name,
                 framework=framework.name,
             )
-            model_id = resp.json()[0]["id"]
+            model_id = resp[0]["id"]
         return model_id
 
     @staticmethod
@@ -689,22 +688,25 @@ class SecleaAI:
         :return: None
         """
         try:
-            project = self._api.get_project(
-                project_id=project_name, organization_id=self._organization
+            project_json = self._api.get_projects(
+                organization_id=self._organization,
+                name=project_name,
             )
-        except NotFoundError:
+            project = project_json[0]["id"]
+        # errors if list is empty
+        except IndexError:
             proj_res = self._api.upload_project(
                 name=project_name,
                 description="Please add a description...",
                 organization_id=self._organization,
             )
             try:
-                project = proj_res.json()["id"]
+                project = proj_res["id"]
             except KeyError:
                 # we want to know when this happens as this is unusual condition.
                 traceback.print_exc()
                 resp = self._api.get_projects(organization_id=self._organization, name=project_name)
-                project = resp.json()[0]["id"]
+                project = resp[0]["id"]
         return project
 
     @staticmethod

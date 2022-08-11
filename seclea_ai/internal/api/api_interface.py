@@ -2,6 +2,7 @@
 Everything to do with the API to the backend.
 """
 import json
+import logging
 import os
 from typing import Dict, List
 
@@ -74,23 +75,23 @@ class Api:
         json.loads(d)
         pass
 
-    def get_project(self, project_id, organization_id, **filter_kwargs) -> Response:
+    def get_project(self, project_id, organization_id, **filter_kwargs) -> Dict:
         return handle_response(
             self._session.get(
                 url=f"{self._root_url}/{self._project_endpoint}/{project_id}",
                 params={"organization": organization_id, **filter_kwargs},
             )
-        )
+        ).json()
 
-    def get_projects(self, organization_id, **filter_kwargs) -> Response:
+    def get_projects(self, organization_id, **filter_kwargs) -> List:
         return handle_response(
             self._session.get(
                 url=f"{self._root_url}/{self._project_endpoint}",
                 params={"organization": organization_id, **filter_kwargs},
             )
-        )
+        ).json()
 
-    def upload_project(self, name, description, organization_id) -> Response:
+    def upload_project(self, name, description, organization_id) -> Dict:
         return handle_response(
             self._session.post(
                 url=f"{self._root_url}/{self._project_endpoint}",
@@ -101,15 +102,15 @@ class Api:
                 },
                 params={"organization": organization_id},
             )
-        )
+        ).json()
 
-    def get_dataset(self, dataset_id: str, project_id, organization_id) -> Response:
+    def get_dataset(self, dataset_id: str, project_id, organization_id) -> Dict:
         return handle_response(
             self._session.get(
                 url=f"{self._root_url}/{self._dataset_endpoint}/{dataset_id}",
                 params={"project": project_id, "organization": organization_id},
             )
-        )
+        ).json()
 
     def upload_dataset(
         self,
@@ -120,7 +121,7 @@ class Api:
         metadata: dict,
         dataset_id: int,
         parent_dataset_id: str = None,
-    ) -> Response:
+    ) -> Dict:
 
         dataset_queryparams = {"project": project_id, "organization": organization_id}
         self.test_json_valid(metadata)
@@ -135,7 +136,7 @@ class Api:
             }
             if parent_dataset_id is not None:
                 dataset_obj["parent"] = (None, parent_dataset_id)
-                print(f"dataset_obj dataset field: {dataset_obj['parent']}")
+                logging.debug(f"dataset_obj dataset field: {dataset_obj['parent']}")
 
             return handle_response(
                 self._session.post(
@@ -143,9 +144,9 @@ class Api:
                     files=dataset_obj,
                     params=dataset_queryparams,
                 )
-            )
+            ).json()
 
-    def get_models(self, project_id, organization_id, **filter_kwargs) -> Response:
+    def get_models(self, project_id, organization_id, **filter_kwargs) -> List:
         """
         Get models - with optional filter parameters.
 
@@ -165,9 +166,9 @@ class Api:
                 url=f"{self._root_url}/{self._model_endpoint}",
                 params={"organization": organization_id, "project": project_id, **filter_kwargs},
             )
-        )
+        ).json()
 
-    def upload_model(self, organization_id, project_id, model_name, framework_name) -> Response:
+    def upload_model(self, organization_id, project_id, model_name, framework_name) -> Dict:
         return handle_response(
             self._session.post(
                 url=f"{self._root_url}/{self._model_endpoint}",
@@ -179,10 +180,10 @@ class Api:
                 },
                 params={"organization": organization_id, "project": project_id},
             )
-        )
+        ).json()
 
     # TODO review if use of id is confusing - may need to standardise id params
-    def get_training_runs(self, project_id: int, organization_id: str, **filter_kwargs) -> Response:
+    def get_training_runs(self, project_id: int, organization_id: str, **filter_kwargs) -> List:
         return handle_response(
             self._session.get(
                 url=f"{self._root_url}/{self._training_run_endpoint}",
@@ -192,7 +193,7 @@ class Api:
                     **filter_kwargs,
                 },
             )
-        )
+        ).json()
 
     # TODO review typing.
     def upload_training_run(
@@ -203,7 +204,7 @@ class Api:
         model_id: int,
         training_run_name: str,
         params: Dict,
-    ):
+    ) -> Dict:
         data = {
             "organization": organization_id,
             "project": project_id,
@@ -220,7 +221,7 @@ class Api:
                 json=data,
                 params={"organization": organization_id, "project": project_id},
             )
-        )
+        ).json()
 
     def upload_model_state(
         self,
@@ -230,7 +231,7 @@ class Api:
         training_run_id: int,
         sequence_num: int,
         final_state,
-    ):
+    ) -> Dict:
         with open(model_state_file_path, "rb") as f:
             return handle_response(
                 self._session.post(
@@ -247,11 +248,23 @@ class Api:
                         "project": project_id,
                     },
                 )
+            ).json()
+
+    def get_transformations(self, project_id, organization_id, **filter_kwargs) -> List:
+        return handle_response(
+            self._session.get(
+                url=f"{self._root_url}/{self._dataset_transformations_endpoint}",
+                params={
+                    "project": project_id,
+                    "organization": organization_id,
+                    **filter_kwargs,
+                },
             )
+        ).json()
 
     def upload_transformation(
         self, name: str, code_raw, code_encoded, dataset_id: int, organization_id, project_id
-    ):
+    ) -> Dict:
 
         data = {
             "name": name,
@@ -265,4 +278,4 @@ class Api:
                 json=data,
                 params={"organization": organization_id, "project": project_id},
             )
-        )
+        ).json()
