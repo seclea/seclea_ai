@@ -1,125 +1,22 @@
+import logging
 import os
 import time
-import uuid
-from abc import ABC
-from pathlib import Path
 from typing import Dict, List
 
-from pandas import DataFrame
-from peewee import SqliteDatabase
+from .processor import Processor
+from ..exceptions import BadRequestError
+from ...internal.api.api_interface import Api
+from ...internal.local_db import RecordStatus, Record
 
-from seclea_ai.internal.api.api_interface import Api
-from seclea_ai.internal.local_db import Record, RecordStatus
-from seclea_ai.lib.seclea_utils.core import CompressionFactory, save_object
-from seclea_ai.lib.seclea_utils.model_management import ModelManagers, serialize
-
-
-def _assemble_key(record) -> str:
-    return f"{record['username']}-{record['project_id']}-{record['entity_id']}"
-
-
-class Processor(ABC):
-    def __init__(self, settings, **kwargs):
-        self._settings = settings
-        self._db = SqliteDatabase(
-            Path.home() / ".seclea" / "seclea_ai.db",
-            thread_safe=True,
-            pragmas={"journal_mode": "wal"},
-        )
+logger = logging.getLogger("seclea_ai")
 
 
 # TODO wrap all db requests in transactions to reduce clashes.
 
-
-class Writer(Processor):
-    def __init__(self, settings):
-        super().__init__(settings=settings)
-        self._settings = settings
-        self.funcs = {
-            "dataset": self._save_dataset,
-            "model_state": self._save_model_state,
-        }
-
-    def _save_dataset(
-        self,
-        record_id: int,
-        dataset: DataFrame,
-        **kwargs,  # TODO improve this interface to not need kwargs etc.
-    ):
-        """
-        Save dataset in local temp directory
-        """
-        dataset_record = Record.get_by_id(record_id)
-        try:
-            # upload a dataset - only works for a single transformation.
-            os.makedirs(self._settings["cache_dir"], exist_ok=True)
-
-            # TODO take another look at this section.
-            path_root = uuid.uuid4()
-            dataset_path = self._settings["cache_dir"] / f"{path_root}_tmp.csv"
-            dataset.to_csv(dataset_path, index=True)
-            with open(dataset_path, "rb") as rb:
-                comp_path = save_object(
-                    rb,
-                    file_name=f"{path_root}_compressed",
-                    path=self._settings["cache_dir"],
-                    compression=CompressionFactory.ZSTD,
-                )
-            # tidy up intermediate file
-            os.remove(dataset_path)
-
-            # update the record TODO refactor out.
-            dataset_record.path = comp_path
-            dataset_record.status = RecordStatus.STORED.value
-            dataset_record.save()
-            return record_id
-
-        except Exception:
-            # update the record TODO refactor out.
-            dataset_record.status = RecordStatus.STORE_FAIL.value
-            dataset_record.save()
-            raise
-
-    def _save_model_state(
-        self,
-        record_id,
-        model,
-        sequence_num: int,
-        model_manager: ModelManagers,
-        **kwargs,
-    ):
-        """
-        Save model state in local temp directory
-        """
-        record = Record.get_by_id(record_id)
-        try:
-            training_run_id = record.dependencies[0]
-        except IndexError:
-            raise ValueError(
-                "Training run must be uploaded before model state something went wrong"
-            )
-        try:
-            # TODO look again at this.
-            save_path = self._settings["cache_dir"] / f"{str(training_run_id)}"
-            os.makedirs(save_path, exist_ok=True)
-
-            model_data = serialize(model, model_manager)
-            save_path = save_object(
-                model_data,
-                file_name=f"model-{sequence_num}",  # TODO include more identifying info in filename - seclea_ai 798
-                path=save_path,
-                compression=CompressionFactory.ZSTD,
-            )
-
-            record.path = save_path
-            record.status = RecordStatus.STORED.value
-            record.save()
-            return record_id
-
-        except Exception:
-            record.status = RecordStatus.STORE_FAIL.value
-            record.save()
-            raise
+"""
+Exceptions to handle
+- Database errors
+"""
 
 
 class Sender(Processor):
@@ -161,15 +58,36 @@ class Sender(Processor):
                 training_run_name=training_run_name,
                 params=params,
             )
-            tr_record.status = RecordStatus.SENT.value
-            tr_record.remote_id = response.json()["id"]
-            tr_record.save()
-            return record_id
-        # TODO improve error handling to requeue failures - also by different failure types
-        except ValueError:
+        except BadRequestError as e:
+            # need to check content - if it's duplicate we need to get the remote id for use in other reqs
+            logger.debug(e)
+            if "already exists" in str(e):
+                logger.warning(f"Entity already exists, skipping TrainingRun, id: {record_id}")
+                model_state = self._api.get_training_runs(
+                    organization_id=self._settings["organization"],
+                    project_id=self._settings["project_id"],
+                    name=training_run_name,
+                    dataset_ids=dataset_ids,
+                    model_id=model_id,
+                )
+                tr_record.remote_id = model_state[0]["id"]
+                tr_record.status = RecordStatus.SENT.value
+                tr_record.save()
+                return record_id
+            else:
+                tr_record.status = RecordStatus.SEND_FAIL.value
+                tr_record.save()
+                raise
+        # something went wrong - record in status and raise for handling in director.
+        except Exception:
             tr_record.status = RecordStatus.SEND_FAIL.value
             tr_record.save()
             raise
+        else:
+            tr_record.status = RecordStatus.SENT.value
+            tr_record.remote_id = response["id"]
+            tr_record.save()
+            return record_id
 
     def _send_model_state(self, record_id, sequence_num: int, final: bool, **kwargs):
         """
@@ -204,17 +122,39 @@ class Sender(Processor):
                 sequence_num=sequence_num,
                 final_state=final,
             )
+        except BadRequestError as e:
+            # need to check content - if it's duplicate we need to get the remote id for use in other reqs
+            logger.debug(e)
+            if "already exists" in str(e):
+                logger.warning(f"Entity already exists, skipping ModelState, id: {record_id}")
+                model_state = self._api.get_model_states(
+                    project_id=self._settings["project_id"],
+                    organization_id=self._settings["organization"],
+                    training_run_id=parent_id,
+                    sequence_num=sequence_num,
+                )
+                record.remote_id = model_state[0]["id"]
+                record.status = RecordStatus.SENT.value
+                record.save()
+                os.remove(record.path)
+                return record_id
+            else:
+                record.status = RecordStatus.SEND_FAIL.value
+                record.save()
+                raise
+        # something went wrong - record in status and raise for handling in director.
+        except Exception:
+            record.status = RecordStatus.SEND_FAIL.value
+            record.save()
+            raise
+        else:
             # update record status in sqlite - TODO refactor out to common function.
-            record.remote_id = response.json()["id"]  # TODO improve parsing.
+            record.remote_id = response["id"]  # TODO improve parsing.
             record.status = RecordStatus.SENT.value
             record.save()
             # clean up file
             os.remove(record.path)
             return record_id
-        except ValueError:
-            record.status = RecordStatus.SEND_FAIL.value
-            record.save()
-            raise
 
     def _send_dataset(
         self,
@@ -240,7 +180,7 @@ class Sender(Processor):
         start = time.time()
         give_up = 1.0
         while dataset_record.status != RecordStatus.STORED.value:
-            print(dataset_record.status)
+            logger.debug(dataset_record.status)
             if time.time() - start >= give_up:
                 raise TimeoutError("Waited too long for Dataset Storage")
             time.sleep(0.1)
@@ -256,8 +196,33 @@ class Sender(Processor):
                 dataset_id=dataset_id,
                 parent_dataset_id=parent_id,
             )
+        # something went wrong - record in status and raise for handling in director.
+        except BadRequestError as e:
+            # need to check content - if it's duplicate we need to get the remote id for use in other reqs
+            logger.debug(e)
+            if "already exists" in str(e):
+                logger.warning(f"Entity already exists, skipping Dataset, id: {record_id}")
+                dataset = self._api.get_dataset(
+                    project_id=self._settings["project_id"],
+                    organization_id=self._settings["organization"],
+                    dataset_id=dataset_id,
+                )
+                dataset_record.remote_id = dataset["hash"]  # TODO make id (portal issue)
+                dataset_record.status = RecordStatus.SENT.value
+                dataset_record.save()
+                os.remove(dataset_record.path)
+                return record_id
+            else:
+                dataset_record.status = RecordStatus.SEND_FAIL.value
+                dataset_record.save()
+                raise
+        except Exception:
+            dataset_record.status = RecordStatus.SEND_FAIL.value
+            dataset_record.save()
+            raise
+        else:
             # update record status in sqlite
-            dataset_record.remote_id = response.json()[
+            dataset_record.remote_id = response[
                 "hash"
             ]  # TODO improve parsing. - should be id - portal issue
             dataset_record.status = RecordStatus.SENT.value
@@ -265,12 +230,8 @@ class Sender(Processor):
             # clean up file
             os.remove(dataset_record.path)
             return record_id
-        except ValueError:
-            dataset_record.status = RecordStatus.SEND_FAIL.value
-            dataset_record.save()
-            raise
 
-    def _send_transformation(self, record_id, project, name, code_raw, code_encoded, **kwargs):
+    def _send_transformation(self, record_id, name, code_raw, code_encoded, **kwargs):
         record = Record.get_by_id(record_id)
         try:
             dataset_record_id = record.dependencies[0]
@@ -280,7 +241,7 @@ class Sender(Processor):
             start = time.time()
             give_up = 1.0
             while dataset_record.status != RecordStatus.SENT.value:
-                print(dataset_record.status)
+                logger.debug(dataset_record.status)
                 if time.time() - start >= give_up:
                     raise TimeoutError("Waited too long for Dataset upload")
                 time.sleep(0.1)
@@ -292,7 +253,7 @@ class Sender(Processor):
 
         try:
             response = self._api.upload_transformation(
-                project_id=project,
+                project_id=self._settings["project_id"],
                 organization_id=self._settings["organization"],
                 code_raw=code_raw,
                 code_encoded=code_encoded,
@@ -300,11 +261,35 @@ class Sender(Processor):
                 dataset_id=dataset_id,
             )
             # TODO improve/factor out validation and updating status - return error codes or something
-            record.status = RecordStatus.SENT.value
-            record.remote_id = response.json()["id"]
-            record.save()
-            return record_id
-        except ValueError:
+        # something went wrong - record in status and raise for handling in director.
+        except BadRequestError as e:
+            # need to check content - if it's duplicate we need to get the remote id for use in other reqs
+            logger.debug(e)
+            if "already exists" in str(e):
+                logger.warning(
+                    f"Entity already exists, skipping DatasetTransformation, id: {record_id}"
+                )
+                transformations = self._api.get_transformations(
+                    project_id=self._settings["project_id"],
+                    organization_id=self._settings["organization"],
+                    code_raw=code_raw,
+                    name=name,
+                    dataset_id=dataset_id,
+                )
+                record.remote_id = transformations[0]["id"]
+                record.status = RecordStatus.SENT.value
+                record.save()
+                return
+            else:
+                record.status = RecordStatus.SEND_FAIL.value
+                record.save()
+                raise
+        except Exception:
             record.status = RecordStatus.SEND_FAIL.value
             record.save()
             raise
+        else:
+            record.status = RecordStatus.SENT.value
+            record.remote_id = response["id"]
+            record.save()
+            return record_id

@@ -1,114 +1,96 @@
+import logging
 import queue
-import time
-from multiprocessing import Event, Queue
-from threading import Thread
-from typing import Type
+import threading
+from concurrent.futures import Future, Executor
+from typing import Callable, Any
 
-from seclea_ai.internal.processors import Processor
+from ..internal.queue import PreemptableQueue
+
+logger = logging.getLogger("seclea_ai")
+
+# TODO add shutdown and exit handler?
 
 
-class ProcessLoopThread(Thread):
-    def __init__(
-        self,
-        input_q: Queue,
-        started: Event,
-        stop: Event,
-        complete: Event,
-        completed: Event,
-        debounce_interval_ms: float,
-    ):
-        super(ProcessLoopThread, self).__init__()
-        self._input_q = input_q
-        # self._result_q = result_q
-        self._stop_event = stop
-        self._complete_event = complete
-        self._started_event = started
-        self._completed = completed
-        self._debounce_interval_ms = debounce_interval_ms
+def _worker(input_q: PreemptableQueue):
+    try:
+        while True:
+            task = input_q.get(block=True)
+            if task is not None:
+                task.run()
+                del task
+            else:
+                return
+    except BaseException:
+        logger.critical("Exception in thread")
 
-    def _setup(self) -> None:
-        raise NotImplementedError
 
-    def _process(self, item) -> None:
-        raise NotImplementedError
-
-    def _complete(self) -> None:
-        raise NotImplementedError
-
-    def _terminate(self) -> None:
-        raise NotImplementedError
-
-    def _debounce(self) -> None:
-        raise NotImplementedError
+class Task:
+    def __init__(self, future: Future, func, args, kwargs):
+        self.future = future
+        self.func = func
+        self.args = args
+        self.kwargs = kwargs
 
     def run(self):
-        self._setup()
-        self._started_event.set()
-        start = time.time()
-        while not self._stop_event.is_set():
-            if time.time() - start >= self._debounce_interval_ms / 1000.0:
-                self._debounce()
-                start = time.time()
-            try:
-                record = self._input_q.get(timeout=0.1)
-            except queue.Empty:
-                continue
-            self._process(record)
-        if self._complete_event.is_set():
-            self._complete()
-        self._terminate()
+        if not self.future.set_running_or_notify_cancel():
+            return
+
+        try:
+            result = self.func(*self.args, **self.kwargs)
+        except BaseException as exc:
+            self.future.set_exception(exc)
+            # Break a reference cycle with the exception 'exc'
+            self = None
+        else:
+            self.future.set_result(result)
 
 
-class ProcessorThread(ProcessLoopThread):
-    def __init__(
-        self,
-        processor: Type[Processor],
-        name,
-        settings,
-        input_q: Queue,
-        # result_q: Queue,
-        started: Event,
-        stop: Event,
-        complete: Event,
-        completed: Event,
-        debounce_interval_ms: float,
-        **kwargs,
-    ):
-        super(ProcessorThread, self).__init__(
-            input_q=input_q,
-            started=started,
-            stop=stop,
-            complete=complete,
-            completed=completed,
-            debounce_interval_ms=debounce_interval_ms,
-        )
-        self._processor_class = processor  # just a class here - instantiate and populate in _setup.
-        self._settings = settings
-        self.name = name
-        self._completed = completed
-        self._kwargs = kwargs
+class SingleThreadTaskExecutor(Executor):
+    def __init__(self):
+        self.queue = PreemptableQueue()
+        self._shutdown = False
+        self._shutdown_lock = threading.Lock()
+        self.thread = threading.Thread(target=_worker, args=[self.queue], daemon=True)
+        self.thread.start()
 
-    def _setup(self) -> None:
-        self._processor: Processor = self._processor_class(
-            settings=self._settings,
-            input_q=self._input_q,
-            completed=self._completed,
-            # result_q=self._result_q,
-            **self._kwargs,
-        )
+    def submit(self, fn: Callable, *args: Any, **kwargs: Any) -> Future:
+        with self._shutdown_lock:
+            if self._shutdown:
+                raise RuntimeError("cannot schedule new futures after shutdown")
 
-    def _process(self, record) -> None:
-        self._processor.handle(record)
+            f = Future()
+            w = Task(f, fn, args, kwargs)
 
-    def _complete(self) -> None:
-        self._processor.complete()
+            self.queue.put(w)
+            return f
 
-    def _terminate(self) -> None:
-        self._processor.terminate()
+    def submit_first(self, fn: Callable, *args: Any, **kwargs: Any) -> Future:
+        with self._shutdown_lock:
+            if self._shutdown:
+                raise RuntimeError("cannot schedule new futures after shutdown")
 
-    def _debounce(self) -> None:
-        # do nothing for now, add debounce later
-        return
+            f = Future()
+            w = Task(f, fn, args, kwargs)
+
+            self.queue.put_first(w)
+            return f
+
+    def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
+        with self._shutdown_lock:
+            self._shutdown = True
+            self.queue.put(None)
+            if cancel_futures:
+                # Drain all work items from the queue, and then cancel their
+                # associated futures.
+                while True:
+                    try:
+                        work_item = self.queue.get_nowait()
+                    except queue.Empty:
+                        break
+                    if work_item is not None:
+                        work_item.future.cancel()
+        if wait:
+            self.thread.join()
 
 
 # TODO decide what to do with this block - probably will use when extracting the internal stuff into

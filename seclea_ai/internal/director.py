@@ -2,13 +2,18 @@
 File storing and uploading data to server
 """
 import logging
-import queue
-import time
 from concurrent.futures import ThreadPoolExecutor, Future
-from queue import Queue
-from typing import Dict, List, Any
+from typing import Dict, List, Callable
 
-from .processors import Sender, Writer
+from .exceptions import (
+    APIError,
+    AuthenticationError,
+    RequestTimeoutError,
+    ServiceDegradedError,
+)
+from .processors.sender import Sender
+from .processors.writer import Writer
+from .threading import SingleThreadTaskExecutor
 
 logger = logging.getLogger("seclea_ai")
 
@@ -21,11 +26,12 @@ class Director:
     def __init__(self, settings, api):
         # setup some defaults
         self._settings = settings
-        self._send_q = Queue()
+        self._api = api
         self.writer = Writer(settings=settings)
         self.sender = Sender(settings=settings, api=api)
-        self.threadpool = ThreadPoolExecutor(max_workers=4)
-        self.send_executing: List[Future] = list()
+        self.write_threadpool_executor = ThreadPoolExecutor(max_workers=4)
+        self.send_thread_executor = SingleThreadTaskExecutor()
+        self.send_executing: Dict[Future, Dict] = dict()
         self.write_executing: List[Future] = list()
         self.errors = list()
 
@@ -34,41 +40,45 @@ class Director:
 
     def terminate(self):
         # cancel any ongoing work.
-        for future in self.send_executing:
+        for future in self.send_executing.keys():
             future.cancel()
         for future in self.write_executing:
             future.cancel()
         # wait until all resources freed
-        self.threadpool.shutdown(wait=True)
+        self.write_threadpool_executor.shutdown(wait=True)
+        self.send_thread_executor.shutdown(wait=True)
 
     def complete(self):
-        # make sure all the entities to be sent have been scheduled
-        while not self._send_q.empty():
-            time.sleep(0.5)
         # wait for the writes to complete
         for future in self.write_executing:
             future.result()
+            self._check_and_throw()
         # wait for the last send to complete
-        for future in self.send_executing:
-            future.result()
+        for future in self.send_executing.keys():
+            if self.send_executing[future] is not None:
+                future.result()
+                self._check_and_throw()
+        self.write_threadpool_executor.shutdown(wait=True)
+        self.send_thread_executor.shutdown(wait=True)
 
     def store_entity(self, entity_dict: Dict) -> None:  # TODO add return for status
         # check for errors and throw if there are any
         self._check_and_throw()
-        future = self.threadpool.submit(self.writer.funcs[entity_dict["entity"]], **entity_dict)
+        future = self.write_threadpool_executor.submit(
+            self.writer.funcs[entity_dict["entity"]], **entity_dict
+        )
         self.write_executing.append(future)
         future.add_done_callback(self._write_completed)
 
     def send_entity(self, entity_dict: Dict) -> None:  # TODO add return for status
         # check for errors and throw if there are any
         self._check_and_throw()
-        # put in queue for sending - directly submit if no send executing to start the chain with callbacks
-        if len(self.send_executing) == 0:
-            future = self.threadpool.submit(self.sender.funcs[entity_dict["entity"]], **entity_dict)
-            self.send_executing.append(future)
-            future.add_done_callback(self._send_completed)
-        else:
-            self._send_q.put(entity_dict)
+        # put in queue for sending
+        future = self.send_thread_executor.submit(
+            self.sender.funcs[entity_dict["entity"]], **entity_dict
+        )
+        self.send_executing[future] = entity_dict
+        future.add_done_callback(self._send_completed)
 
     def _write_completed(self, future) -> None:
         try:
@@ -76,7 +86,7 @@ class Director:
         except Exception as e:
             self.errors.append(e)
         else:
-            print(f"Write completed - {result}")
+            logger.debug(f"Write completed - {result}")
         finally:
             self.write_executing.remove(future)
 
@@ -84,22 +94,20 @@ class Director:
         # here we use a queue to guarantee the ordering and minimise dependency issues.
         try:
             result = future.result()
+        except AuthenticationError:
+            self._try_resend_with_action(future=future, function=self._api.authenticate)
+        except RequestTimeoutError:
+            self._try_resend_with_action(future=future)
+        except ServiceDegradedError:
+            self._try_resend_with_action(future=future)
+        # this is only caught if more specific doesn't catch which means it is something we can't deal with.
         except Exception as e:
             self.errors.append(e)
             return  # need to return otherwise second try except block runs.
         else:
-            print(f"Send completed - {result}")
+            logger.debug(f"Send completed - {result}")
         finally:
-            self.send_executing.remove(future)
-
-        try:
-            entity_dict = self._send_q.get(False)
-        except queue.Empty:
-            return
-        else:
-            future = self.threadpool.submit(self.sender.funcs[entity_dict["entity"]], **entity_dict)
-            future.add_done_callback(self._send_completed)
-            self.send_executing.append(future)
+            self.send_executing[future] = None
 
     def _check_and_throw(self):
         """Check the error queue and throw any errors in there. Needed for user thread to deal with them"""
@@ -111,5 +119,18 @@ class Director:
         # we can only raise one so we raise the first one in the list.
         raise self.errors[0]
 
-    def _deal_with_errors(self, future, queue) -> Any:
-        """Extracted method for dealing with runtime errors in the threads"""
+    def _try_resend_with_action(self, future: Future, function: Callable = None) -> None:
+        """Try the request again with some action - only one retry"""
+        entity_dict = self.send_executing[future]
+        try:
+            if entity_dict["break"]:
+                raise APIError("Authentication failed too many times")
+        except KeyError:
+            entity_dict["break"] = True
+            if function is not None:
+                function()
+            new_future = self.send_thread_executor.submit_first(
+                self.sender.funcs[entity_dict["entity"]], **entity_dict
+            )
+            self.send_executing[new_future] = entity_dict
+            new_future.add_done_callback(self._send_completed)
