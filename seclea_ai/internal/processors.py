@@ -10,7 +10,6 @@ from peewee import SqliteDatabase
 
 from seclea_ai.internal.api.api_interface import Api
 from seclea_ai.internal.local_db import Record, RecordStatus
-from seclea_ai.lib.seclea_utils.core import CompressionFactory, save_object
 from seclea_ai.lib.seclea_utils.model_management import ModelManagers, serialize
 
 
@@ -58,18 +57,18 @@ class Writer(Processor):
             path_root = uuid.uuid4()
             dataset_path = self._settings["cache_dir"] / f"{path_root}_tmp.csv"
             dataset.to_csv(dataset_path, index=True)
-            with open(dataset_path, "rb") as rb:
-                comp_path = save_object(
-                    rb,
-                    file_name=f"{path_root}_compressed",
-                    path=self._settings["cache_dir"],
-                    compression=CompressionFactory.ZSTD,
-                )
+            # with open(dataset_path, "rb") as rb:
+            #     comp_path = save_object(
+            #         rb,
+            #         file_name=f"{path_root}_compressed",
+            #         path=self._settings["cache_dir"],
+            #         compression=CompressionFactory.ZSTD,
+            #     )
             # tidy up intermediate file
             os.remove(dataset_path)
 
             # update the record TODO refactor out.
-            dataset_record.path = comp_path
+            # dataset_record.path = comp_path
             dataset_record.status = RecordStatus.STORED.value
             dataset_record.save()
             return record_id
@@ -104,12 +103,12 @@ class Writer(Processor):
             os.makedirs(save_path, exist_ok=True)
 
             model_data = serialize(model, model_manager)
-            save_path = save_object(
-                model_data,
-                file_name=f"model-{sequence_num}",  # TODO include more identifying info in filename - seclea_ai 798
-                path=save_path,
-                compression=CompressionFactory.ZSTD,
-            )
+            # save_path = save_object(
+            #     model_data,
+            #     file_name=f"model-{sequence_num}",  # TODO include more identifying info in filename - seclea_ai 798
+            #     path=save_path,
+            #     compression=CompressionFactory.ZSTD,
+            # )
 
             record.path = save_path
             record.status = RecordStatus.STORED.value

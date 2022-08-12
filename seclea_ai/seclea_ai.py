@@ -22,8 +22,9 @@ from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.lib.seclea_utils.core import encode_func
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
 from seclea_ai.transformations import DatasetTransformation
-from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
+from .lib.seclea_utils.dataset_management.dataset_utils import PandasDatasetManager
 
+dataset_hash = PandasDatasetManager.hash
 logger = logging.getLogger(__name__)
 
 
@@ -502,13 +503,13 @@ class SecleaAI:
 
         :return: None
         """
-        train_dataset = self._assemble_dataset(x=X_train,y=y_train)
+        train_dataset = self._assemble_dataset(x=X_train, y=y_train)
         test_dataset = None
         val_dataset = None
         if X_test is not None and y_test is not None:
-            test_dataset = self._assemble_dataset(x=X_test,y=y_test)
+            test_dataset = self._assemble_dataset(x=X_test, y=y_test)
         if X_val is not None and y_val is not None:
-            val_dataset = self._assemble_dataset(x=X_val,y=y_val)
+            val_dataset = self._assemble_dataset(x=X_val, y=y_val)
 
         self.upload_training_run(model, train_dataset, test_dataset, val_dataset)
 

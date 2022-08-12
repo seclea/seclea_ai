@@ -5,7 +5,7 @@ from seclea_ai import SecleaAI
 import uuid
 
 
-class Tracked:
+class Tracked(ObjectProxy):
     start_timestamp = datetime.datetime.now()
     password = "asdf"  # nosec
     username = "onespanadmin"  # nosec
@@ -24,7 +24,7 @@ class Tracked:
 
     def __init__(self, wrapped, controler=None):
         print(type(wrapped))
-        # super(Tracked, self).__init__(wrapped)
+        super(Tracked, self).__init__(wrapped)
         if controler is not None:
             self.controller = controler
 
