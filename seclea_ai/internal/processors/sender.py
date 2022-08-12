@@ -58,6 +58,26 @@ class Sender(Processor):
                 training_run_name=training_run_name,
                 params=params,
             )
+        except BadRequestError as e:
+            # need to check content - if it's duplicate we need to get the remote id for use in other reqs
+            logger.debug(e)
+            if "already exists" in str(e):
+                logger.warning(f"Entity already exists, skipping TrainingRun, id: {record_id}")
+                model_state = self._api.get_training_runs(
+                    organization_id=self._settings["organization"],
+                    project_id=self._settings["project_id"],
+                    name=training_run_name,
+                    dataset_ids=dataset_ids,
+                    model_id=model_id,
+                )
+                tr_record.remote_id = model_state[0]["id"]
+                tr_record.status = RecordStatus.SENT.value
+                tr_record.save()
+                return record_id
+            else:
+                tr_record.status = RecordStatus.SEND_FAIL.value
+                tr_record.save()
+                raise
         # something went wrong - record in status and raise for handling in director.
         except Exception:
             tr_record.status = RecordStatus.SEND_FAIL.value
@@ -102,6 +122,26 @@ class Sender(Processor):
                 sequence_num=sequence_num,
                 final_state=final,
             )
+        except BadRequestError as e:
+            # need to check content - if it's duplicate we need to get the remote id for use in other reqs
+            logger.debug(e)
+            if "already exists" in str(e):
+                logger.warning(f"Entity already exists, skipping ModelState, id: {record_id}")
+                model_state = self._api.get_model_states(
+                    project_id=self._settings["project_id"],
+                    organization_id=self._settings["organization"],
+                    training_run_id=parent_id,
+                    sequence_num=sequence_num,
+                )
+                record.remote_id = model_state[0]["id"]
+                record.status = RecordStatus.SENT.value
+                record.save()
+                os.remove(record.path)
+                return record_id
+            else:
+                record.status = RecordStatus.SEND_FAIL.value
+                record.save()
+                raise
         # something went wrong - record in status and raise for handling in director.
         except Exception:
             record.status = RecordStatus.SEND_FAIL.value
@@ -161,9 +201,7 @@ class Sender(Processor):
             # need to check content - if it's duplicate we need to get the remote id for use in other reqs
             logger.debug(e)
             if "already exists" in str(e):
-                logger.debug(
-                    f"Entity already exists, skipping DatasetTransformation, id: {record_id}"
-                )
+                logger.warning(f"Entity already exists, skipping Dataset, id: {record_id}")
                 dataset = self._api.get_dataset(
                     project_id=self._settings["project_id"],
                     organization_id=self._settings["organization"],
@@ -174,6 +212,10 @@ class Sender(Processor):
                 dataset_record.save()
                 os.remove(dataset_record.path)
                 return record_id
+            else:
+                dataset_record.status = RecordStatus.SEND_FAIL.value
+                dataset_record.save()
+                raise
         except Exception:
             dataset_record.status = RecordStatus.SEND_FAIL.value
             dataset_record.save()
@@ -224,7 +266,7 @@ class Sender(Processor):
             # need to check content - if it's duplicate we need to get the remote id for use in other reqs
             logger.debug(e)
             if "already exists" in str(e):
-                logger.debug(
+                logger.warning(
                     f"Entity already exists, skipping DatasetTransformation, id: {record_id}"
                 )
                 transformations = self._api.get_transformations(
@@ -238,6 +280,10 @@ class Sender(Processor):
                 record.status = RecordStatus.SENT.value
                 record.save()
                 return
+            else:
+                record.status = RecordStatus.SEND_FAIL.value
+                record.save()
+                raise
         except Exception:
             record.status = RecordStatus.SEND_FAIL.value
             record.save()

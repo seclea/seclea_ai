@@ -223,6 +223,19 @@ class Api:
             )
         ).json()
 
+    # TODO review if use of id is confusing - may need to standardise id params
+    def get_model_states(self, project_id: int, organization_id: str, **filter_kwargs) -> List:
+        return handle_response(
+            self._session.get(
+                url=f"{self._root_url}/{self._training_run_endpoint}",
+                params={
+                    "project": project_id,
+                    "organization": organization_id,
+                    **filter_kwargs,
+                },
+            )
+        ).json()
+
     def upload_model_state(
         self,
         model_state_file_path: str,
