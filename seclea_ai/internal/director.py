@@ -38,7 +38,11 @@ class Director:
     def __del__(self):
         self.terminate()
 
-    def terminate(self):
+    def terminate(self) -> None:
+        """
+        Cleans up resources - usually only called on unscheduled exits.
+        :return: None
+        """
         # cancel any ongoing work.
         for future in self.send_executing.keys():
             future.cancel()
@@ -48,7 +52,11 @@ class Director:
         self.write_threadpool_executor.shutdown(wait=True)
         self.send_thread_executor.shutdown(wait=True)
 
-    def complete(self):
+    def complete(self) -> None:
+        """
+        Finalises all work and tidies up.
+        :return: None
+        """
         # wait for the writes to complete
         for future in self.write_executing:
             future.result()
@@ -62,6 +70,11 @@ class Director:
         self.send_thread_executor.shutdown(wait=True)
 
     def store_entity(self, entity_dict: Dict) -> None:  # TODO add return for status
+        """
+        Queue an entity for storing (Dataset, DatasetTransformation, TrainingRun or ModelState)
+        :param entity_dict: The details needed to store that entity. The same as for sending.
+        :return: None
+        """
         # check for errors and throw if there are any
         self._check_and_throw()
         future = self.write_threadpool_executor.submit(
@@ -71,6 +84,11 @@ class Director:
         future.add_done_callback(self._write_completed)
 
     def send_entity(self, entity_dict: Dict) -> None:  # TODO add return for status
+        """
+        Queue an entity for sending (Dataset, DatasetTransformation, TrainingRun or ModelState)
+        :param entity_dict: The details needed to send that entity. The same as for storing.
+        :return: None
+        """
         # check for errors and throw if there are any
         self._check_and_throw()
         # put in queue for sending
@@ -79,6 +97,14 @@ class Director:
         )
         self.send_executing[future] = entity_dict
         future.add_done_callback(self._send_completed)
+
+    def try_cleanup(self):
+        """
+        Tries to clean up any failed sends or records left in local storage.
+        TODO complete when in common backend (to avoid conflicts)
+        :return: None
+        """
+        pass
 
     def _write_completed(self, future) -> None:
         try:
