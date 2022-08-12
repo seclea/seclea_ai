@@ -37,6 +37,7 @@ class SecleaAI:
         auth_url: str = "https://auth.seclea.com",
         username: str = None,
         password: str = None,
+        clean_up: bool = False,
     ):
         """
         Create a SecleaAI object to manage a session. Requires a project name and framework.
@@ -88,6 +89,16 @@ class SecleaAI:
         self._training_run = None
         self._director = Director(settings=self._settings, api=self._api)
         logger.debug("Successfully Initialised SecleaAI class")
+        if clean_up:
+            logger.info("Trying to clean up previous session")
+            self._director.try_cleanup()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.complete()
+        return False
 
     def login(self, username=None, password=None) -> None:
         """
