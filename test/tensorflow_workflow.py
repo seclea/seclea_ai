@@ -51,9 +51,9 @@ train_ds = tf.keras.utils.image_dataset_from_directory(
     seed=123,
     image_size=(img_height, img_width),
     batch_size=batch_size)
-train_ds = Dataset(train_ds, file_name='_test', metadata={'class_names': train_ds.class_names})
-path = train_ds.save(save_path)
-train_ds_l = Dataset(path)
+train_ds = Dataset(train_ds, path='data', file_name='_test', metadata={'class_names': train_ds.class_names})
+path, file_name = train_ds.save()
+train_ds_l = Dataset(path=path, file_name=file_name)
 train_ds_l.class_names = train_ds_l.metadata.get('class_names')
 train_ds = train_ds_l
 val_ds = tf.keras.utils.image_dataset_from_directory(
