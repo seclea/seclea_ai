@@ -521,7 +521,7 @@ class SecleaAI:
             params=params,
         )
         # if the upload was successful, add the new training_run to the list to keep the names updated.
-        self._training_run = tr_res.json()["id"]
+        self._training_run = tr_res.json()["uuid"]
 
         # upload model state. TODO figure out how this fits with multiple model states.
         self._upload_model_state(
@@ -560,7 +560,7 @@ class SecleaAI:
         if self._project is None:
             proj_res = self._create_project(project_name=project_name)
             try:
-                self._project = proj_res.json()["id"]
+                self._project = proj_res.json()["uuid"]
             except KeyError:
                 print(f"There was an issue: {proj_res.text}")
                 resp = self._transmission.get(
@@ -569,7 +569,7 @@ class SecleaAI:
                 resp = handle_response(
                     resp, 200, f"There was an issue getting the project: {resp.reason}"
                 )
-                self._project = resp.json()[0]["id"]
+                self._project = resp.json()[0]["uuid"]
 
     def _get_project(self, project_name: str) -> Any:
         """
@@ -588,7 +588,7 @@ class SecleaAI:
         )
         if len(project_res.json()) == 0:
             return None
-        return project_res.json()[0]["id"]
+        return project_res.json()[0]["uuid"]
 
     def _create_project(self, project_name: str, description: str = "Please add a description.."):
         """
@@ -643,11 +643,11 @@ class SecleaAI:
         )
         models = res.json()
         if len(models) == 1:
-            return models[0]["id"]
+            return models[0]["uuid"]
         # if we got here that means that the model has not been uploaded yet. So we upload it.
         res = self._upload_model(model_name=model_name, framework=framework)
         try:
-            model_pk = res.json()["id"]
+            model_pk = res.json()["uuid"]
         except KeyError:
             resp = handle_response(
                 self._transmission.get(
@@ -662,7 +662,7 @@ class SecleaAI:
                 expected=200,
                 msg="There was an issue getting the model list",
             )
-            model_pk = resp.json()[0]["id"]
+            model_pk = resp.json()[0]["uuid"]
         return model_pk
 
     @staticmethod
