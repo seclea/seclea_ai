@@ -161,8 +161,6 @@ class TestIntegrationXGBoost(TestCase):
             X, y, test_size=test_size, random_state=random_state
         )
 
-
-
         self.X_sm, self.y_sm = smote_balance(self.X_train, self.y_train, random_state=random_state)
 
         self.complicated_transformations = [
@@ -286,6 +284,3 @@ class TestIntegrationXGBoost(TestCase):
                 print("STEP COMPLETE")
             except Exception as e:
                 self.fail(f"{step} failed ({type(e)}: {e})")
-
-
-

@@ -10,7 +10,7 @@ from peewee import SqliteDatabase
 
 from seclea_ai.internal.api.api_interface import Api
 from seclea_ai.internal.local_db import Record, RecordStatus
-from seclea_ai.lib.seclea_utils.model_management import ModelManagers, serialize
+from seclea_ai.lib.seclea_utils.model_management import ModelManagers
 
 
 def _assemble_key(record) -> str:
@@ -102,7 +102,7 @@ class Writer(Processor):
             save_path = self._settings["cache_dir"] / f"{str(training_run_id)}"
             os.makedirs(save_path, exist_ok=True)
 
-            model_data = serialize(model, model_manager)
+            # model_data = serialize(model, model_manager)
             # save_path = save_object(
             #     model_data,
             #     file_name=f"model-{sequence_num}",  # TODO include more identifying info in filename - seclea_ai 798

@@ -1,18 +1,12 @@
+import datetime
 import os
 import uuid
-import datetime
-from pathlib import Path
 from unittest import TestCase
 
-import lightgbm as lgb
 import pandas as pd
-from peewee import SqliteDatabase
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
 
 from seclea_ai import SecleaAI
-from seclea_ai.internal.local_db import Record, RecordStatus
-from seclea_ai.transformations import DatasetTransformation
+
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
 
@@ -64,7 +58,6 @@ class TestImageDatasetUpload(TestCase):
             ],
         }
         self.controller.upload_dataset(self.sample_df, self.sample_df_name, self.sample_df_meta)
-
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
