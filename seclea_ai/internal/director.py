@@ -64,9 +64,11 @@ class Director:
         self._check_and_throw()
         # put in queue for sending - directly submit if no send executing to start the chain with callbacks
         if len(self.send_executing) == 0:
+
             future = self.threadpool.submit(self.sender.funcs[entity_dict["entity"]], **entity_dict)
-            future.add_done_callback(self._send_completed)
             self.send_executing.append(future)
+            future.add_done_callback(self._send_completed)
+
         else:
             self._send_q.put(entity_dict)
 

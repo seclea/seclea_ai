@@ -17,7 +17,7 @@ from ..exceptions import (
     ServerError,
 )
 from ...internal.authentication import AuthenticationService
-from seclea_ai.internal.mixins import APIMixin, ProjectMixin, OrganizationMixin
+from seclea_ai.lib.seclea_utils.object_management.mixin import ProjectMixin
 
 
 def handle_response(response: Response, msg: str = ""):
@@ -51,15 +51,15 @@ class Api:
     Something to wrap backend requests. Maybe use to change the base url??
     """
 
-    def __init__(self, settings, username=None, password=None):
+    def __init__(self, platform_url, auth_url, username=None, password=None):
         # setup some defaults
-        self._settings = settings
         self._session = requests.Session()
-        self.auth = AuthenticationService(url=settings["auth_url"])
+        self.auth = AuthenticationService(url=auth_url)
         # TODO maybe remove auth on creation - only when needed?
         self.auth.authenticate(self._session, username=username, password=password)
-        self._root_url = settings["platform_url"]
+        self._root_url = platform_url
         self._project_endpoint = "collection/projects"
+        self._organization_endpoint = "organization/"
         self._dataset_endpoint = "collection/datasets"
         self._dataset_transformations_endpoint = "collection/dataset-transformations"
         self._model_endpoint = "collection/models"
@@ -78,7 +78,7 @@ class Api:
         json.loads(d)
         pass
 
-    def get_project(self, project: ProjectMixin, **filter_kwargs) -> Response:
+    def get_project(self, project, **filter_kwargs) -> Response:
         return handle_response(
             self._session.get(
                 url=f"{self._root_url}/{self._project_endpoint}/{project.uuid}",
@@ -86,27 +86,35 @@ class Api:
             )
         )
 
-    def get_projects(self, organization_id, **filter_kwargs) -> Response:
+    def get_organizations(self, **filter_kwargs) -> List:
+        return handle_response(
+            self._session.get(
+                url=f"{self._root_url}/{self._organization_endpoint}",
+                params={**filter_kwargs},
+            )
+        ).json()
+
+    def get_projects(self, **filter_kwargs) -> Response:
         res = self._session.get(
             url=f"{self._root_url}/{self._project_endpoint}",
-            params={"organization": organization_id, **filter_kwargs},
+            params=filter_kwargs,
         )
         res = handle_response(response=res)
         return res
 
-    def upload_project(self, project: ProjectMixin) -> Response:
+    def upload_project(self, project) -> Response:
         res = self._session.post(
             url=f"{self._root_url}/{self._project_endpoint}",
             json=project.serialize(),
-            params={"organization": project.organization.uuid},
+            params={"organization": project.organization},
         )
         res = handle_response(response=res)
         return res
 
-    def get_dataset(self, dataset_id: str, project_id, organization_id) -> Response:
+    def get_dataset(self, dataset_id: str, project: ProjectMixin) -> Response:
         res = self._session.get(
             url=f"{self._root_url}/{self._dataset_endpoint}/{dataset_id}",
-            params={"project": project_id, "organization": organization_id},
+            params={"project": project.uuid, "organization": project.organization},
         )
         res = handle_response(response=res)
         return res
@@ -118,7 +126,7 @@ class Api:
             organization_id: str,
             name: str,
             metadata: dict,
-            dataset_id: int,
+            hash: int,
             parent_dataset_id: str = None,
     ) -> Response:
         dataset_queryparams = {"project": project_id, "organization": organization_id}
@@ -129,7 +137,7 @@ class Api:
                 "project": (None, project_id),
                 "name": (None, name),
                 "metadata": (None, json.dumps(metadata), "application/json"),
-                "hash": (None, str(dataset_id)),
+                "hash": (None, str(hash)),
                 "dataset": (os.path.basename(dataset_file_path), f),
             }
             if parent_dataset_id is not None:

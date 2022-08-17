@@ -42,7 +42,7 @@ class Writer(Processor):
     def _save_dataset(
         self,
         record_id: int,
-        dataset: DataFrame,
+        dataset: Tracked,
         **kwargs,  # TODO improve this interface to not need kwargs etc.
     ):
         """
@@ -50,25 +50,12 @@ class Writer(Processor):
         """
         dataset_record = Record.get_by_id(record_id)
         try:
-            # upload a dataset - only works for a single transformation.
-            os.makedirs(self._settings["cache_dir"], exist_ok=True)
-
             # TODO take another look at this section.
-            path_root = uuid.uuid4()
-            dataset_path = self._settings["cache_dir"] / f"{path_root}_tmp.csv"
-            dataset.to_csv(dataset_path, index=True)
-            # with open(dataset_path, "rb") as rb:
-            #     comp_path = save_object(
-            #         rb,
-            #         file_name=f"{path_root}_compressed",
-            #         path=self._settings["cache_dir"],
-            #         compression=CompressionFactory.ZSTD,
-            #     )
+            comp_path=os.path.join(dataset.save_tracked())
             # tidy up intermediate file
-            os.remove(dataset_path)
 
             # update the record TODO refactor out.
-            # dataset_record.path = comp_path
+            dataset_record.path = comp_path
             dataset_record.status = RecordStatus.STORED.value
             dataset_record.save()
             return record_id
@@ -214,7 +201,7 @@ class Sender(Processor):
         record_id: int,
         metadata: Dict,
         dataset_name: str,
-        dataset_id,
+        hash,
         **kwargs,
     ):
 
@@ -246,7 +233,7 @@ class Sender(Processor):
                 organization_id=self._settings["organization"],
                 name=dataset_name,
                 metadata=metadata,
-                dataset_id=dataset_id,
+                hash=hash,
                 parent_dataset_id=parent_id,
             )
             # update record status in sqlite

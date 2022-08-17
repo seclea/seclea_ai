@@ -11,25 +11,12 @@ from peewee import SqliteDatabase
 from seclea_ai.internal.api.api_interface import Api
 from seclea_ai.internal.director import Director
 from seclea_ai.internal.exceptions import NotFoundError
-from seclea_ai.lib.seclea_utils.object_management.object_manager import ToFileMixin, MetadataMixin
 
-
-class SerializerMixin(metaclass=abc.ABCMeta):
-    @staticmethod
-    def get_serialized(obj, meta_list: List[SerializerMixin.__class__]) -> dict:
-        ser_list = [meta.serialize(obj) for meta in meta_list]
-        result = dict()
-        for s in ser_list:
-            result.update(s)
-        return result
-
-    def deserialize(self, obj: dict):
-        for key, val in obj:
-            setattr(self, key, val)
-
-    @abstractmethod
-    def serialize(self):
-        raise NotImplementedError
+from seclea_ai.lib.seclea_utils.object_management.mixin import ToFileMixin, SerializerMixin, MetadataMixin, UserMixin, \
+    ProjectMixin, OrganizationMixin
+from seclea_ai.lib.seclea_utils.object_management import Tracked
+from seclea_ai.transformations import DatasetTransformation
+from seclea_ai.internal.local_db import Record, RecordStatus
 
 
 class APIMixin:
@@ -42,117 +29,6 @@ class APIMixin:
     @api.setter
     def api(self, val: Api):
         self._api = val
-
-
-class DescriptionMixin(SerializerMixin):
-    _description: str
-
-    @property
-    def description(self):
-        return self._description
-
-    @description.setter
-    def description(self, val):
-        self._description = val
-
-    def serialize(self):
-        return {'description': self.description}
-
-
-class NameMixin(SerializerMixin):
-    _name: str
-
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, val):
-        self._name = val
-
-    def serialize(self):
-        return {'name': self.name}
-
-
-class IDMixin(SerializerMixin):
-    _uuid: str
-
-    @property
-    def uuid(self):
-        return self._uuid
-
-    @uuid.setter
-    def uuid(self, val):
-        pass
-
-    def serialize(self):
-        return {'uuid': self.uuid}
-
-
-class UsernameMixin(SerializerMixin):
-    _username: str
-
-    @property
-    def username(self):
-        return self._username
-
-    @username.setter
-    def username(self, val):
-        pass
-
-    def serialize(self):
-        return {'username': self.username}
-
-
-class EmailMixin(SerializerMixin):
-    _email: str
-
-    @property
-    def email(self):
-        return self._email
-
-    @email.setter
-    def email(self, val):
-        pass
-
-    def serialize(self):
-        return {'email': self.email}
-
-
-class PasswordMixin(SerializerMixin):
-    _password: str
-
-    @property
-    def password(self):
-        return self._password
-
-    @password.setter
-    def password(self, val):
-        pass
-
-    def serialize(self):
-        return {'password': self.password}
-
-
-class OrganizationMixin(IDMixin, NameMixin, SerializerMixin):
-    def __init__(self, name: str):
-        self.name = name
-
-
-class ProjectMixin(IDMixin, NameMixin, DescriptionMixin, SerializerMixin):
-    organization: OrganizationMixin
-
-    def deserialize(self, obj: dict):
-        # remove organization as we don't want to overwrite
-        self.organization.uuid = obj.pop('organization')
-        SerializerMixin.deserialize(self, obj)
-
-    def serialize(self):
-        return {**self.get_serialized(self, [IDMixin, NameMixin]), "organization": self.organization.uuid}
-
-
-class UserMixin(IDMixin, UsernameMixin, PasswordMixin, EmailMixin):
-    pass
 
 
 class DirectorMixin:
@@ -182,169 +58,14 @@ class DatabaseMixin:
 
     @property
     def db(self):
-        return self.db
-
-class DatasetMixin:
-    ...
-class ModelMixin:
-    ...
+        return self._db
 
 
 class TrainingRunMixin:
-    _model:str
-    _project:str
-    ...
-class DatasetManager(APIMixin):
+    _model: str
+    _project: str
     ...
 
-    # def upload_dataset(
-    #         self,
-    #         dataset: Tracked,
-    #         dataset_name: str,
-    #         metadata: Dict,
-    #         transformations: List[DatasetTransformation] = None,
-    # ) -> None:
-    #     """
-    #     Uploads a dataset.
-    #
-    #     :param dataset: DataFrame, Path or list of paths to the dataset.
-    #         If a list then they must be split by row only and all
-    #         files must contain column names as a header line.
-    #
-    #     :param dataset_name: The name of the dataset.
-    #
-    #     :param metadata: Any metadata about the dataset. Note that if using a Path or list of Paths then if there is an
-    #         index that you use when loading the data, it must be specified in the metadata.
-    #
-    #     :param transformations: A list of DatasetTransformation's.
-    #
-    #                     If your Dataset is large try call this function more often with less DatasetTransformations
-    #                     as the function currently requires no. DatasetTransformations x Dataset size memory to function.
-    #
-    #                     See DatasetTransformation for more details.
-    #
-    #     :return: None
-    #
-    #     Example:: TODO update docs
-    #         >>> seclea = SecleaAI(project_name="Test Project")
-    #         >>> dataset = pd.read_csv("/test_folder/dataset_file.csv")
-    #         >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
-    #         >>> seclea.upload_dataset(dataset=dataset, dataset_name="Multifile Dataset", metadata=dataset_metadata)
-    #
-    #     Example with file::
-    #
-    #         >>> seclea.upload_dataset(dataset="/test_folder/dataset_file.csv", dataset_name="Test Dataset", metadata={})
-    #         >>> seclea = SecleaAI(project_name="Test Project", organization="Test Organization")
-    #
-    #     Assuming the files are all in the /test_folder/dataset directory.
-    #     Example with multiple files::
-    #
-    #         >>> files = os.listdir("/test_folder/dataset")
-    #         >>> seclea = SecleaAI(project_name="Test Project")
-    #         >>> dataset_metadata = {"index": "TransactionID", "outcome_name": "isFraud", "continuous_features": ["TransactionDT", "TransactionAmt"]}
-    #         >>> seclea.upload_dataset(dataset=files, dataset_name="Multifile Dataset", metadata=dataset_metadata)
-    #
-    #
-    #     """
-    #     # processing the final dataset - make sure it's a DataFrame
-    #
-    #     # TODO replace with dataset_hash fn
-    #     dataset_id = dataset, self._project_id
-    #
-    #     if transformations is not None:
-    #         parent = Tracked(self._assemble_dataset(*transformations[0].raw_data_kwargs.values()))
-    #
-    #         #####
-    #         # Validate parent exists and get metadata - check how often on portal, maybe remove?
-    #         #####
-    #         parent_dset_id = parent.object_manager.hash(parent, self._project_id)
-    #         # check parent exists - check local db if not else error.
-    #         try:
-    #             res = self._api.get_dataset(
-    #                 dataset_id=str(parent_dset_id),
-    #                 organization_id=self._organization,
-    #                 project_id=self._project_id,
-    #             )
-    #         except NotFoundError:
-    #             # check local db
-    #             self._db.connect()
-    #             parent_record = Record.get_or_none(Record.key == parent_dset_id)
-    #             self._db.close()
-    #             if parent_record is not None:
-    #                 parent_metadata = parent_record.dataset_metadata
-    #             else:
-    #                 raise AssertionError(
-    #                     "Parent Dataset does not exist on the Platform or locally. Please check your arguments and "
-    #                     "that you have uploaded the parent dataset already"
-    #                 )
-    #         else:
-    #             parent_metadata = res.json()["metadata"]
-    #         #####
-    #
-    #         upload_queue = self._generate_intermediate_datasets(
-    #             transformations=transformations,
-    #             dataset_name=dataset_name,
-    #             dataset_id=dataset.object_manager.hash(dataset, self._project_id),
-    #             user_metadata=metadata,
-    #             parent=parent,
-    #             parent_metadata=parent_metadata,
-    #         )
-    #
-    #         # upload all the datasets and transformations.
-    #         for up_kwargs in upload_queue:
-    #             up_kwargs["project"] = self._project_id
-    #             # add to storage and sending queues
-    #             if up_kwargs["entity"] == "dataset":
-    #                 self._director.store_entity(up_kwargs)
-    #             self._director.send_entity(up_kwargs)
-    #         return
-    #
-    #     # this only happens if this has no transformations ie. it is a Raw Dataset.
-    #
-    #     # validation
-    #     features = list(getattr(dataset, 'columns', []))
-    #     categorical_features = list(set(features) - set(metadata.get("continuous_features", [])))
-    #     categorical_values = [{col: dataset[col].unique().tolist()} for col in categorical_features]
-    #     metadata_defaults_spec = dict(
-    #         continuous_features=[],
-    #         outcome_name=None,
-    #         num_samples=len(dataset),
-    #         favourable_outcome=None,
-    #         unfavourable_outcome=None,
-    #         dataset_type=self._get_dataset_type(dataset),
-    #         index=0 if dataset.index.name is None else dataset.index.name,
-    #         split=None,
-    #         features=features,
-    #         categorical_features=categorical_features,
-    #         categorical_values=categorical_values
-    #     )
-    #     metadata = {**metadata_defaults_spec, **metadata}
-    #
-    #     # create local db record.
-    #     # TODO make lack of parent more obvious??
-    #     self._db.connect()
-    #     dataset_record = Record.create(
-    #         entity="dataset",
-    #         status=RecordStatus.IN_MEMORY.value,
-    #         key=dataset.object_manager.hash(dataset, self._project_id),
-    #         dataset_metadata=metadata,
-    #     )
-    #     self._db.close()
-    #
-    #     # New arch
-    #     dataset_upload_kwargs = {
-    #         "entity": "dataset",
-    #         "record_id": dataset_record.id,
-    #         "dataset": dataset,
-    #         "dataset_name": dataset_name,
-    #         "dataset_id": dataset_id,
-    #         "metadata": metadata,
-    #         "project": self._project_id,
-    #     }
-    #     # add to storage and sending queues
-    #     self._director.store_entity(dataset_upload_kwargs)
-    #     self._director.send_entity(dataset_upload_kwargs)
-    #
 
 class ModelManager(APIMixin):
     ...
@@ -392,9 +113,9 @@ class ModelManager(APIMixin):
     #     return model_id
     #
 
+
 class TraininRunManager(APIMixin):
     _training_run: TrainingRunMixin
-
 
     # def upload_training_run(
     #         self,
@@ -477,30 +198,55 @@ class TraininRunManager(APIMixin):
     #     self._director.store_entity(model_state_details)
     #     self._director.send_entity(model_state_details)
 
-class ProjectManager(APIMixin):
+
+class OrganizationManager:
+    api: APIMixin.api
+    _organization: OrganizationMixin
+
+    @property
+    def organization(self):
+        if getattr(self, '_organization', None) is None:
+            self._organization = OrganizationMixin()
+        return self._organization
+
+    def init_organization(self, uuid=None, name=None):
+        resp = self.api.get_organizations(uuid=uuid, name=name)[0]
+        self.organization.deserialize(resp)
+        print(self._organization)
+
+
+class ProjectManager:
+    api: APIMixin.api
     _project: ProjectMixin
 
     @property
-    def project(self):
+    def project(self) -> ProjectMixin:
+        if getattr(self, '_project', None) is None:
+            self._project = ProjectMixin()
         return self._project
 
-    def init_project(self, project_name: str, organization_name: str):
-        self.project.organization = OrganizationMixin(organization_name)
-        self._project.name = project_name
-        try:
-            resp = self.api.get_project(self._project)
-        except NotFoundError:
-            resp = self._api.upload_project(self._project)
-            if not resp.status_code == '201':
+    def init_project(self, project_name: str, organization_id: OrganizationMixin.uuid):
+        self.project.organization = organization_id
+        self.project.name = project_name
+        resp = self.api.get_projects(**self.project.serialize())
+        # create project if response length=0
+        projects = resp.json()
+        if len(projects) == 0:
+            resp = self.api.upload_project(self.project)
+            if not resp.status_code == 201:
                 raise Exception(resp.reason)
-        self.project.deserialize(resp.json())
+            projects = [resp.json()]
+        self.project.deserialize(projects[0])
 
 
-class UserManager(APIMixin):
+class UserManager:
+    api: APIMixin.api
     _user: UserMixin
 
     @property
     def user(self):
+        if getattr(self, '_user', None) is None:
+            self._user = UserMixin()
         return self._user
 
     def login(self) -> None:
@@ -517,7 +263,61 @@ class UserManager(APIMixin):
         self.api.authenticate(username=self.user.username, password=self.user.password)
 
 
-class SecleaSessionMixin(UserManager, ProjectManager, SerializerMixin, MetadataMixin, ToFileMixin):
+class DatasetManager:
+    api: APIMixin.api
+    db: DatabaseMixin.db
+    director: DirectorMixin.director
+    project: ProjectMixin
+
+    def upload_dataset(self, dataset: Tracked, transformations: List[DatasetTransformation] = None):
+        """
+        """
+        # validation
+        features = list(getattr(dataset, 'columns', []))
+        categorical_features = list(set(features) - set(dataset.object_manager.metadata.get("continuous_features", [])))
+        categorical_values = [{col: dataset[col].unique().tolist()} for col in categorical_features]
+        metadata_defaults_spec = dict(
+            continuous_features=[],
+            outcome_name=None,
+            num_samples=len(dataset),
+            favourable_outcome=None,
+            unfavourable_outcome=None,
+            index=0 if dataset.index.name is None else dataset.index.name,
+            split=None,
+            features=features,
+            categorical_features=categorical_features,
+            categorical_values=categorical_values
+        )
+        metadata = {**metadata_defaults_spec, **dataset.object_manager.metadata}
+        # create local db record.
+        # TODO make lack of parent more obvious??
+        self.db.connect()
+        dataset_record = Record.create(
+            entity="dataset",
+            status=RecordStatus.IN_MEMORY.value,
+            key=dataset.object_manager.hash(dataset, self.project.uuid),
+            dataset_metadata=metadata,
+        )
+        self.db.close()
+        # New arch
+        dataset_upload_kwargs = {
+            "entity": "dataset",
+            "record_id": dataset_record.id,
+            "dataset": dataset,
+            "dataset_name": dataset.object_manager.file_name,
+            "hash": dataset.object_manager.hash(dataset, self.project.uuid),
+            "metadata": metadata,
+            "project": self.project.uuid,
+        }
+        # add to storage and sending queues
+        self.api.upload_dataset(os.path.join(*dataset.save_tracked()), self.project.uuid, self.organization.uuid,
+                                dataset.object_manager.file_name, dataset.object_manager.metadata,
+                                dataset.object_manager.hash(dataset, self.project.uuid))
+        print('done')
+
+
+class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, ProjectManager, SerializerMixin,
+                         MetadataMixin, ToFileMixin):
     _platform_url: str
     _auth_url: str
     _cache_path: str = ".seclea/cache"
@@ -552,17 +352,19 @@ class SecleaSessionMixin(UserManager, ProjectManager, SerializerMixin, MetadataM
         @param auth_url:
         @return:
         """
-        self.file_name = self.project.name
+        self.file_name = project_name
         self.path = os.path.join(project_root, self._cache_path)
         self.user.username = username,
         self.user.password = password
         self._auth_url = auth_url
         self._platform_url = platform_url
-        self.api = Api(self.serialize())
-        self.init_project(project_name, organization_name)
+        self.api = Api(auth_url=auth_url, platform_url=platform_url, username=username, password=password)
+        self.init_organization(name=organization_name)
+        self.init_project(project_name, self.organization.uuid)
         self.cache_session()
 
     def cache_session(self):
+        # ensure path exists
         self.metadata.update(self.serialize())
         self.save_metadata(self.full_path)
 
