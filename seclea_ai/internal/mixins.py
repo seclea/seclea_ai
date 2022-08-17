@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import abc
 import os
-from abc import abstractmethod
 from pathlib import Path
 from typing import List
 
@@ -10,13 +8,11 @@ from peewee import SqliteDatabase
 
 from seclea_ai.internal.api.api_interface import Api
 from seclea_ai.internal.director import Director
-from seclea_ai.internal.exceptions import NotFoundError
-
+from seclea_ai.internal.local_db import Record, RecordStatus
+from seclea_ai.lib.seclea_utils.object_management import Tracked
 from seclea_ai.lib.seclea_utils.object_management.mixin import ToFileMixin, SerializerMixin, MetadataMixin, UserMixin, \
     ProjectMixin, OrganizationMixin
-from seclea_ai.lib.seclea_utils.object_management import Tracked
 from seclea_ai.transformations import DatasetTransformation
-from seclea_ai.internal.local_db import Record, RecordStatus
 
 
 class APIMixin:
@@ -265,6 +261,7 @@ class UserManager:
 
 class DatasetManager:
     api: APIMixin.api
+    organization: OrganizationMixin
     db: DatabaseMixin.db
     director: DirectorMixin.director
     project: ProjectMixin
@@ -310,10 +307,12 @@ class DatasetManager:
             "project": self.project.uuid,
         }
         # add to storage and sending queues
-        self.api.upload_dataset(os.path.join(*dataset.save_tracked()), self.project.uuid, self.organization.uuid,
-                                dataset.object_manager.file_name, dataset.object_manager.metadata,
+        self.api.upload_dataset(os.path.join(*dataset.save_tracked()),
+                                self.project.uuid,
+                                self.organization.uuid,
+                                dataset.object_manager.file_name,
+                                dataset.object_manager.metadata,
                                 dataset.object_manager.hash(dataset, self.project.uuid))
-        print('done')
 
 
 class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, ProjectManager, SerializerMixin,
