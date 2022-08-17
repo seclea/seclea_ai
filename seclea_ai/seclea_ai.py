@@ -87,7 +87,7 @@ class SecleaAI:
         self._project_id = self._init_project(project_name=project_name)
         self._settings["project_id"] = self._project_id
         self._training_run = None
-        self._director = Director(settings=self._settings, api=self._api)
+        self._director = Director(settings=self._settings, api=self._api, db=self._db)
         logger.debug("Successfully Initialised SecleaAI class")
         if clean_up:
             logger.info("Trying to clean up previous session")
@@ -219,10 +219,10 @@ class SecleaAI:
 
 
         """
-        # processing the final dataset - make sure it's a DataFrame
         if self._project_id is None:
             raise Exception("You need to create a project before uploading a dataset")
 
+        # processing the final dataset - make sure it's a DataFrame
         if isinstance(dataset, List):
             dataset = self._aggregate_dataset(dataset, index=metadata["index"])
         elif isinstance(dataset, str):

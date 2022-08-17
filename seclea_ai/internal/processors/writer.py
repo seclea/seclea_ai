@@ -55,6 +55,7 @@ class Writer(Processor):
 
             # update the record TODO refactor out.
             dataset_record.path = comp_path
+            dataset_record.size = os.path.getsize(comp_path)
             dataset_record.status = RecordStatus.STORED.value
             dataset_record.save()
             return record_id
@@ -97,6 +98,7 @@ class Writer(Processor):
             )
 
             record.path = save_path
+            record.size = os.path.getsize(save_path)
             record.status = RecordStatus.STORED.value
             record.save()
             return record_id

@@ -53,6 +53,7 @@ class Record(BaseModel):
     timestamp = DateTimeField(default=datetime.datetime.now)
     # only used for datasets and modelstates.
     path = CharField(null=True)
+    size = IntegerField(null=False, default=0)
     # only used for datasets - probably need to factor out a lot of this.
     dataset_metadata = JsonField(null=True)
 
