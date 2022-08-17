@@ -10,7 +10,7 @@ from peewee import SqliteDatabase
 
 from seclea_ai.internal.api.api_interface import Api
 from seclea_ai.internal.local_db import Record, RecordStatus
-from seclea_ai.lib.seclea_utils.model_management import ModelManagers
+from seclea_ai.lib.seclea_utils.object_management import Tracked
 
 
 def _assemble_key(record) -> str:
@@ -82,9 +82,8 @@ class Writer(Processor):
     def _save_model_state(
         self,
         record_id,
-        model,
+        model: Tracked,
         sequence_num: int,
-        model_manager: ModelManagers,
         **kwargs,
     ):
         """
@@ -101,16 +100,11 @@ class Writer(Processor):
             # TODO look again at this.
             save_path = self._settings["cache_dir"] / f"{str(training_run_id)}"
             os.makedirs(save_path, exist_ok=True)
+            file_name = f"model-{sequence_num}"
+            model.object_manager.full_path = save_path, file_name
+            model.save_tracked()
 
-            # model_data = serialize(model, model_manager)
-            # save_path = save_object(
-            #     model_data,
-            #     file_name=f"model-{sequence_num}",  # TODO include more identifying info in filename - seclea_ai 798
-            #     path=save_path,
-            #     compression=CompressionFactory.ZSTD,
-            # )
-
-            record.path = save_path
+            record.path = model.object_manager.full_path
             record.status = RecordStatus.STORED.value
             record.save()
             return record_id

@@ -1,7 +1,52 @@
-from typing import Union
+class CMixin:
+    _c: str
 
-import pandas as pd
+    @property
+    def c(self):
+        return self._c
 
-from seclea_ai.lib.seclea_utils.object_management import Tracked
+    @c.setter
+    def c(self, val):
+        self._c = val
 
-a: Union[Tracked, pd.DataFrame] = Tracked(pd.DataFrame())
+    def serialize(self):
+        return {'bd': 'hi'}
+
+
+class AMixin(CMixin):
+    def a(self):
+        print('hi a: ', self.c)
+        self.c = 'k'
+
+    def serialize(self):
+        return {'bc': 'hi'}
+
+
+class BMixin(CMixin):
+    def b(self):
+        print('hi b: ', self.c)
+
+    def serialize(self):
+        return {'bk': 'hi'}
+
+
+class ABMixin(AMixin, BMixin, CMixin):
+    def ab(self):
+        print(self.c)
+        self.a()
+        self.b()
+        print(self.c)
+    def serialize(self):
+        AMixin.serialize(self)
+        BMixin.serialize(self)
+        CMixin.serialize(self)
+        return {**{'b': 'hi'},
+                **AMixin.serialize(self),
+                **BMixin.serialize(self),
+                **CMixin.serialize(self)
+                }
+
+#
+k = ABMixin()
+k.c = 'hola'
+k.ab()

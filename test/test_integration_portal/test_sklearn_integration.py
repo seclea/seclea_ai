@@ -14,7 +14,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from seclea_ai import SecleaAI
 from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.transformations import DatasetTransformation
-
+from seclea_ai.lib.seclea_utils.object_management import Tracked
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
 
@@ -50,7 +50,7 @@ class TestIntegrationSKLearn(TestCase):
         )
 
     def step_1_upload_dataset(self):
-        self.sample_df_1 = pd.read_csv(f"{folder_path}/insurance_claims.csv")
+        self.sample_df_1 = Tracked(pd.read_csv(f"{folder_path}/insurance_claims.csv"))
         self.sample_df_1_name = "Insurance Fraud Dataset"
         self.sample_df_1_meta = {
             "outcome_name": "fraud_reported",

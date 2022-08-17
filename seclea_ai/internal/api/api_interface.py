@@ -17,6 +17,7 @@ from ..exceptions import (
     ServerError,
 )
 from ...internal.authentication import AuthenticationService
+from seclea_ai.internal.mixins import APIMixin, ProjectMixin, OrganizationMixin
 
 
 def handle_response(response: Response, msg: str = ""):
@@ -77,11 +78,11 @@ class Api:
         json.loads(d)
         pass
 
-    def get_project(self, project_id, organization_id, **filter_kwargs) -> Response:
+    def get_project(self, project: ProjectMixin, **filter_kwargs) -> Response:
         return handle_response(
             self._session.get(
-                url=f"{self._root_url}/{self._project_endpoint}/{project_id}",
-                params={"organization": organization_id, **filter_kwargs},
+                url=f"{self._root_url}/{self._project_endpoint}/{project.uuid}",
+                params={"organization": project.organization.uuid, **filter_kwargs},
             )
         )
 
@@ -93,15 +94,11 @@ class Api:
         res = handle_response(response=res)
         return res
 
-    def upload_project(self, name, description, organization_id) -> Response:
+    def upload_project(self, project: ProjectMixin) -> Response:
         res = self._session.post(
             url=f"{self._root_url}/{self._project_endpoint}",
-            json={
-                "name": name,
-                "description": description,
-                "organization": organization_id,
-            },
-            params={"organization": organization_id},
+            json=project.serialize(),
+            params={"organization": project.organization.uuid},
         )
         res = handle_response(response=res)
         return res
@@ -115,16 +112,15 @@ class Api:
         return res
 
     def upload_dataset(
-        self,
-        dataset_file_path: str,
-        project_id: str,
-        organization_id: str,
-        name: str,
-        metadata: dict,
-        dataset_id: int,
-        parent_dataset_id: str = None,
+            self,
+            dataset_file_path: str,
+            project_id: str,
+            organization_id: str,
+            name: str,
+            metadata: dict,
+            dataset_id: int,
+            parent_dataset_id: str = None,
     ) -> Response:
-
         dataset_queryparams = {"project": project_id, "organization": organization_id}
         self.test_json_valid(metadata)
 
@@ -199,13 +195,13 @@ class Api:
 
     # TODO review typing.
     def upload_training_run(
-        self,
-        organization_id: int,
-        project_id: int,
-        dataset_ids: List[str],
-        model_id: int,
-        training_run_name: str,
-        params: Dict,
+            self,
+            organization_id: int,
+            project_id: int,
+            dataset_ids: List[str],
+            model_id: int,
+            training_run_name: str,
+            params: Dict,
     ):
         data = {
             "organization": organization_id,
@@ -226,13 +222,13 @@ class Api:
         return res
 
     def upload_model_state(
-        self,
-        model_state_file_path: str,
-        organization_id: str,
-        project_id: str,
-        training_run_id: int,
-        sequence_num: int,
-        final_state,
+            self,
+            model_state_file_path: str,
+            organization_id: str,
+            project_id: str,
+            training_run_id: int,
+            sequence_num: int,
+            final_state,
     ):
         with open(model_state_file_path, "rb") as f:
             res = self._session.post(
@@ -253,9 +249,8 @@ class Api:
         return res
 
     def upload_transformation(
-        self, name: str, code_raw, code_encoded, dataset_id: int, organization_id, project_id
+            self, name: str, code_raw, code_encoded, dataset_id: int, organization_id, project_id
     ):
-
         data = {
             "name": name,
             "code_raw": code_raw,
