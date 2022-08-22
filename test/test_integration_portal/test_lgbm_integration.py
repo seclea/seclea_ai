@@ -36,11 +36,11 @@ class TestIntegrationLGBM(TestCase):
         self.password = "asdf"  # nosec
         self.username = "onespanadmin"  # nosec
         self.organization = "Onespan"
-        self.project_name = f"test-project-{uuid.uuid4()}"
+        self.project = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
-            project_name=self.project_name,
+            project_name=self.project,
             organization=self.organization,
             platform_url=self.portal_url,
             auth_url=self.auth_url,
@@ -141,7 +141,7 @@ class TestIntegrationLGBM(TestCase):
 
         # upload dataset here
         self.controller.upload_dataset_split(
-            X=self.X_train,
+            x=self.X_train,
             y=self.y_train,
             dataset_name=f"{self.sample_df_name} - Train",
             metadata={},
@@ -163,7 +163,7 @@ class TestIntegrationLGBM(TestCase):
 
         # upload dataset here
         self.controller.upload_dataset_split(
-            X=self.X_test,
+            x=self.X_test,
             y=self.y_test,
             dataset_name=f"{self.sample_df_name} - Test",
             metadata={},

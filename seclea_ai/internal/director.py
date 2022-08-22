@@ -51,7 +51,7 @@ class Director:
         :return: None
         """
         # cancel any ongoing work.
-        for future in self.send_executing.keys():
+        for future in self.send_executing:
             future.cancel()
         for future in self.write_executing:
             future.cancel()

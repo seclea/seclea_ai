@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 setup(
     name="seclea_ai",
-    version="0.0.48",
+    version="0.0.50",
     author="octavio",
     author_email="octavio.delser@gmail.com",
     description="Seclea integration.",

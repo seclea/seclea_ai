@@ -7,7 +7,6 @@ from peewee import SqliteDatabase
 from requests import Response, Session
 
 from seclea_ai.internal.exceptions import AuthenticationError
-
 from seclea_ai.internal.local_db import AuthService
 
 try:

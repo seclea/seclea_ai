@@ -30,7 +30,7 @@ Use this package to record your data science development work.
 ```
 from seclea_ai import SecleaAI
 
-seclea = SecleaAI(project_name="My Project", organization="My Org")
+seclea = SecleaAI(project="My Project", organization="My Org")
 ```
 
 ## Maintainers
