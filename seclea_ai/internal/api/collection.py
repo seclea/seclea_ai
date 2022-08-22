@@ -1,6 +1,7 @@
 from requests import Session
 from .base import BaseModelApi
-from seclea_ai.lib.seclea_utils.object_management.mixin import Project,Dataset,DatasetTransformation,Model,MostelState
+from seclea_ai.lib.seclea_utils.object_management.mixin import Project, Dataset, DatasetTransformation, Model, \
+    ModelState, TrainingRun
 
 
 class ProjectApi(BaseModelApi):
@@ -26,6 +27,7 @@ class TrainingRunApi(BaseModelApi):
 class ModelApi(BaseModelApi):
     model_url = 'models/'
     model = Model
+
 
 class ModelStateApi(BaseModelApi):
     model_url = 'model-states/'

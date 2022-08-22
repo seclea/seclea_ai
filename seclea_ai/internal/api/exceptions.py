@@ -1,4 +1,4 @@
-from status import HTTP_401_UNAUTHORIZED
+from .status import HTTP_401_UNAUTHORIZED
 from collections import defaultdict
 from typing import Dict
 from requests import Response
@@ -22,8 +22,7 @@ class AuthenticationError(ApiError):
     status_codes = [HTTP_401_UNAUTHORIZED]
 
 
-API_ERROR_CODE_EXCEPTION_MAPPER: Dict[int:Exception] = defaultdict(ApiError)
-
+API_ERROR_CODE_EXCEPTION_MAPPER: Dict[int,ApiError.__class__] = defaultdict(ApiError)
 
 def _update_mapper(exception):
     API_ERROR_CODE_EXCEPTION_MAPPER.update(dict.fromkeys(exception.status_codes, exception))

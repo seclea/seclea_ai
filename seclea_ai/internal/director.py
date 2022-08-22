@@ -4,18 +4,12 @@ File storing and uploading data to server
 import logging
 from concurrent.futures import ThreadPoolExecutor, Future
 from typing import Dict, List, Callable
+import sys
 
 from peewee import SqliteDatabase
-from pympler import asizeof
 
-from .api.api_interface import Api
-from .exceptions import (
-    APIError,
-    AuthenticationError,
-    RequestTimeoutError,
-    ServiceDegradedError,
-    StorageSpaceError,
-)
+from .api.api_interface import PlatformApi
+from .api.exceptions import ApiError, AuthenticationError
 from .local_db import Record, RecordStatus
 from .processors.sender import Sender
 from .processors.writer import Writer
@@ -32,7 +26,7 @@ class Director:
     def __init__(self, settings, api, db):
         # setup some defaults
         self._settings = settings
-        self._api: Api = api
+        self._api: PlatformApi = api
         self._db: SqliteDatabase = db
         self.writer = Writer(settings=settings)
         self.sender = Sender(settings=settings, api=api)
@@ -70,9 +64,8 @@ class Director:
             self._check_and_throw()
         # wait for the last send to complete
         for future in self.send_executing.keys():
-            if self.send_executing[future] is not None:
-                future.result()
-                self._check_and_throw()
+            future.result()
+            self._check_and_throw()
         self.write_threadpool_executor.shutdown(wait=True)
         self.send_thread_executor.shutdown(wait=True)
 
@@ -86,7 +79,7 @@ class Director:
         self._check_and_throw()
         self._check_resources(entity_dict=entity_dict)
         future = self.write_threadpool_executor.submit(
-            self.writer.funcs[entity_dict["entity"]], **entity_dict
+            self.writer.save_record, **entity_dict
         )
         self.write_executing.append(future)
         future.add_done_callback(self._write_completed)
@@ -101,7 +94,7 @@ class Director:
         self._check_and_throw()
         # put in queue for sending
         future = self.send_thread_executor.submit(
-            self.sender.funcs[entity_dict["entity"]], **entity_dict
+            self.sender.send_record, **entity_dict
         )
         self.send_executing[future] = entity_dict
         future.add_done_callback(self._send_completed)
@@ -129,19 +122,16 @@ class Director:
         try:
             result = future.result()
         except AuthenticationError:
-            self._try_resend_with_action(future=future, function=self._api.authenticate)
-        except RequestTimeoutError:
+            self._try_resend_with_action(future=future, function=self._api.auth.authenticate(self._api.session))
+        except ApiError:
             self._try_resend_with_action(future=future)
-        except ServiceDegradedError:
-            self._try_resend_with_action(future=future)
-        # this is only caught if more specific doesn't catch which means it is something we can't deal with.
         except Exception as e:
+            # this is only caught if more specific doesn't catch which means it is something we can't deal with.
             self.errors.append(e)
-            return  # need to return otherwise second try except block runs.
         else:
             logger.debug(f"Send completed - {result}")
         finally:
-            self.send_executing[future] = None
+            del self.send_executing[future]
 
     def _check_and_throw(self):
         """Check the error queue and throw any errors in there. Needed for user thread to deal with them"""
@@ -158,13 +148,13 @@ class Director:
         entity_dict = self.send_executing[future]
         try:
             if entity_dict["break"]:
-                raise APIError("Authentication failed too many times")
+                raise Exception("tmp Director error ... check username, password ")
         except KeyError:
             entity_dict["break"] = True
             if function is not None:
                 function()
             new_future = self.send_thread_executor.submit_first(
-                self.sender.funcs[entity_dict["entity"]], **entity_dict
+                self.sender.send_record, **entity_dict
             )
             self.send_executing[new_future] = entity_dict
             new_future.add_done_callback(self._send_completed)
@@ -172,10 +162,10 @@ class Director:
     def _check_resources(self, entity_dict):
         # get size in memory
         if getattr(entity_dict, "dataset", None) is not None:
-            size = asizeof.asizeof(entity_dict["dataset"])
+            size = sys.getsizeof(entity_dict["dataset"])
             stored_size = size / 10
         elif getattr(entity_dict, "model", None) is not None:
-            size = asizeof.asizeof(entity_dict["model"])
+            size = sys.getsizeof(entity_dict["model"])
             stored_size = size * 50
         else:
             return
@@ -190,18 +180,8 @@ class Director:
 
         # break on storage overflow
         if stored_size + current_stored > self._settings["max_storage_space"]:
-            raise StorageSpaceError("Specified storage size exceeded")
+            raise MemoryError("Specified storage size exceeded")
 
         # get size of entity
-        print(asizeof.asizeof(entity_dict))
-        for key, val in entity_dict.items():
-            if key == "dataset":
-                print(f"{key} size: {asizeof.asizeof(val)}")  # memory size
-                print(f"Stored size: {asizeof.asizeof(val.to_csv())}")  # stored size (approx 1/10)
-            if key == "model":
-                print(f"{key} size: {asizeof.asizeof(val)}")  # memory size
-                # stored size (approx 50x)
-
         # limit is in director (from settings)
         # if entity would exceed either memory or storage throw an error.
-        pass

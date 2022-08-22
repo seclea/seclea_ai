@@ -10,6 +10,7 @@ from .status import HTTP_201_CREATED, HTTP_200_OK
 
 
 class BaseModelApi:
+
     def __init__(self, base_url: str, session: Session):
         """
 
@@ -19,13 +20,13 @@ class BaseModelApi:
         self.url = f'{base_url}{self.model_url}'
         self.session = session
 
-    @abc.abstractmethod
     @property
+    @abc.abstractmethod
     def model_url(self) -> str:
         raise NotImplementedError
 
-    @abc.abstractmethod
     @property
+    @abc.abstractmethod
     def model(self) -> BaseModel.__class__:
         raise NotImplementedError
 
@@ -66,7 +67,7 @@ class BaseModelApi:
         self.process_response(resp)
         return self.model().deserialize(resp.json())
 
-    def create(self, create_data: dict, params: dict) -> BaseModel:
-        resp = self.session.post(url=f'{self.url}', params=params, data=create_data)
+    def create(self, create_data: dict, params: dict, **post_kwargs) -> BaseModel:
+        resp = self.session.post(url=f'{self.url}', params=params, data=create_data, **post_kwargs)
         self.process_response(resp, expected_code=HTTP_201_CREATED)
         return self.model().deserialize(resp.json())

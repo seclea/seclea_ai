@@ -75,46 +75,13 @@ class ExampleClass:
         self.n=multiply_by_2(self.n)
         print(self.n)
 
-if __name__ == "__main__":
-    print("====== example function output ===============")
-    # example use of a function
-    a = multiply_by_2(5)
-    print(a)
-
-    print("====== example class output ===============")
-    # example use of a class:
-    object_a = ExampleClass(6)
-    object_a.do_something()
-    object_a.do_something()
-
-    print("========")
-    for i in range(10):
-        print(process_n(i))
-
-
-""" expected output for n= 1,2,3,4,5,6,7,8,9,10:
-1
-i'm even
-3
-i'm even
-minecraft !
-i'm even
-7
-i'm even
-9
-i'm even minecraft!
-
-
-current output: THIS IS DIFFERENT ^
-im even
-2
-im even
-4
-im even
-minecraft
-im even
-8
-im even
-10
-
-"""
+def test():
+    try:
+        1/0
+    except ZeroDivisionError:
+        print('error dividing 0')
+    else:
+        print("else block")
+    finally:
+        print("finally block")
+test()

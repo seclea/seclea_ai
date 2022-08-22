@@ -6,7 +6,7 @@ from typing import List
 
 from peewee import SqliteDatabase
 
-from seclea_ai.internal.api.api_interface import Api
+from seclea_ai.internal.api.api_interface import PlatformApi
 from seclea_ai.internal.director import Director
 from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.lib.seclea_utils.object_management import Tracked
@@ -16,22 +16,23 @@ from seclea_ai.transformations import DatasetTransformation
 
 
 class APIMixin:
-    _api: Api
+    _api: PlatformApi
 
     @property
-    def api(self):
+    def api(self) -> PlatformApi:
         return self._api
 
     @api.setter
-    def api(self, val: Api):
+    def api(self, val: PlatformApi):
         self._api = val
 
 
 class DirectorMixin:
     _director: Director
+    db: SqliteDatabase
 
-    def init_director(self, settings: dict, api: Api):
-        self._director = Director(settings=settings, api=api)
+    def init_director(self, settings: dict, api: PlatformApi):
+        self._director = Director(settings=settings, api=api, db=self.db)
 
     @property
     def director(self):
@@ -260,7 +261,7 @@ class UserManager:
 
 
 class DatasetManager:
-    api: APIMixin.api
+    api: PlatformApi
     organization: Organization
     db: DatabaseMixin.db
     director: DirectorMixin.director
@@ -268,6 +269,10 @@ class DatasetManager:
 
     def upload_dataset(self, dataset: Tracked, transformations: List[DatasetTransformation] = None):
         """
+        # assemble all necessary metadata,
+        # compress into file
+        # upload
+
         """
         # validation
         features = list(getattr(dataset, 'columns', []))
@@ -306,13 +311,17 @@ class DatasetManager:
             "metadata": metadata,
             "project": self.project.uuid,
         }
+        params = {
+            "organization": self.organization.uuid,
+            "project": self.project.uuid
+        }
         # add to storage and sending queues
-        self.api.upload_dataset(os.path.join(*dataset.save_tracked()),
-                                self.project.uuid,
-                                self.organization.uuid,
-                                dataset.object_manager.file_name,
-                                dataset.object_manager.metadata,
-                                dataset.object_manager.hash(dataset, self.project.uuid))
+        dataset = self.api.datasets.create(
+            create_data=dataset_upload_kwargs,
+            params=params,
+            file=os.path.join(*dataset.save_tracked())
+        )
+        print(dataset)
 
 
 class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, ProjectManager, SerializerMixin,
@@ -357,7 +366,7 @@ class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, Proje
         self.user.password = password
         self._auth_url = auth_url
         self._platform_url = platform_url
-        self.api = Api(auth_url=auth_url, platform_url=platform_url, username=username, password=password)
+        self.api = PlatformApi(auth_url=auth_url, platform_url=platform_url, username=username, password=password)
         self.init_organization(name=organization_name)
         self.init_project(project_name, self.organization.uuid)
         self.cache_session()

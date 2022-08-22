@@ -1,8 +1,7 @@
 from requests import Session
 
-import collection
 from ...internal.authentication import AuthenticationService
-
+from . import collection
 
 class PlatformApi:
     """
