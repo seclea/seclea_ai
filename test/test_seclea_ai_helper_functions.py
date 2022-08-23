@@ -5,13 +5,12 @@ import pandas as pd
 
 from seclea_ai import SecleaAI
 
-
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "")
 print(folder_path)
 
 
-class TestSecleaAI(unittest.TestCase):
+class TestSecleaAIHelperFunctions(unittest.TestCase):
 
     # def test_check_features_different_names(self):
     #     parent_metadata = {

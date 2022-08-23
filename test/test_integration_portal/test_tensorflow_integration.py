@@ -1,12 +1,16 @@
+import datetime
 import os
 import uuid
+from pathlib import Path
 from unittest import TestCase
 
 import pandas as pd
+from peewee import SqliteDatabase
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 
 from seclea_ai import SecleaAI
+from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.transformations import DatasetTransformation
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -27,17 +31,19 @@ class TestIntegrationTensorflow(TestCase):
     """
 
     def step_0_project_setup(self):
+        self.start_timestamp = datetime.datetime.now()
+        print(self.start_timestamp)
         self.password = "asdf"  # nosec
-        self.username = "onespanadmin"  # nosec
+        self.username = "admin"  # nosec
         self.organization = "Onespan"
-        self.project_name = f"test-project-{uuid.uuid4()}"
+        self.project = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
-            self.project_name,
-            self.organization,
-            self.portal_url,
-            self.auth_url,
+            project_name=self.project,
+            organization=self.organization,
+            platform_url=self.portal_url,
+            auth_url=self.auth_url,
             username=self.username,
             password=self.password,
         )
@@ -121,7 +127,7 @@ class TestIntegrationTensorflow(TestCase):
 
         # upload dataset here
         self.controller.upload_dataset_split(
-            X=self.X_train,
+            x=self.X_train,
             y=self.y_train,
             dataset_name=f"{self.sample_df_name} - Train",
             metadata={},
@@ -143,7 +149,7 @@ class TestIntegrationTensorflow(TestCase):
 
         # upload dataset here
         self.controller.upload_dataset_split(
-            X=self.X_test,
+            x=self.X_test,
             y=self.y_test,
             dataset_name=f"{self.sample_df_name} - Test",
             metadata={},
@@ -181,6 +187,24 @@ class TestIntegrationTensorflow(TestCase):
             X_test=self.X_test,
             y_test=self.y_test,
         )
+        self.controller.complete()
+
+    def step_4_check_all_sent(self):
+        # check that all record statuses are RecordStatus.SENT.value
+        db = SqliteDatabase(
+            Path.home() / ".seclea" / "seclea_ai.db",
+            thread_safe=True,
+            pragmas={"journal_mode": "wal"},
+        )
+        db.connect()
+        records = Record.select().where(Record.timestamp > self.start_timestamp)
+        for idx, record in enumerate(records):
+            self.assertEqual(
+                record.status,
+                RecordStatus.SENT.value,
+                f"Entity {record.entity} at position {idx}, with id {record.id} not sent, current status: {record.status}",
+            )
+        db.close()
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted

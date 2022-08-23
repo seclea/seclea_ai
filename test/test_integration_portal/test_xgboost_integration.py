@@ -1,14 +1,18 @@
+import datetime
 import os
 import uuid
+from pathlib import Path
 from unittest import TestCase
 
 import pandas as pd
 import numpy as np
 from imblearn.over_sampling import SMOTE
+from peewee import SqliteDatabase
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
 from seclea_ai import SecleaAI
+from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.transformations import DatasetTransformation
 
 import xgboost as xgb
@@ -32,17 +36,18 @@ class TestIntegrationXGBoost(TestCase):
     """
 
     def step_0_project_setup(self):
+        self.start_timestamp = datetime.datetime.now()
         self.password = "asdf"  # nosec
-        self.username = "onespanadmin"  # nosec
+        self.username = "admin"  # nosec
         self.organization = "Onespan"
-        self.project_name_1 = f"test-project-{uuid.uuid4()}"
+        self.project = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
-        self.controller_1 = SecleaAI(
-            self.project_name_1,
-            self.organization,
-            self.portal_url,
-            self.auth_url,
+        self.controller = SecleaAI(
+            project_name=self.project,
+            organization=self.organization,
+            platform_url=self.portal_url,
+            auth_url=self.auth_url,
             username=self.username,
             password=self.password,
         )
@@ -64,7 +69,7 @@ class TestIntegrationXGBoost(TestCase):
                 "incident_hour_of_the_day",
             ],
         }
-        self.controller_1.upload_dataset(
+        self.controller.upload_dataset(
             self.sample_df_1, self.sample_df_1_name, self.sample_df_1_meta
         )
 
@@ -155,6 +160,7 @@ class TestIntegrationXGBoost(TestCase):
         self.X_train, self.X_test, self.y_train, self.y_test = get_test_train_splits(
             X, y, test_size=test_size, random_state=random_state
         )
+
         self.X_sm, self.y_sm = smote_balance(self.X_train, self.y_train, random_state=random_state)
 
         self.complicated_transformations = [
@@ -171,8 +177,8 @@ class TestIntegrationXGBoost(TestCase):
         ]
 
         # upload dataset here
-        self.controller_1.upload_dataset_split(
-            X=X,
+        self.controller.upload_dataset_split(
+            x=X,
             y=y,
             dataset_name=f"{self.sample_df_1_name} - Cleaned",
             metadata={"favourable_outcome": 1, "unfavourable_outcome": 0},
@@ -200,8 +206,8 @@ class TestIntegrationXGBoost(TestCase):
         ]
 
         # upload dataset here
-        self.controller_1.upload_dataset_split(
-            X=self.X_sm,
+        self.controller.upload_dataset_split(
+            x=self.X_sm,
             y=self.y_sm,
             dataset_name=f"{self.sample_df_1_name} Train - Balanced",
             metadata={},
@@ -222,8 +228,8 @@ class TestIntegrationXGBoost(TestCase):
         ]
 
         # upload dataset here
-        self.controller_1.upload_dataset_split(
-            X=self.X_test,
+        self.controller.upload_dataset_split(
+            x=self.X_test,
             y=self.y_test,
             dataset_name=f"{self.sample_df_1_name} Test - Scaled",
             metadata={},
@@ -240,13 +246,31 @@ class TestIntegrationXGBoost(TestCase):
         num_rounds = 5
         model = xgb.train(params=params, dtrain=dtrain, num_boost_round=num_rounds)
 
-        self.controller_1.upload_training_run_split(
+        self.controller.upload_training_run_split(
             model,
             X_train=self.X_sm,
             y_train=self.y_sm,
             X_test=self.X_test,
             y_test=self.y_test,
         )
+        self.controller.complete()
+
+    def step_4_check_all_sent(self):
+        # check that all record statuses are RecordStatus.SENT.value
+        db = SqliteDatabase(
+            Path.home() / ".seclea" / "seclea_ai.db",
+            thread_safe=True,
+            pragmas={"journal_mode": "wal"},
+        )
+        db.connect()
+        records = Record.select().where(Record.timestamp > self.start_timestamp)
+        for idx, record in enumerate(records):
+            self.assertEqual(
+                record.status,
+                RecordStatus.SENT.value,
+                f"Entity {record.entity} at position {idx}, with id {record.id} not sent, current status: {record.status}",
+            )
+        db.close()
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
