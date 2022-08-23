@@ -47,6 +47,7 @@ class ABMixin(AMixin, BMixin, CMixin):
                 **CMixin.serialize(self)
                 }
 
+
 def process_n(n):
     """
     When n is even print "i'm even"
@@ -57,31 +58,29 @@ def process_n(n):
     """
     # Bedirhan write your code here
     if n % 2 == 0:
-        return('im even')
+        return ('im even')
     elif n % 5 == 0:
-        return('minecraft')
+        return ('minecraft')
     else:
-        return(n+1)
+        return (n + 1)
+
 
 # this is a simple function you can reference from
 def multiply_by_2(n):
-    return n*2
+    return n * 2
+
 
 class ExampleClass:
-    def __init__(self,n):
-        self.n=n
+    def __init__(self, n):
+        self.n = n
 
     def do_something(self):
-        self.n=multiply_by_2(self.n)
+        self.n = multiply_by_2(self.n)
         print(self.n)
 
-def test():
-    try:
-        1/0
-    except ZeroDivisionError:
-        print('error dividing 0')
-    else:
-        print("else block")
-    finally:
-        print("finally block")
-test()
+
+def _assemble_kwargs(**kwargs):
+    return dict([(key, val) for key, val in kwargs.items() if val is not None])
+
+
+print(_assemble_kwargs(hi=None, hi2=2, hi3='3'))

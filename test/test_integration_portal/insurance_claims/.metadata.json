@@ -1,1 +1,0 @@
-{"file_name": "insurance_claims", "_object_manager": "PandasDatasetManager", "dataset_name": "Insurance Fraud Dataset", "outcome_name": "fraud_reported", "favourable_outcome": "N", "unfavourable_outcome": "Y", "continuous_features": ["total_claim_amount", "policy_annual_premium", "capital-gains", "capital-loss", "injury_claim", "property_claim", "incident_hour_of_the_day"]}

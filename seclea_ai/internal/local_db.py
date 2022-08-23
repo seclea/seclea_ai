@@ -27,12 +27,7 @@ class JsonField(Field):
         return json.dumps(value)
 
     def python_value(self, value):
-        try:
-            value = json.loads(value)
-        except JSONDecodeError:
-            value = None
-        finally:
-            return value
+        return json.loads(value)
 
 
 class BaseModel(Model):
@@ -42,24 +37,16 @@ class BaseModel(Model):
 
 # TODO rethink this - may be better split up
 class Record(BaseModel):
-
     remote_id = IntegerField(null=True)  # TODO this may change to string for uuids
-    entity = CharField(
-        null=True
-    )  # TODO remove or convert to ForeignKey - here for debugging for now.
-    key = CharField(null=True)  # mainly for tracking datasets and training runs may need to remove
-    dependencies = JsonField(null=True)  # this will be a list of ids
+    metadata = JsonField(null=False, default=dict())
+    object_ser = JsonField(null=False, default=dict())
+    dependencies = JsonField(null=False, default=list())  # this will be a list of ids
     status = CharField()  # TODO change to enum
     timestamp = DateTimeField(default=datetime.datetime.now)
-    # only used for datasets and modelstates.
-    path = CharField(null=True)
-    size = IntegerField(null=False, default=0)
-    # only used for datasets - probably need to factor out a lot of this.
-    dataset_metadata = JsonField(null=True)
+    path: CharField()
 
 
 class AuthService(BaseModel):
-
     key = CharField()
     value = CharField()
 

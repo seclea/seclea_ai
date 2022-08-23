@@ -31,8 +31,8 @@ class DirectorMixin:
     _director: Director
     db: SqliteDatabase
 
-    def init_director(self, settings: dict, api: PlatformApi):
-        self._director = Director(settings=settings, api=api, db=self.db)
+    def init_director(self, cache_dir):
+        self._director = Director(cache_dir=cache_dir)
 
     @property
     def director(self):
@@ -197,7 +197,7 @@ class TraininRunManager(APIMixin):
 
 
 class OrganizationManager:
-    api: APIMixin.api
+    api: PlatformApi
     _organization: Organization
 
     @property
@@ -207,13 +207,12 @@ class OrganizationManager:
         return self._organization
 
     def init_organization(self, uuid=None, name=None):
-        resp = self.api.get_organizations(uuid=uuid, name=name)[0]
-        self.organization.deserialize(resp)
+        self._organization = self.api.organizations.get_one_from_list(uuid=uuid, name=name, params=dict())
         print(self._organization)
 
 
 class ProjectManager:
-    api: APIMixin.api
+    api: PlatformApi
     _project: Project
 
     @property
@@ -223,17 +222,17 @@ class ProjectManager:
         return self._project
 
     def init_project(self, project_name: str, organization_id: Organization.uuid):
-        self.project.organization = organization_id
-        self.project.name = project_name
-        resp = self.api.get_projects(**self.project.serialize())
-        # create project if response length=0
-        projects = resp.json()
-        if len(projects) == 0:
-            resp = self.api.upload_project(self.project)
-            if not resp.status_code == 201:
-                raise Exception(resp.reason)
-            projects = [resp.json()]
-        self.project.deserialize(projects[0])
+        try:
+            self._project = self.api.projects.get_one_from_list(name=project_name, organization=organization_id)
+            return
+        except Exception as e:
+            print(f'Error getting project {e} attemptin initialization of new project:')
+        try:
+            self._project = self.api.projects.create({'name': project_name, 'organization': organization_id},
+                                                     {'organization': organization_id})
+        except Exception as e:
+            print(f"Failed to init new project: {e}")
+            raise
 
 
 class UserManager:
@@ -293,40 +292,42 @@ class DatasetManager:
         metadata = {**metadata_defaults_spec, **dataset.object_manager.metadata}
         # create local db record.
         # TODO make lack of parent more obvious??
-        self.db.connect()
-        dataset_record = Record.create(
-            entity="dataset",
-            status=RecordStatus.IN_MEMORY.value,
-            key=dataset.object_manager.hash(dataset, self.project.uuid),
-            dataset_metadata=metadata,
-        )
-        self.db.close()
+
         # New arch
-        dataset_upload_kwargs = {
-            "entity": "dataset",
-            "record_id": dataset_record.id,
-            "dataset": dataset,
-            "dataset_name": dataset.object_manager.file_name,
-            "hash": dataset.object_manager.hash(dataset, self.project.uuid),
-            "metadata": metadata,
-            "project": self.project.uuid,
-        }
+        # dataset_upload_kwargs = {
+        #     "entity": "dataset",
+        #     "record_id": dataset_record.id,
+        #     "dataset": dataset,
+        #     "dataset_name": dataset.object_manager.file_name,
+        #     "hash": dataset.object_manager.hash(dataset, self.project.uuid),
+        #     "metadata": metadata,
+        #     "project": self.project.uuid,
+        # }
         params = {
             "organization": self.organization.uuid,
             "project": self.project.uuid
         }
         # add to storage and sending queues
-        dataset = self.api.datasets.create(
-            create_data=dataset_upload_kwargs,
-            params=params,
-            file=os.path.join(*dataset.save_tracked())
-        )
-        from seclea_ai.lib.seclea_utils.object_management.mixin import Dataset
-        dset=Dataset()
-        self.director.cache_upload_object(obj_tracked=dataset,obj_bs=None,api=self.api.datasets,params=params,)
 
-class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, ProjectManager, SerializerMixin,
-                         MetadataMixin, ToFileMixin):
+        from seclea_ai.lib.seclea_utils.object_management.mixin import Dataset
+        dset = Dataset(
+            metadata=metadata,
+            name=dataset.object_manager.file_name,
+            project=self.project.uuid,
+            description="some description",
+        )
+        self.db.connect()
+        dataset_record = Record.create(
+            object_ser=dset.serialize(),
+            status=RecordStatus.IN_MEMORY.value,
+        )
+        # TODO remove this,
+        dset.uuid = dataset_record.id
+        self.db.close()
+        self.director.cache_upload_object(obj_tracked=dataset, obj_bs=dset, api=self.api.datasets, params=params)
+
+
+class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, ProjectManager, MetadataMixin, ToFileMixin):
     _platform_url: str
     _auth_url: str
     _cache_path: str = ".seclea/cache"
@@ -350,7 +351,8 @@ class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, Proje
                      organization_name: str,
                      project_root: str = ".",
                      platform_url: str = "https://platform.seclea.com",
-                     auth_url: str = "https://auth.seclea.com"):
+                     auth_url: str = "https://auth.seclea.com",
+                     cache_dir: str = '.'):
         """
         @param username: seclea platform username
         @param password: seclea platform password
@@ -361,6 +363,7 @@ class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, Proje
         @param auth_url:
         @return:
         """
+        self._cache_path = cache_dir
         self.file_name = project_name
         self.path = os.path.join(project_root, self._cache_path)
         self.user.username = username,

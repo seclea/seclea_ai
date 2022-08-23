@@ -6,7 +6,7 @@ from unittest import TestCase
 import pandas as pd
 
 from seclea_ai import SecleaAI
-
+from seclea_ai.lib.seclea_utils.object_management import Tracked
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
 
@@ -27,7 +27,7 @@ class TestImageDatasetUpload(TestCase):
     def setUp(self) -> None:
         self.start_timestamp = datetime.datetime.now()
         self.password = "asdf"  # nosec
-        self.username = "onespanadmin"  # nosec
+        self.username = "admin"  # nosec
         self.organization = "Onespan"
         self.project = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
@@ -42,7 +42,7 @@ class TestImageDatasetUpload(TestCase):
         )
 
     def step_1_upload_dataset(self):
-        self.sample_df = pd.read_csv(f"{folder_path}/adult_data.csv", index_col=0)
+        self.sample_df = Tracked(pd.read_csv(f"{folder_path}/adult_data.csv", index_col=0))
         self.sample_df_name = "Census dataset"
         self.sample_df_meta = {
             "outcome_name": "income-per-year",
@@ -57,8 +57,7 @@ class TestImageDatasetUpload(TestCase):
                 "hours-per-week",
             ],
         }
-        self.controller.upload_dataset(self.sample_df, self.sample_df_name, self.sample_df_meta)
-
+        self.controller.upload_dataset(self.sample_df)
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
             if name.startswith("step"):

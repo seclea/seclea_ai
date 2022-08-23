@@ -60,24 +60,23 @@ class Director:
             self._ensure_error_count_0()
         self._shutdown_threads()
 
-    def cache_upload_object(self, obj_tracked: Tracked, obj_bs: BaseModel, api: BaseModelApi, params: dict,
-                            **post_kwargs):
-        self._store_entity(obj_tr=obj_tracked, obj_bs=obj_bs)
+    def cache_upload_object(self, obj_tracked: Tracked, obj_bs: BaseModel, api: BaseModelApi, params: dict):
+        self._store_entity(obj_tr=obj_tracked, obj_bs=obj_bs, api=api)
         self._send_entity(api=api, obj_bs=obj_bs, params=params)
 
-    def _store_entity(self, obj_tr: Tracked, obj_bs: BaseModel) -> None:  # TODO add return for status
+    def _store_entity(self, obj_tr: Tracked, obj_bs: BaseModel,
+                      api: BaseModelApi) -> None:  # TODO add return for status
         """
         @param obj_tr:
         @param obj_bs:
         @return:
         """
         # check for errors and throw if there are any
-        future = self.write_threadpool_executor.submit(self.writer.cache_object, obj_tr=obj_tr, obj_bs=obj_bs)
+        future = self.write_threadpool_executor.submit(self.writer.cache_object, obj_tr=obj_tr, obj_bs=obj_bs, api=api)
         self.write_executing.add(future)
         future.add_done_callback(self._callback_write)
 
-    def _send_entity(self, api: BaseModelApi, obj_bs: BaseModel, params: Dict,
-                     **post_kwargs) -> None:  # TODO add return for status
+    def _send_entity(self, api: BaseModelApi, obj_bs: BaseModel, params: Dict) -> None:  # TODO add return for status
         """
         Queue an entity for sending (Dataset, DatasetTransformation, TrainingRun or ModelState)
         :param entity_dict: The details needed to send that entity. The same as for storing.
@@ -87,8 +86,7 @@ class Director:
         self._ensure_error_count_0()
         # put in queue for sending
         future = self.send_thread_executor.submit(
-            self.sender.create_object, api=api, obj_bs=obj_bs, paramsparams=params, **post_kwargs
-        )
+            self.sender.create_object, api=api, obj_bs=obj_bs, params=params)
         self.send_executing.add(future)
         future.add_done_callback(self._callback_send)
 

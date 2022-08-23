@@ -22,6 +22,7 @@ class SecleaAI(SecleaSessionMixin, DatabaseMixin, DirectorMixin):
             project_root: str = ".",
             platform_url: str = "https://platform.seclea.com",
             auth_url: str = "https://auth.seclea.com",
+            cache_dir: str = ".seclea/cache",
             username: str = None,
             password: str = None,
     ):
@@ -56,10 +57,9 @@ class SecleaAI(SecleaSessionMixin, DatabaseMixin, DirectorMixin):
                           project_name=project_name,
                           organization_name=organization,
                           platform_url=platform_url,
-                          auth_url=auth_url)
-        self.init_director(self.metadata, self.api)
+                          auth_url=auth_url,
+                          cache_dir=cache_dir)
+        self.init_director(cache_dir)
 
         # TODO add username and password?
         logger.debug("Successfully Initialised SecleaAI class")
-
-

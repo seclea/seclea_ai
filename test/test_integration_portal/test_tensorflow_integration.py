@@ -34,7 +34,7 @@ class TestIntegrationTensorflow(TestCase):
         self.start_timestamp = datetime.datetime.now()
         print(self.start_timestamp)
         self.password = "asdf"  # nosec
-        self.username = "onespanadmin"  # nosec
+        self.username = "admin"  # nosec
         self.organization = "Onespan"
         self.project = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
