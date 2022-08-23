@@ -54,7 +54,7 @@ class Director:
         Finalises all work and tidies up.
         :return: None
         """
-        # wait for the writes to complete
+        # TODO: [BUG] if this function is called just after cache_upload_object, objects will be sent twice.
         for future in chain(self.send_executing, self.write_executing):
             future.result()
             self._ensure_error_count_0()

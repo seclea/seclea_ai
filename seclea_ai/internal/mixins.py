@@ -14,6 +14,8 @@ from seclea_ai.lib.seclea_utils.object_management.mixin import ToFileMixin, Seri
     Project, Organization
 from seclea_ai.transformations import DatasetTransformation
 
+from seclea_ai.lib.seclea_utils.object_management.mixin import Dataset
+
 
 class APIMixin:
     _api: PlatformApi
@@ -290,32 +292,17 @@ class DatasetManager:
             categorical_values=categorical_values
         )
         metadata = {**metadata_defaults_spec, **dataset.object_manager.metadata}
-        # create local db record.
-        # TODO make lack of parent more obvious??
-
-        # New arch
-        # dataset_upload_kwargs = {
-        #     "entity": "dataset",
-        #     "record_id": dataset_record.id,
-        #     "dataset": dataset,
-        #     "dataset_name": dataset.object_manager.file_name,
-        #     "hash": dataset.object_manager.hash(dataset, self.project.uuid),
-        #     "metadata": metadata,
-        #     "project": self.project.uuid,
-        # }
         params = {
             "organization": self.organization.uuid,
             "project": self.project.uuid
         }
-        # add to storage and sending queues
-
-        from seclea_ai.lib.seclea_utils.object_management.mixin import Dataset
         dset = Dataset(
             metadata=metadata,
             name=dataset.object_manager.file_name,
             project=self.project.uuid,
             description="some description",
         )
+        # TODO: The record should only be created if it doesn't already exist...
         self.db.connect()
         dataset_record = Record.create(
             object_ser=dset.serialize(),
