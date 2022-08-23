@@ -33,7 +33,7 @@ class TestIntegrationXGBoost(TestCase):
 
     def step_0_project_setup(self):
         self.password = "asdf"  # nosec
-        self.username = "onespanadmin"  # nosec
+        self.username = "admin"  # nosec
         self.organization = "Onespan"
         self.project_name_1 = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
