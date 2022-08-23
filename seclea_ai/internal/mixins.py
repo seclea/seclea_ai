@@ -321,8 +321,9 @@ class DatasetManager:
             params=params,
             file=os.path.join(*dataset.save_tracked())
         )
-        print(dataset)
-
+        from seclea_ai.lib.seclea_utils.object_management.mixin import Dataset
+        dset=Dataset()
+        self.director.cache_upload_object(obj_tracked=dataset,obj_bs=None,api=self.api.datasets,params=params,)
 
 class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, ProjectManager, SerializerMixin,
                          MetadataMixin, ToFileMixin):

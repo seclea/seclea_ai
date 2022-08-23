@@ -1,10 +1,9 @@
 import os
-import uuid
 
-from pandas import DataFrame
-
+from seclea_ai.lib.seclea_utils.object_management import Tracked
 from .processor import Processor
 from ...internal.local_db import Record, RecordStatus
+from seclea_ai.lib.seclea_utils.object_management.mixin import BaseModel
 
 # TODO wrap all db requests in transactions to reduce clashes.
 
@@ -15,24 +14,23 @@ Exceptions to handle
 
 
 class Writer(Processor):
-    def __init__(self, settings):
-        super().__init__(settings=settings)
-        self._settings = settings
-        os.makedirs(self._settings["cache_dir"], exist_ok=True)
+    def __init__(self, cache_dir: str):
+        super().__init__(cache_dir)
 
-    def save_record(self, record_id):
-        dataset_record = Record.get_by_id(record_id)
+    def cache_object(self, obj_tr: Tracked, obj_bs: BaseModel):
+        """
+        saves tracked object into cache dir and updates record.
+        @param record_id:
+        @return:
+        """
+        record = Record.get_by_id(obj_bs.uuid)
         try:
-            # TODO take another look at this section.
-            path_root = uuid.uuid4()
-            dataset_path = self._settings["cache_dir"] / f"{path_root}_tmp.csv"
-
-            # update the record TODO refactor out.
-            dataset_record.path = dataset_path
-            dataset_record.size = os.path.getsize(dataset_path)
-            dataset_record.status = RecordStatus.STORED.value
-            dataset_record.save()
-        except Exception:
-            # update the record TODO refactor out.
-            dataset_record.status = RecordStatus.STORE_FAIL.value
-            dataset_record.save()
+            corr_path = os.path.join(self.cache_dir, obj_bs.__class__.__name__, obj_bs.uuid)
+            tmp_path = os.path.join(*obj_tr.save_tracked())
+            record.path = tmp_path
+            record.size = os.path.getsize(obj_tr)
+            record.status = RecordStatus.STORED.value
+        except Exception as e:
+            print(str(e))
+            record.status = RecordStatus.STORE_FAIL.value
+        record.save()

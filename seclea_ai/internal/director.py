@@ -3,14 +3,12 @@ File storing and uploading data to server
 """
 import logging
 from concurrent.futures import ThreadPoolExecutor, Future
-from typing import Dict, List, Callable
-import sys
+from itertools import chain
+from typing import Dict, Set
 
-from peewee import SqliteDatabase
-
-from .api.api_interface import PlatformApi
-from .api.exceptions import ApiError, AuthenticationError
-from .local_db import Record, RecordStatus
+from seclea_ai.internal.api.base import BaseModelApi
+from seclea_ai.lib.seclea_utils.object_management import Tracked
+from seclea_ai.lib.seclea_utils.object_management.mixin import BaseModel
 from .processors.sender import Sender
 from .processors.writer import Writer
 from .threading import SingleThreadTaskExecutor
@@ -18,22 +16,23 @@ from .threading import SingleThreadTaskExecutor
 logger = logging.getLogger("seclea_ai")
 
 
+class DirectorException(Exception):
+    pass
+
+
 class Director:
     """
     Something to wrap backend requests. Maybe use to change the base url??
     """
 
-    def __init__(self, settings, api, db):
+    def __init__(self, cache_dir: str):
         # setup some defaults
-        self._settings = settings
-        self._api: PlatformApi = api
-        self._db: SqliteDatabase = db
-        self.writer = Writer(settings=settings)
-        self.sender = Sender(settings=settings, api=api)
+        self.writer = Writer(cache_dir=cache_dir)
+        self.sender = Sender(cache_dir=cache_dir)
         self.write_threadpool_executor = ThreadPoolExecutor(max_workers=4)
         self.send_thread_executor = SingleThreadTaskExecutor()
-        self.send_executing: Dict[Future, Dict] = dict()
-        self.write_executing: List[Future] = list()
+        self.send_executing: Set[Future] = set()
+        self.write_executing: Set[Future] = set()
         self.errors = list()
 
     def __del__(self):
@@ -45,13 +44,10 @@ class Director:
         :return: None
         """
         # cancel any ongoing work.
-        for future in self.send_executing:
-            future.cancel()
-        for future in self.write_executing:
+        for future in chain(self.send_executing, self.write_executing):
             future.cancel()
         # wait until all resources freed
-        self.write_threadpool_executor.shutdown(wait=True)
-        self.send_thread_executor.shutdown(wait=True)
+        self._shutdown_threads()
 
     def complete(self) -> None:
         """
@@ -59,45 +55,72 @@ class Director:
         :return: None
         """
         # wait for the writes to complete
-        for future in self.write_executing:
+        for future in chain(self.send_executing, self.write_executing):
             future.result()
-            self._check_and_throw()
-        # wait for the last send to complete
-        for future in self.send_executing.keys():
-            future.result()
-            self._check_and_throw()
-        self.write_threadpool_executor.shutdown(wait=True)
-        self.send_thread_executor.shutdown(wait=True)
+            self._ensure_error_count_0()
+        self._shutdown_threads()
 
-    def store_entity(self, entity_dict: Dict) -> None:  # TODO add return for status
+    def cache_upload_object(self, obj_tracked: Tracked, obj_bs: BaseModel, api: BaseModelApi, params: dict,
+                            **post_kwargs):
+        self._store_entity(obj_tr=obj_tracked, obj_bs=obj_bs)
+        self._send_entity(api=api, obj_bs=obj_bs, params=params)
+
+    def _store_entity(self, obj_tr: Tracked, obj_bs: BaseModel) -> None:  # TODO add return for status
         """
-        Queue an entity for storing (Dataset, DatasetTransformation, TrainingRun or ModelState)
-        :param entity_dict: The details needed to store that entity. The same as for sending.
-        :return: None
+        @param obj_tr:
+        @param obj_bs:
+        @return:
         """
         # check for errors and throw if there are any
-        self._check_and_throw()
-        self._check_resources(entity_dict=entity_dict)
-        future = self.write_threadpool_executor.submit(
-            self.writer.save_record, **entity_dict
-        )
-        self.write_executing.append(future)
-        future.add_done_callback(self._write_completed)
+        future = self.write_threadpool_executor.submit(self.writer.cache_object, obj_tr=obj_tr, obj_bs=obj_bs)
+        self.write_executing.add(future)
+        future.add_done_callback(self._callback_write)
 
-    def send_entity(self, entity_dict: Dict) -> None:  # TODO add return for status
+    def _send_entity(self, api: BaseModelApi, obj_bs: BaseModel, params: Dict,
+                     **post_kwargs) -> None:  # TODO add return for status
         """
         Queue an entity for sending (Dataset, DatasetTransformation, TrainingRun or ModelState)
         :param entity_dict: The details needed to send that entity. The same as for storing.
         :return: None
         """
         # check for errors and throw if there are any
-        self._check_and_throw()
+        self._ensure_error_count_0()
         # put in queue for sending
         future = self.send_thread_executor.submit(
-            self.sender.send_record, **entity_dict
+            self.sender.create_object, api=api, obj_bs=obj_bs, paramsparams=params, **post_kwargs
         )
-        self.send_executing[future] = entity_dict
-        future.add_done_callback(self._send_completed)
+        self.send_executing.add(future)
+        future.add_done_callback(self._callback_send)
+
+    def _handle_callback(self, future, future_set: Set[Future], succsess_msg: str = "completed - "):
+        try:
+            result = future.result()
+        except Exception as e:
+            self.errors.append(e)
+        else:
+            logger.debug(f"{succsess_msg} {result}")
+        finally:
+            future_set.remove(future)
+
+    def _callback_write(self, future) -> None:
+        self._handle_callback(future, self.write_executing, "write complete - ")
+
+    def _callback_send(self, future) -> None:
+        self._handle_callback(future, self.send_executing, "send complete - ")
+
+    def _ensure_error_count_0(self):
+        """Check the error queue and throw any errors in there. Needed for user thread to deal with them"""
+        if len(self.errors) == 0:
+            return
+        # make sure the errors are printed so we don't miss any
+        for error in self.errors:
+            logger.error(error)
+        # we can only raise one so we raise the first one in the list.
+        raise DirectorException(f"Errors processing {len(self.errors)} requests to director, please check error logs.")
+
+    def _shutdown_threads(self, wait=True, **thread_kwargs):
+        self.write_threadpool_executor.shutdown(wait=wait, **thread_kwargs)
+        self.send_thread_executor.shutdown(wait=True, **thread_kwargs)
 
     def try_cleanup(self):
         """
@@ -106,82 +129,3 @@ class Director:
         :return: None
         """
         pass
-
-    def _write_completed(self, future) -> None:
-        try:
-            result = future.result()
-        except Exception as e:
-            self.errors.append(e)
-        else:
-            logger.debug(f"Write completed - {result}")
-        finally:
-            self.write_executing.remove(future)
-
-    def _send_completed(self, future) -> None:
-        # here we use a queue to guarantee the ordering and minimise dependency issues.
-        try:
-            result = future.result()
-        except AuthenticationError:
-            self._try_resend_with_action(future=future, function=self._api.auth.authenticate(self._api.session))
-        except ApiError:
-            self._try_resend_with_action(future=future)
-        except Exception as e:
-            # this is only caught if more specific doesn't catch which means it is something we can't deal with.
-            self.errors.append(e)
-        else:
-            logger.debug(f"Send completed - {result}")
-        finally:
-            del self.send_executing[future]
-
-    def _check_and_throw(self):
-        """Check the error queue and throw any errors in there. Needed for user thread to deal with them"""
-        if len(self.errors) == 0:
-            return
-        # make sure the errors are printed so we don't miss any
-        for error in self.errors:
-            logger.error(error)
-        # we can only raise one so we raise the first one in the list.
-        raise self.errors[0]
-
-    def _try_resend_with_action(self, future: Future, function: Callable = None) -> None:
-        """Try the request again with some action - only one retry"""
-        entity_dict = self.send_executing[future]
-        try:
-            if entity_dict["break"]:
-                raise Exception("tmp Director error ... check username, password ")
-        except KeyError:
-            entity_dict["break"] = True
-            if function is not None:
-                function()
-            new_future = self.send_thread_executor.submit_first(
-                self.sender.send_record, **entity_dict
-            )
-            self.send_executing[new_future] = entity_dict
-            new_future.add_done_callback(self._send_completed)
-
-    def _check_resources(self, entity_dict):
-        # get size in memory
-        if getattr(entity_dict, "dataset", None) is not None:
-            size = sys.getsizeof(entity_dict["dataset"])
-            stored_size = size / 10
-        elif getattr(entity_dict, "model", None) is not None:
-            size = sys.getsizeof(entity_dict["model"])
-            stored_size = size * 50
-        else:
-            return
-
-        # get currently used space from db
-        self._db.connect()
-        records = Record.get(Record.size == RecordStatus.STORED.value)
-        current_stored = 0
-        for record in records:
-            current_stored += record.size
-        self._db.close()
-
-        # break on storage overflow
-        if stored_size + current_stored > self._settings["max_storage_space"]:
-            raise MemoryError("Specified storage size exceeded")
-
-        # get size of entity
-        # limit is in director (from settings)
-        # if entity would exceed either memory or storage throw an error.
