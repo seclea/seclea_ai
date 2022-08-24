@@ -3,8 +3,8 @@ import uuid
 from unittest import TestCase
 
 import pandas as pd
-from sklearn.model_selection import train_test_split
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 
 from seclea_ai import SecleaAI
 from seclea_ai.transformations import DatasetTransformation
@@ -28,7 +28,7 @@ class TestIntegrationTensorflow(TestCase):
 
     def step_0_project_setup(self):
         self.password = "asdf"  # nosec
-        self.username = "onespanadmin"  # nosec
+        self.username = "admin"  # nosec
         self.organization = "Onespan"
         self.project_name = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
