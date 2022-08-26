@@ -47,7 +47,6 @@ class ABMixin(AMixin, BMixin, CMixin):
                 **CMixin.serialize(self)
                 }
 
-
 def process_n(n):
     """
     When n is even print "i'm even"
@@ -58,29 +57,84 @@ def process_n(n):
     """
     # Bedirhan write your code here
     if n % 2 == 0:
-        return ('im even')
+        # having nested if statements is not good practice
+        # you can also combine the logic of "im even" and "minecraft" (see examples bellow
+        if n % 5 == 0:
+            return 'im even minecraft'
+        else:
+            return 'im even'
     elif n % 5 == 0:
-        return ('minecraft')
+        return 'minecraft'
     else:
-        return (n + 1)
+        return n
 
 
-# this is a simple function you can reference from
-def multiply_by_2(n):
-    return n * 2
+def process_n_2(n):
+    # this is better but still too many if statements if we have more conditions
+    to_print = ''
+    if n % 2 == 0:
+        to_print += "i'm even "
+    if n % 5 == 0:
+        to_print += "minecraft "
+    if len(to_print) == 0:
+        to_print = str(n)
+    return to_print
 
 
-class ExampleClass:
-    def __init__(self, n):
-        self.n = n
+def process_n_3(n):
+    # this allows us to expand for many condition cleanly
+    condition_dict = {
+        2: "i'm even ",
+        5: "minecraft ",
+        6: "hello ",
+        12: "goodbye "
+    }
+    result = ''
 
-    def do_something(self):
-        self.n = multiply_by_2(self.n)
-        print(self.n)
+    for key, val in condition_dict.items():
+        if n % key == 0:
+            result += val
+    return result if result != '' else n
 
 
-def _assemble_kwargs(**kwargs):
-    return dict([(key, val) for key, val in kwargs.items() if val is not None])
+def driver(fn):
+    for i in range(10):
+        print(fn(i))
+
+a='asd'
+print(a[:10])
+if __name__ == "__main__":
+    print("======[ bedirhan's ]=======")
+    driver(process_n)
+    print("======[ octavio's 1]=======")
+    driver(process_n_2)
+    print("======[ octavio's 2]=======")
+    driver(process_n_3)
 
 
-print(_assemble_kwargs(hi=None, hi2=2, hi3='3'))
+""" expected output for n= 1,2,3,4,5,6,7,8,9,10:
+1
+i'm even
+3
+i'm even
+minecraft !
+i'm even
+7
+i'm even
+9
+i'm even minecraft!
+
+
+current output: THIS IS DIFFERENT ^
+im even
+2
+im even
+4
+im even
+minecraft
+im even
+8
+im even
+10
+
+"""

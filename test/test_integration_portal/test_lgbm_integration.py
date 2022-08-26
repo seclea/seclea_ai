@@ -209,13 +209,7 @@ class TestIntegrationLGBM(TestCase):
         self.controller.complete()
 
     def step_4_check_all_sent(self):
-        # check that all record statuses are RecordStatus.SENT.value
-        db = SqliteDatabase(
-            Path.home() / ".seclea" / "seclea_ai.db",
-            thread_safe=True,
-            pragmas={"journal_mode": "wal"},
-        )
-        db.connect()
+
         records = Record.select().where(Record.timestamp > self.start_timestamp)
         for idx, record in enumerate(records):
             self.assertEqual(

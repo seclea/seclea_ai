@@ -12,6 +12,7 @@ from seclea_ai.lib.seclea_utils.object_management.mixin import BaseModel
 from .processors.sender import Sender
 from .processors.writer import Writer
 from .threading import SingleThreadTaskExecutor
+from seclea_ai.internal.local_db import Record, RecordStatus
 
 logger = logging.getLogger("seclea_ai")
 
@@ -55,12 +56,17 @@ class Director:
         :return: None
         """
         # TODO: [BUG] if this function is called just after cache_upload_object, objects will be sent twice.
-        for future in chain(self.send_executing, self.write_executing):
+        for future in chain(self.send_executing.copy(), self.write_executing.copy()):
             future.result()
             self._ensure_error_count_0()
         self._shutdown_threads()
 
     def cache_upload_object(self, obj_tracked: Tracked, obj_bs: BaseModel, api: BaseModelApi, params: dict):
+        record = Record.create(
+            object_ser=obj_bs.serialize(),
+            status=RecordStatus.IN_MEMORY.value,
+        )
+        obj_bs.uuid = record.id
         self._store_entity(obj_tr=obj_tracked, obj_bs=obj_bs, api=api)
         self._send_entity(api=api, obj_bs=obj_bs, params=params)
 

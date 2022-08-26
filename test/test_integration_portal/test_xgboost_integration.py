@@ -257,12 +257,7 @@ class TestIntegrationXGBoost(TestCase):
 
     def step_4_check_all_sent(self):
         # check that all record statuses are RecordStatus.SENT.value
-        db = SqliteDatabase(
-            Path.home() / ".seclea" / "seclea_ai.db",
-            thread_safe=True,
-            pragmas={"journal_mode": "wal"},
-        )
-        db.connect()
+
         records = Record.select().where(Record.timestamp > self.start_timestamp)
         for idx, record in enumerate(records):
             self.assertEqual(
@@ -270,7 +265,6 @@ class TestIntegrationXGBoost(TestCase):
                 RecordStatus.SENT.value,
                 f"Entity {record.entity} at position {idx}, with id {record.id} not sent, current status: {record.status}",
             )
-        db.close()
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted

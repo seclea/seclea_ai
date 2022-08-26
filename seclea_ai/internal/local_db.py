@@ -1,17 +1,27 @@
 import datetime
 import json
+import os
 from enum import Enum
-from json import JSONDecodeError
 from pathlib import Path
 
 from peewee import CharField, DateTimeField, Field, IntegerField, Model, SqliteDatabase
 
 # TODO improve auth and pragmas etc.
 db = SqliteDatabase(
-    Path.home() / ".seclea" / "seclea_ai.db",
+    os.environ.get('DATABASE_PATH', ".seclea/seclea_ai.db"),
     thread_safe=True,
     pragmas={"journal_mode": "wal"},
 )
+
+
+def db_exec_wrapper(fn):
+    def wrap(*args, **kwargs):
+        db.connect()
+        result = fn(*args, **kwargs)
+        db.close()
+        return result
+
+    return wrap
 
 
 class RecordStatus(Enum):
@@ -51,6 +61,9 @@ class AuthService(BaseModel):
     value = CharField()
 
 
-db.connect()
-db.create_tables([Record, AuthService])
-db.close()
+@db_exec_wrapper
+def create_tables():
+    db.create_tables([Record, AuthService])
+
+
+create_tables()

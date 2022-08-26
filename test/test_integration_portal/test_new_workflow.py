@@ -1,5 +1,6 @@
 import datetime
 import os
+import time
 import uuid
 from unittest import TestCase
 
@@ -58,6 +59,7 @@ class TestImageDatasetUpload(TestCase):
             ],
         }
         self.controller.upload_dataset(self.sample_df)
+        self.controller.complete()
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
             if name.startswith("step"):

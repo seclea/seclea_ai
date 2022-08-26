@@ -6,13 +6,13 @@ from __future__ import annotations
 import logging
 import os
 
-from seclea_ai.internal.mixins import DatabaseMixin, DirectorMixin, SecleaSessionMixin
+from seclea_ai.internal.mixins import  DirectorMixin, SecleaSessionMixin
 
 logger = logging.getLogger(__name__)
 print(os.getcwd())
 
 
-class SecleaAI(SecleaSessionMixin, DatabaseMixin, DirectorMixin):
+class SecleaAI(SecleaSessionMixin, DirectorMixin):
     _training_run = None
 
     def __init__(

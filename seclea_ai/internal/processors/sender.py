@@ -33,7 +33,7 @@ class Sender(Processor):
                 f"Waited to long to store record: record should be {RecordStatus.STORED.value} status is:{tr_record.status}")
         try:
             print(f"Sending object {obj_bs.__class__}: {tr_record.object_ser.keys()}")
-            response = api.create(create_data=tr_record.object_ser, params=params)
+            response = api.create(create_data=tr_record.object_ser.copy(), params=params)
             print("response received")
             tr_record.status = RecordStatus.SENT.value
             tr_record.remote_id = response.uuid

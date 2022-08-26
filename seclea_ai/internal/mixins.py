@@ -31,7 +31,6 @@ class APIMixin:
 
 class DirectorMixin:
     _director: Director
-    db: SqliteDatabase
 
     def init_director(self, cache_dir):
         self._director = Director(cache_dir=cache_dir)
@@ -46,18 +45,6 @@ class DirectorMixin:
 
     def terminate(self):
         self._director.terminate()
-
-
-class DatabaseMixin:
-    _db: SqliteDatabase = SqliteDatabase(
-        Path.home() / ".seclea" / "seclea_ai.db",
-        thread_safe=True,
-        pragmas={"journal_mode": "wal"},
-    )
-
-    @property
-    def db(self):
-        return self._db
 
 
 class TrainingRunMixin:
@@ -264,22 +251,15 @@ class UserManager:
 class DatasetManager:
     api: PlatformApi
     organization: Organization
-    db: DatabaseMixin.db
     director: DirectorMixin.director
     project: Project
 
-    def upload_dataset(self, dataset: Tracked, transformations: List[DatasetTransformation] = None):
-        """
-        # assemble all necessary metadata,
-        # compress into file
-        # upload
-
-        """
-        # validation
+    @staticmethod
+    def _get_default_metadata(dataset: Tracked):
         features = list(getattr(dataset, 'columns', []))
         categorical_features = list(set(features) - set(dataset.object_manager.metadata.get("continuous_features", [])))
         categorical_values = [{col: dataset[col].unique().tolist()} for col in categorical_features]
-        metadata_defaults_spec = dict(
+        return dict(
             continuous_features=[],
             outcome_name=None,
             num_samples=len(dataset),
@@ -291,7 +271,16 @@ class DatasetManager:
             categorical_features=categorical_features,
             categorical_values=categorical_values
         )
-        metadata = {**metadata_defaults_spec, **dataset.object_manager.metadata}
+
+    def upload_dataset(self, dataset: Tracked, transformations: List[DatasetTransformation] = None):
+        """
+        # assemble all necessary metadata,
+        # compress into file
+        # upload
+
+        """
+        # validation
+        metadata = {**self._get_default_metadata(dataset), **dataset.object_manager.metadata}
         params = {
             "organization": self.organization.uuid,
             "project": self.project.uuid
@@ -300,17 +289,11 @@ class DatasetManager:
             metadata=metadata,
             name=dataset.object_manager.file_name,
             project=self.project.uuid,
+            hash=dataset.object_manager.hash(dataset, self.project.uuid),
             description="some description",
         )
         # TODO: The record should only be created if it doesn't already exist...
-        self.db.connect()
-        dataset_record = Record.create(
-            object_ser=dset.serialize(),
-            status=RecordStatus.IN_MEMORY.value,
-        )
-        # TODO remove this,
-        dset.uuid = dataset_record.id
-        self.db.close()
+
         self.director.cache_upload_object(obj_tracked=dataset, obj_bs=dset, api=self.api.datasets, params=params)
 
 
@@ -360,8 +343,11 @@ class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, Proje
         self.api = PlatformApi(auth_url=auth_url, platform_url=platform_url, username=username, password=password)
         self.init_organization(name=organization_name)
         self.init_project(project_name, self.organization.uuid)
-        self.cache_session()
 
+    def __del__(self):
+        self.cache_session()
+        self.api.session.close()
+        self.api.auth
     def cache_session(self):
         # ensure path exists
         self.metadata.update(self.serialize())
