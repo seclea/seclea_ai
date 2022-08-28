@@ -26,26 +26,19 @@ class TestImageDatasetUpload(TestCase):
     """
 
     def setUp(self) -> None:
-        self.start_timestamp = datetime.datetime.now()
-        self.password = "asdf"  # nosec
-        self.username = "admin"  # nosec
-        self.organization = "Onespan"
-        self.project = f"test-project-{uuid.uuid4()}"
-        self.portal_url = "http://localhost:8000"
-        self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
-            project_name=self.project,
-            organization=self.organization,
-            platform_url=self.portal_url,
-            auth_url=self.auth_url,
-            username=self.username,
-            password=self.password,
+            project_name=f"test-project-{uuid.uuid4()}",
+            organization="Onespan",
+            platform_url="http://localhost:8000",
+            auth_url="http://localhost:8010",
+            username="admin",
+            password="asdf",
         )
 
     def step_1_upload_dataset(self):
-        self.sample_df = Tracked(pd.read_csv(f"{folder_path}/adult_data.csv", index_col=0))
-        self.sample_df_name = "Census dataset"
-        self.sample_df_meta = {
+        self.df1 = Tracked(pd.read_csv(f"{folder_path}/adult_data.csv", index_col=0))
+        self.df1_name = "Census dataset"
+        self.df1_meta = {
             "outcome_name": "income-per-year",
             "favourable_outcome": ">50k",
             "unfavourable_outcome": "<=50k",
@@ -58,7 +51,7 @@ class TestImageDatasetUpload(TestCase):
                 "hours-per-week",
             ],
         }
-        self.controller.upload_dataset(self.sample_df)
+        self.controller.upload_dataset(self.df1)
         self.controller.complete()
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
