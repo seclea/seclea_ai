@@ -10,8 +10,14 @@ from seclea_ai.internal.api.api_interface import PlatformApi
 from seclea_ai.internal.director import Director
 from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.lib.seclea_utils.object_management import Tracked
-from seclea_ai.lib.seclea_utils.object_management.mixin import ToFileMixin, SerializerMixin, MetadataMixin, User, \
-    Project, Organization
+from seclea_ai.lib.seclea_utils.object_management.mixin import (
+    ToFileMixin,
+    SerializerMixin,
+    MetadataMixin,
+    User,
+    Project,
+    Organization,
+)
 from seclea_ai.transformations import DatasetTransformation
 
 from seclea_ai.lib.seclea_utils.object_management.mixin import Dataset
@@ -191,12 +197,14 @@ class OrganizationManager:
 
     @property
     def organization(self):
-        if getattr(self, '_organization', None) is None:
+        if getattr(self, "_organization", None) is None:
             self._organization = Organization()
         return self._organization
 
     def init_organization(self, uuid=None, name=None):
-        self._organization = self.api.organizations.get_one_from_list(uuid=uuid, name=name, params=dict())
+        self._organization = self.api.organizations.get_one_from_list(
+            uuid=uuid, name=name, params=dict()
+        )
         print(self._organization)
 
 
@@ -206,19 +214,23 @@ class ProjectManager:
 
     @property
     def project(self) -> Project:
-        if getattr(self, '_project', None) is None:
+        if getattr(self, "_project", None) is None:
             self._project = Project()
         return self._project
 
     def init_project(self, project_name: str, organization_id: Organization.uuid):
         try:
-            self._project = self.api.projects.get_one_from_list(name=project_name, organization=organization_id)
+            self._project = self.api.projects.get_one_from_list(
+                name=project_name, organization=organization_id
+            )
             return
         except Exception as e:
-            print(f'Error getting project {e} attemptin initialization of new project:')
+            print(f"Error getting project {e} attemptin initialization of new project:")
         try:
-            self._project = self.api.projects.create({'name': project_name, 'organization': organization_id},
-                                                     {'organization': organization_id})
+            self._project = self.api.projects.create(
+                {"name": project_name, "organization": organization_id},
+                {"organization": organization_id},
+            )
         except Exception as e:
             print(f"Failed to init new project: {e}")
             raise
@@ -230,7 +242,7 @@ class UserManager:
 
     @property
     def user(self):
-        if getattr(self, '_user', None) is None:
+        if getattr(self, "_user", None) is None:
             self._user = User()
         return self._user
 
@@ -256,8 +268,10 @@ class DatasetManager:
 
     @staticmethod
     def _get_default_metadata(dataset: Tracked):
-        features = list(getattr(dataset, 'columns', []))
-        categorical_features = list(set(features) - set(dataset.object_manager.metadata.get("continuous_features", [])))
+        features = list(getattr(dataset, "columns", []))
+        categorical_features = list(
+            set(features) - set(dataset.object_manager.metadata.get("continuous_features", []))
+        )
         categorical_values = [{col: dataset[col].unique().tolist()} for col in categorical_features]
         return dict(
             continuous_features=[],
@@ -269,7 +283,7 @@ class DatasetManager:
             split=None,
             features=features,
             categorical_features=categorical_features,
-            categorical_values=categorical_values
+            categorical_values=categorical_values,
         )
 
     def upload_dataset(self, dataset: Tracked, transformations: List[DatasetTransformation] = None):
@@ -281,10 +295,7 @@ class DatasetManager:
         """
         # validation
         metadata = {**self._get_default_metadata(dataset), **dataset.object_manager.metadata}
-        params = {
-            "organization": self.organization.uuid,
-            "project": self.project.uuid
-        }
+        params = {"organization": self.organization.uuid, "project": self.project.uuid}
         dset = Dataset(
             metadata=metadata,
             name=dataset.object_manager.file_name,
@@ -294,10 +305,14 @@ class DatasetManager:
         )
         # TODO: The record should only be created if it doesn't already exist...
 
-        self.director.cache_upload_object(obj_tracked=dataset, obj_bs=dset, api=self.api.datasets, params=params)
+        self.director.cache_upload_object(
+            obj_tracked=dataset, obj_bs=dset, api=self.api.datasets, params=params
+        )
 
 
-class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, ProjectManager, MetadataMixin, ToFileMixin):
+class SecleaSessionMixin(
+    UserManager, DatasetManager, OrganizationManager, ProjectManager, MetadataMixin, ToFileMixin
+):
     _platform_url: str
     _auth_url: str
     _cache_path: str = ".seclea/cache"
@@ -315,14 +330,17 @@ class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, Proje
     def auth_url(self):
         return self._auth_url
 
-    def init_session(self, username: str,
-                     password: str,
-                     project_name: str,
-                     organization_name: str,
-                     project_root: str = ".",
-                     platform_url: str = "https://platform.seclea.com",
-                     auth_url: str = "https://auth.seclea.com",
-                     cache_dir: str = '.'):
+    def init_session(
+        self,
+        username: str,
+        password: str,
+        project_name: str,
+        organization_name: str,
+        project_root: str = ".",
+        platform_url: str = "https://platform.seclea.com",
+        auth_url: str = "https://auth.seclea.com",
+        cache_dir: str = ".",
+    ):
         """
         @param username: seclea platform username
         @param password: seclea platform password
@@ -336,11 +354,13 @@ class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, Proje
         self._cache_path = cache_dir
         self.file_name = project_name
         self.path = os.path.join(project_root, self._cache_path)
-        self.user.username = username,
+        self.user.username = (username,)
         self.user.password = password
         self._auth_url = auth_url
         self._platform_url = platform_url
-        self.api = PlatformApi(auth_url=auth_url, platform_url=platform_url, username=username, password=password)
+        self.api = PlatformApi(
+            auth_url=auth_url, platform_url=platform_url, username=username, password=password
+        )
         self.init_organization(name=organization_name)
         self.init_project(project_name, self.organization.uuid)
 
@@ -348,24 +368,26 @@ class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, Proje
         self.cache_session()
         self.api.session.close()
         self.api.auth
+
     def cache_session(self):
         # ensure path exists
         self.metadata.update(self.serialize())
         self.save_metadata(self.full_path)
 
     def serialize(self):
-        return {"platform_url": self.platform_url,
-                "auth_url": self.auth_url,
-                "offline": self.offline,
-                "project": self.project.serialize(),
-                "user": self.user.serialize()
-                }
+        return {
+            "platform_url": self.platform_url,
+            "auth_url": self.auth_url,
+            "offline": self.offline,
+            "project": self.project.serialize(),
+            "user": self.user.serialize(),
+        }
 
     def deserialize(self, obj: dict):
-        self._platform_url = obj.get('platform_url')
-        self._auth_url = obj.get('auth_url')
-        self.project.deserialize(obj.get('project'))
-        self.user.deserialize(obj.get('user'))
+        self._platform_url = obj.get("platform_url")
+        self._auth_url = obj.get("auth_url")
+        self.project.deserialize(obj.get("project"))
+        self.user.deserialize(obj.get("user"))
 
     def __hash__(self):
         pass

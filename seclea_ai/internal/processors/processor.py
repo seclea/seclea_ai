@@ -10,7 +10,7 @@ def _assemble_key(record) -> str:
 
 
 class Processor(ABC):
-    cache_dir: str = '.'
+    cache_dir: str = "."
 
     def __init__(self, cache_dir, **kwargs):
         os.makedirs(cache_dir, exist_ok=True)

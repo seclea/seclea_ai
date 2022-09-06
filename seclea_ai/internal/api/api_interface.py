@@ -14,11 +14,16 @@ class PlatformApi:
         self.session = Session()
         self.auth.authenticate(self.session, username=username, password=password)
 
-        collection_base_url = f'{platform_url}/collection/'
-        self.organizations = collection.OrganizationApi(base_url=platform_url + '/', session=self.session)
+        collection_base_url = f"{platform_url}/collection/"
+        self.organizations = collection.OrganizationApi(
+            base_url=platform_url + "/", session=self.session
+        )
         self.projects = collection.ProjectApi(base_url=collection_base_url, session=self.session)
         self.datasets = collection.DatasetApi(base_url=collection_base_url, session=self.session)
-        self.dataset_transformations = collection.DatasetTransformationApi(base_url=collection_base_url,
-                                                                           session=self.session)
+        self.dataset_transformations = collection.DatasetTransformationApi(
+            base_url=collection_base_url, session=self.session
+        )
         self.models = collection.ModelApi(base_url=collection_base_url, session=self.session)
-        self.model_states = collection.ModelStateApi(base_url=collection_base_url, session=self.session)
+        self.model_states = collection.ModelStateApi(
+            base_url=collection_base_url, session=self.session
+        )

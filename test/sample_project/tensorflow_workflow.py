@@ -51,11 +51,9 @@ train_ds = tf.keras.utils.image_dataset_from_directory(
 train_ds: Union[tf.data.Dataset, Tracked] = Tracked(train_ds)
 train_ds.object_manager.full_path = save_path, save_name
 train_ds.object_manager.metadata.update({"class_names": train_ds.class_names})
-s_path,s_name=train_ds.save_tracked()
+s_path, s_name = train_ds.save_tracked()
 
-train_ds_l = Tracked.load_tracked(
-    file_name=s_name, path=s_path
-)
+train_ds_l = Tracked.load_tracked(file_name=s_name, path=s_path)
 train_ds_l.class_names = train_ds_l.object_manager.metadata.get("class_names")
 train_ds = train_ds_l
 val_ds = tf.keras.utils.image_dataset_from_directory(

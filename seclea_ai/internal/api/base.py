@@ -11,14 +11,13 @@ import json
 
 
 class BaseModelApi:
-
     def __init__(self, base_url: str, session: Session):
         """
 
         @param base_url:
         @param session:
         """
-        self.url = f'{base_url}{self.model_url}'
+        self.url = f"{base_url}{self.model_url}"
         self.session = session
 
     @property
@@ -43,13 +42,13 @@ class BaseModelApi:
 
     @staticmethod
     def process_response(resp: Response, expected_code=HTTP_200_OK):
-        print('processing response: ', resp.status_code, resp.reason, resp.text[:20])
+        print("processing response: ", resp.status_code, resp.reason, resp.text[:20])
         if resp.status_code != expected_code:
             err_cls = API_ERROR_CODE_EXCEPTION_MAPPER[resp.status_code]
             raise err_cls(resp=resp)
 
     def get_list(self, params: dict) -> List[BaseModel]:
-        resp = self.session.get(url=self.url + '/', params=params)
+        resp = self.session.get(url=self.url + "/", params=params)
         self.process_response(resp)
         return [self.model(**d) for d in resp.json()]
 
@@ -60,7 +59,7 @@ class BaseModelApi:
         @param params:
         @return:
         """
-        resp = self.session.get(url=f'{self.url}/{pk}', params=params)
+        resp = self.session.get(url=f"{self.url}/{pk}", params=params)
         self.process_response(resp)
         return self.model(**resp.json())
 
@@ -68,15 +67,17 @@ class BaseModelApi:
         result = self.get_list(params=params)
         if len(result) == 1:
             return result[0]
-        raise Exception(f'Incorrect number of arguments returned, filter: {params} result: {result}')
+        raise Exception(
+            f"Incorrect number of arguments returned, filter: {params} result: {result}"
+        )
 
     def delete(self, pk, params: dict) -> BaseModel:
-        resp = self.session.delete(url=f'{self.url}/{pk}', params=params)
+        resp = self.session.delete(url=f"{self.url}/{pk}", params=params)
         self.process_response(resp)
         return self.model(**resp.json())
 
     def patch(self, pk, patch_data: dict, params: dict) -> BaseModel:
-        resp = self.session.patch(url=f'{self.url}/{pk}', params=params, data=patch_data)
+        resp = self.session.patch(url=f"{self.url}/{pk}", params=params, data=patch_data)
         self.process_response(resp)
         return self.model(**resp.json())
 
@@ -87,29 +88,30 @@ class BaseModelApi:
         @return:
         """
         # temporary generic file upload workaround.
-        print('create object initiated: ', params)
+        print("create object initiated: ", params)
         if len(self.file_keys) > 0:
             files = []  # store any opened files for cleanup after response.
             for key, val in create_data.items():
                 if key in self.file_keys:
-                    f = open(create_data[key], 'rb')
+                    f = open(create_data[key], "rb")
                     files.append(f)
                     create_data[key] = (key, f)
                 elif key in self.json_keys:
-                    create_data[key] = (None, json.dumps(val), 'application/json')
+                    create_data[key] = (None, json.dumps(val), "application/json")
                 else:
                     create_data[key] = (None, create_data[key])
 
             print("sending request: ", create_data.keys())
-            resp = self.session.post(url=f'{self.url}', params=params, files=create_data)
+            resp = self.session.post(url=f"{self.url}", params=params, files=create_data)
             for f in files:
                 f.close()
         else:
             print("sending request: ", create_data)
-            resp = self.session.post(url=f'{self.url}', params=params, data=create_data)
+            resp = self.session.post(url=f"{self.url}", params=params, data=create_data)
         print("create object complete")
         self.process_response(resp, expected_code=HTTP_201_CREATED)
         return self.model(**resp.json())
+
     # def upload_dataset(
     #     self,
     #     dataset_file_path: str,

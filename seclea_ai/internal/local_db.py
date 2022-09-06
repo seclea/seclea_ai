@@ -8,7 +8,7 @@ from peewee import CharField, DateTimeField, Field, IntegerField, Model, SqliteD
 
 # TODO improve auth and pragmas etc.
 db = SqliteDatabase(
-    os.environ.get('DATABASE_PATH', ".seclea/seclea_ai.db"),
+    os.environ.get("DATABASE_PATH", ".seclea/seclea_ai.db"),
     thread_safe=True,
     pragmas={"journal_mode": "wal"},
 )

@@ -10,24 +10,24 @@ class CMixin:
         self._c = val
 
     def serialize(self):
-        return {'bd': 'hi'}
+        return {"bd": "hi"}
 
 
 class AMixin(CMixin):
     def a(self):
-        print('hi a: ', self.c)
-        self.c = 'k'
+        print("hi a: ", self.c)
+        self.c = "k"
 
     def serialize(self):
-        return {'bc': 'hi'}
+        return {"bc": "hi"}
 
 
 class BMixin(CMixin):
     def b(self):
-        print('hi b: ', self.c)
+        print("hi b: ", self.c)
 
     def serialize(self):
-        return {'bk': 'hi'}
+        return {"bk": "hi"}
 
 
 class ABMixin(AMixin, BMixin, CMixin):
@@ -41,11 +41,13 @@ class ABMixin(AMixin, BMixin, CMixin):
         AMixin.serialize(self)
         BMixin.serialize(self)
         CMixin.serialize(self)
-        return {**{'b': 'hi'},
-                **AMixin.serialize(self),
-                **BMixin.serialize(self),
-                **CMixin.serialize(self)
-                }
+        return {
+            **{"b": "hi"},
+            **AMixin.serialize(self),
+            **BMixin.serialize(self),
+            **CMixin.serialize(self),
+        }
+
 
 def process_n(n):
     """
@@ -60,18 +62,18 @@ def process_n(n):
         # having nested if statements is not good practice
         # you can also combine the logic of "im even" and "minecraft" (see examples bellow
         if n % 5 == 0:
-            return 'im even minecraft'
+            return "im even minecraft"
         else:
-            return 'im even'
+            return "im even"
     elif n % 5 == 0:
-        return 'minecraft'
+        return "minecraft"
     else:
         return n
 
 
 def process_n_2(n):
     # this is better but still too many if statements if we have more conditions
-    to_print = ''
+    to_print = ""
     if n % 2 == 0:
         to_print += "i'm even "
     if n % 5 == 0:
@@ -83,25 +85,21 @@ def process_n_2(n):
 
 def process_n_3(n):
     # this allows us to expand for many condition cleanly
-    condition_dict = {
-        2: "i'm even ",
-        5: "minecraft ",
-        6: "hello ",
-        12: "goodbye "
-    }
-    result = ''
+    condition_dict = {2: "i'm even ", 5: "minecraft ", 6: "hello ", 12: "goodbye "}
+    result = ""
 
     for key, val in condition_dict.items():
         if n % key == 0:
             result += val
-    return result if result != '' else n
+    return result if result != "" else n
 
 
 def driver(fn):
     for i in range(10):
         print(fn(i))
 
-a='asd'
+
+a = "asd"
 print(a[:10])
 if __name__ == "__main__":
     print("======[ bedirhan's ]=======")

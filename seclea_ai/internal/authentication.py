@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def handle_response(res: Response, msg):
     if not res.ok:
-        print(f"{msg}: {res.status_code} - {res.reason}" )
+        print(f"{msg}: {res.status_code} - {res.reason}")
 
 
 # TODO fix this - the flow either here or in the threads is not working consistently.

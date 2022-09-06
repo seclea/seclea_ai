@@ -38,7 +38,7 @@ class Writer(Processor):
             for key in api.file_keys:
                 record.object_ser.update({key: record.path})
         except Exception as e:
-            print('Cache error ', str(e))
+            print("Cache error ", str(e))
             traceback.print_exc()
             record.status = RecordStatus.STORE_FAIL.value
         print("CACHE COMPLETE")

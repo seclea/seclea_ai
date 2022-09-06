@@ -1,6 +1,6 @@
 from inspect import signature
 
-TRANFORM_WRAPPER_NAME = '_transform_wrapper'
+TRANFORM_WRAPPER_NAME = "_transform_wrapper"
 
 
 def tracked_transform(fn):

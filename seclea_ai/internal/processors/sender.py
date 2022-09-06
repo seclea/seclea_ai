@@ -23,14 +23,15 @@ class Sender(Processor):
         max_time = 10
         time_passed = 0
         while tr_record.status != RecordStatus.STORED.value and time_passed < max_time:
-            print('awaiting store: ', time_passed, ' ', tr_record.status)
+            print("awaiting store: ", time_passed, " ", tr_record.status)
             time.sleep(interval)
             time_passed += interval
             tr_record = Record.get_by_id(obj_bs.uuid)
 
         if time_passed > max_time:
             raise Exception(
-                f"Waited to long to store record: record should be {RecordStatus.STORED.value} status is:{tr_record.status}")
+                f"Waited to long to store record: record should be {RecordStatus.STORED.value} status is:{tr_record.status}"
+            )
         try:
             print(f"Sending object {obj_bs.__class__}: {tr_record.object_ser.keys()}")
             response = api.create(create_data=tr_record.object_ser.copy(), params=params)

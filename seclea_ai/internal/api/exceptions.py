@@ -11,7 +11,7 @@ class ApiError(Exception):
 
     def __init__(self, resp: Response, msg=None):
         if msg is None:
-            msg = f'Api error: {resp.status_code}, {resp.content}, {resp.reason}'
+            msg = f"Api error: {resp.status_code}, {resp.content}, {resp.reason}"
         super().__init__(msg)
 
 
@@ -19,6 +19,7 @@ class AuthenticationError(ApiError):
     """
     Exception for errors related to authentication
     """
+
     status_codes = [HTTP_401_UNAUTHORIZED]
 
 

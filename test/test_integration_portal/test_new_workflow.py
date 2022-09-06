@@ -8,6 +8,7 @@ import pandas as pd
 
 from seclea_ai import SecleaAI
 from seclea_ai.lib.seclea_utils.object_management import Tracked
+
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
 
@@ -53,6 +54,7 @@ class TestImageDatasetUpload(TestCase):
         }
         self.controller.upload_dataset(self.df1)
         self.controller.complete()
+
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
             if name.startswith("step"):

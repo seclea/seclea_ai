@@ -56,14 +56,14 @@ def get_dataset(self, dataset_id: str, project: Project) -> Response:
 
 
 def upload_dataset(
-        self,
-        dataset_file_path: str,
-        project_id: str,
-        organization_id: str,
-        name: str,
-        metadata: dict,
-        hash: int,
-        parent_dataset_id: str = None,
+    self,
+    dataset_file_path: str,
+    project_id: str,
+    organization_id: str,
+    name: str,
+    metadata: dict,
+    hash: int,
+    parent_dataset_id: str = None,
 ) -> Response:
     dataset_queryparams = {"project": project_id, "organization": organization_id}
     self.test_json_valid(metadata)
@@ -143,13 +143,13 @@ def get_training_runs(self, project_id: int, organization_id: str, **filter_kwar
 
 # TODO review typing.
 def upload_training_run(
-        self,
-        organization_id: int,
-        project_id: int,
-        dataset_ids: List[str],
-        model_id: int,
-        training_run_name: str,
-        params: Dict,
+    self,
+    organization_id: int,
+    project_id: int,
+    dataset_ids: List[str],
+    model_id: int,
+    training_run_name: str,
+    params: Dict,
 ):
     data = {
         "organization": organization_id,
@@ -171,13 +171,13 @@ def upload_training_run(
 
 
 def upload_model_state(
-        self,
-        model_state_file_path: str,
-        organization_id: str,
-        project_id: str,
-        training_run_id: int,
-        sequence_num: int,
-        final_state,
+    self,
+    model_state_file_path: str,
+    organization_id: str,
+    project_id: str,
+    training_run_id: int,
+    sequence_num: int,
+    final_state,
 ):
     with open(model_state_file_path, "rb") as f:
         res = self._session.post(
@@ -199,7 +199,7 @@ def upload_model_state(
 
 
 def upload_transformation(
-        self, name: str, code_raw, code_encoded, dataset_id: int, organization_id, project_id
+    self, name: str, code_raw, code_encoded, dataset_id: int, organization_id, project_id
 ):
     data = {
         "name": name,

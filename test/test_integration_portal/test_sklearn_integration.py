@@ -58,20 +58,22 @@ class TestIntegrationSKLearn(TestCase):
         self.df_1.object_manager.file_name = dataset_file_name[:-4]
         self.df_1.object_manager.path = folder_path
         self.df_1.object_manager.metadata.update({"dataset_name": dataset_name})
-        self.df_1.object_manager.metadata.update({
-            "outcome_name": "fraud_reported",
-            "favourable_outcome": "N",
-            "unfavourable_outcome": "Y",
-            "continuous_features": [
-                "total_claim_amount",
-                "policy_annual_premium",
-                "capital-gains",
-                "capital-loss",
-                "injury_claim",
-                "property_claim",
-                "incident_hour_of_the_day",
-            ],
-        })
+        self.df_1.object_manager.metadata.update(
+            {
+                "outcome_name": "fraud_reported",
+                "favourable_outcome": "N",
+                "unfavourable_outcome": "Y",
+                "continuous_features": [
+                    "total_claim_amount",
+                    "policy_annual_premium",
+                    "capital-gains",
+                    "capital-loss",
+                    "injury_claim",
+                    "property_claim",
+                    "incident_hour_of_the_day",
+                ],
+            }
+        )
         self.controller.upload_dataset(self.df_1)
 
     def step_2_define_transformations(self):
