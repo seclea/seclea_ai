@@ -18,7 +18,6 @@ from seclea_ai.lib.seclea_utils.object_management.mixin import (
     Project,
     Organization,
 )
-from seclea_ai.transformations import DatasetTransformation
 
 from seclea_ai.lib.seclea_utils.object_management.mixin import Dataset
 
@@ -286,7 +285,7 @@ class DatasetManager:
             categorical_values=categorical_values,
         )
 
-    def upload_dataset(self, dataset: Tracked, transformations: List[DatasetTransformation] = None):
+    def upload_dataset(self, dataset: Tracked):
         """
         # assemble all necessary metadata,
         # compress into file
@@ -310,9 +309,7 @@ class DatasetManager:
         )
 
 
-class SecleaSessionMixin(
-    UserManager, DatasetManager, OrganizationManager, ProjectManager, MetadataMixin, ToFileMixin
-):
+class SecleaSessionMixin(UserManager, DatasetManager, OrganizationManager, ProjectManager, MetadataMixin, ToFileMixin):
     _platform_url: str
     _auth_url: str
     _cache_path: str = ".seclea/cache"

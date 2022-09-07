@@ -7,8 +7,7 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import matplotlib.pyplot as plt
 
-from seclea_ai.lib.seclea_utils.object_management import Tracked
-
+from seclea_ai.lib.seclea_utils.object_management import Tracked,tracked_decorator
 save_path = "data/"
 save_name = "_test_dataset"
 print(tf.__version__)
@@ -51,19 +50,24 @@ train_ds = tf.keras.utils.image_dataset_from_directory(
 train_ds: Union[tf.data.Dataset, Tracked] = Tracked(train_ds)
 train_ds.object_manager.full_path = save_path, save_name
 train_ds.object_manager.metadata.update({"class_names": train_ds.class_names})
-s_path, s_name = train_ds.save_tracked()
+# s_path, s_name = train_ds.save_tracked()
+#
+# train_ds_l = Tracked.load_tracked(file_name=s_name, path=s_path)
+# train_ds_l.class_names = train_ds_l.object_manager.metadata.get("class_names")
+# train_ds = train_ds_l
 
-train_ds_l = Tracked.load_tracked(file_name=s_name, path=s_path)
-train_ds_l.class_names = train_ds_l.object_manager.metadata.get("class_names")
-train_ds = train_ds_l
-val_ds = tf.keras.utils.image_dataset_from_directory(
-    data_dir,
-    validation_split=0.2,
-    subset="validation",
-    seed=123,
-    image_size=(img_height, img_width),
-    batch_size=batch_size,
-)
+
+@tracked_decorator
+def get_val_ds(path=None, split=0.2, speed=123, image_size=(180, 180), batch_size=32):
+    return tf.keras.utils.image_dataset_from_directory(
+        path,
+        validation_split=split,
+        subset="validation",
+        seed=speed,
+        image_size=image_size,
+        batch_size=batch_size,
+    )
+val_ds = Tracked(get_val_ds(path=data_dir))
 class_names = train_ds.class_names
 print(class_names)
 

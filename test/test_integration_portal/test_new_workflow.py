@@ -38,8 +38,8 @@ class TestImageDatasetUpload(TestCase):
 
     def step_1_upload_dataset(self):
         self.df1 = Tracked(pd.read_csv(f"{folder_path}/adult_data.csv", index_col=0))
-        self.df1_name = "Census dataset"
-        self.df1_meta = {
+        # self.df1.object_manager.name = "Census dataset"
+        self.df1.object_manager.metadata = {
             "outcome_name": "income-per-year",
             "favourable_outcome": ">50k",
             "unfavourable_outcome": "<=50k",
