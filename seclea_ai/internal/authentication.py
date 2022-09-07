@@ -6,8 +6,7 @@ from pathlib import Path
 from peewee import SqliteDatabase
 from requests import Response, Session
 
-from seclea_ai.internal.exceptions import AuthenticationError
-
+from seclea_ai.internal.api.exceptions import AuthenticationError
 from seclea_ai.internal.local_db import AuthService
 
 try:
@@ -23,18 +22,13 @@ logger = logging.getLogger(__name__)
 
 def handle_response(res: Response, msg):
     if not res.ok:
-        print(f"{msg}: {res.status_code} - {res.reason} - {res.text}")
+        print(f"{msg}: {res.status_code} - {res.reason}")
 
 
 # TODO fix this - the flow either here or in the threads is not working consistently.
 class AuthenticationService:
     def __init__(self, url: str):
         self._url = url
-        self._db = SqliteDatabase(
-            Path.home() / ".seclea" / "seclea_ai.db",
-            thread_safe=True,
-            pragmas={"journal_mode": "wal"},
-        )
         self._path_token_obtain = "api/token/obtain/"  # nosec - bandit thinks this is a pw or key..
         self._path_token_refresh = (
             "api/token/refresh/"  # nosec - bandit thinks this is a pw or key..
@@ -51,11 +45,9 @@ class AuthenticationService:
 
         :return:
         """
-        self._db.connect()
         if not self.verify_token(session=session):
             if not self.refresh_token(session=session):
                 self._obtain_initial_tokens(session=session, username=username, password=password)
-        self._db.close()
 
     def verify_token(self, session: Session) -> bool:
         """
@@ -149,5 +141,5 @@ class AuthenticationService:
             f"Initial Tokens - Status: {response.status_code} - content {response.content} - cookies - {response.cookies}"
         )
         if response.status_code != 200:
-            raise AuthenticationError(f"status:{response.status_code}, content:{response.content}")
+            raise AuthenticationError(response)
         self._save_response_tokens(response)

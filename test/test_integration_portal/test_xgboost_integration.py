@@ -38,13 +38,13 @@ class TestIntegrationXGBoost(TestCase):
     def step_0_project_setup(self):
         self.start_timestamp = datetime.datetime.now()
         self.password = "asdf"  # nosec
-        self.username = "onespanadmin"  # nosec
+        self.username = "admin"  # nosec
         self.organization = "Onespan"
-        self.project_name = f"test-project-{uuid.uuid4()}"
+        self.project = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
-            project_name=self.project_name,
+            project_name=self.project,
             organization=self.organization,
             platform_url=self.portal_url,
             auth_url=self.auth_url,
@@ -160,6 +160,7 @@ class TestIntegrationXGBoost(TestCase):
         self.X_train, self.X_test, self.y_train, self.y_test = get_test_train_splits(
             X, y, test_size=test_size, random_state=random_state
         )
+
         self.X_sm, self.y_sm = smote_balance(self.X_train, self.y_train, random_state=random_state)
 
         self.complicated_transformations = [
@@ -177,7 +178,7 @@ class TestIntegrationXGBoost(TestCase):
 
         # upload dataset here
         self.controller.upload_dataset_split(
-            X=X,
+            x=X,
             y=y,
             dataset_name=f"{self.sample_df_1_name} - Cleaned",
             metadata={"favourable_outcome": 1, "unfavourable_outcome": 0},
@@ -206,7 +207,7 @@ class TestIntegrationXGBoost(TestCase):
 
         # upload dataset here
         self.controller.upload_dataset_split(
-            X=self.X_sm,
+            x=self.X_sm,
             y=self.y_sm,
             dataset_name=f"{self.sample_df_1_name} Train - Balanced",
             metadata={},
@@ -228,7 +229,7 @@ class TestIntegrationXGBoost(TestCase):
 
         # upload dataset here
         self.controller.upload_dataset_split(
-            X=self.X_test,
+            x=self.X_test,
             y=self.y_test,
             dataset_name=f"{self.sample_df_1_name} Test - Scaled",
             metadata={},
@@ -256,12 +257,7 @@ class TestIntegrationXGBoost(TestCase):
 
     def step_4_check_all_sent(self):
         # check that all record statuses are RecordStatus.SENT.value
-        db = SqliteDatabase(
-            Path.home() / ".seclea" / "seclea_ai.db",
-            thread_safe=True,
-            pragmas={"journal_mode": "wal"},
-        )
-        db.connect()
+
         records = Record.select().where(Record.timestamp > self.start_timestamp)
         for idx, record in enumerate(records):
             self.assertEqual(
@@ -269,7 +265,6 @@ class TestIntegrationXGBoost(TestCase):
                 RecordStatus.SENT.value,
                 f"Entity {record.entity} at position {idx}, with id {record.id} not sent, current status: {record.status}",
             )
-        db.close()
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted

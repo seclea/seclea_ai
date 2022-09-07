@@ -14,6 +14,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from seclea_ai import SecleaAI
 from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.transformations import DatasetTransformation
+from seclea_ai.lib.seclea_utils.object_management import Tracked
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
@@ -35,13 +36,13 @@ class TestIntegrationSKLearn(TestCase):
     def step_0_project_setup(self):
         self.start_timestamp = datetime.datetime.now()
         self.password = "asdf"  # nosec
-        self.username = "onespanadmin"  # nosec
+        self.username = "admin"  # nosec
         self.organization = "Onespan"
-        self.project_name = f"test-project-{uuid.uuid4()}"
+        self.project = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
-            project_name=self.project_name,
+            project_name=self.project,
             organization=self.organization,
             platform_url=self.portal_url,
             auth_url=self.auth_url,
@@ -50,25 +51,30 @@ class TestIntegrationSKLearn(TestCase):
         )
 
     def step_1_upload_dataset(self):
-        self.sample_df_1 = pd.read_csv(f"{folder_path}/insurance_claims.csv")
-        self.sample_df_1_name = "Insurance Fraud Dataset"
-        self.sample_df_1_meta = {
-            "outcome_name": "fraud_reported",
-            "favourable_outcome": "N",
-            "unfavourable_outcome": "Y",
-            "continuous_features": [
-                "total_claim_amount",
-                "policy_annual_premium",
-                "capital-gains",
-                "capital-loss",
-                "injury_claim",
-                "property_claim",
-                "incident_hour_of_the_day",
-            ],
-        }
-        self.controller.upload_dataset(
-            self.sample_df_1, self.sample_df_1_name, self.sample_df_1_meta
+        dataset_file_name = "insurance_claims.csv"
+        dataset_name = "Insurance Fraud Dataset"
+        dataset = pd.read_csv(os.path.join(folder_path, dataset_file_name))
+        self.df_1 = Tracked(dataset)
+        self.df_1.object_manager.file_name = dataset_file_name[:-4]
+        self.df_1.object_manager.path = folder_path
+        self.df_1.object_manager.metadata.update({"dataset_name": dataset_name})
+        self.df_1.object_manager.metadata.update(
+            {
+                "outcome_name": "fraud_reported",
+                "favourable_outcome": "N",
+                "unfavourable_outcome": "Y",
+                "continuous_features": [
+                    "total_claim_amount",
+                    "policy_annual_premium",
+                    "capital-gains",
+                    "capital-loss",
+                    "injury_claim",
+                    "property_claim",
+                    "incident_hour_of_the_day",
+                ],
+            }
         )
+        self.controller.upload_dataset(self.df_1)
 
     def step_2_define_transformations(self):
         def encode_nans(df):
@@ -160,7 +166,7 @@ class TestIntegrationSKLearn(TestCase):
             X_transformed[:] = scaler.transform(X_transformed[:])
             return X_transformed, y
 
-        df = encode_nans(self.sample_df_1)
+        df = encode_nans(self.df_1)
 
         corr_thresh = 0.97
         df = drop_correlated(df, corr_thresh)
@@ -188,7 +194,7 @@ class TestIntegrationSKLearn(TestCase):
 
         self.complicated_transformations = [
             DatasetTransformation(
-                encode_nans, data_kwargs={"df": self.sample_df_1}, kwargs={}, outputs=["data"]
+                encode_nans, data_kwargs={"df": self.df_1}, kwargs={}, outputs=["data"]
             ),
             DatasetTransformation(
                 drop_correlated, {"data": "inherit"}, {"thresh": corr_thresh}, ["df"]
@@ -201,9 +207,9 @@ class TestIntegrationSKLearn(TestCase):
 
         # upload dataset here
         self.controller.upload_dataset_split(
-            X=X,
+            x=X,
             y=y,
-            dataset_name=f"{self.sample_df_1_name} - Cleaned",
+            dataset_name=f"{self.df_1_name} - Cleaned",
             metadata={"favourable_outcome": 1, "unfavourable_outcome": 0},
             transformations=self.complicated_transformations,
         )
@@ -233,9 +239,9 @@ class TestIntegrationSKLearn(TestCase):
 
         # upload dataset here
         self.controller.upload_dataset_split(
-            X=self.X_sm_scaled,
+            x=self.X_sm_scaled,
             y=self.y_sm,
-            dataset_name=f"{self.sample_df_1_name} Train - Balanced - Scaled",
+            dataset_name=f"{self.df_1_name} Train - Balanced - Scaled",
             metadata={},
             transformations=self.complicated_transformations_train,
         )
@@ -258,14 +264,14 @@ class TestIntegrationSKLearn(TestCase):
 
         # upload dataset here
         self.controller.upload_dataset_split(
-            X=self.X_test_scaled,
+            x=self.X_test_scaled,
             y=self.y_test,
-            dataset_name=f"{self.sample_df_1_name} Test - Scaled",
+            dataset_name=f"{self.df_1_name} Test - Scaled",
             metadata={},
             transformations=self.complicated_transformations_test,
         )
 
-        self.sample_df_1_transformed = df
+        self.df_1_transformed = df
 
     def step_3_upload_training_run(self):
         # define model
@@ -295,12 +301,7 @@ class TestIntegrationSKLearn(TestCase):
 
     def step_4_check_all_sent(self):
         # check that all record statuses are RecordStatus.SENT.value
-        db = SqliteDatabase(
-            Path.home() / ".seclea" / "seclea_ai.db",
-            thread_safe=True,
-            pragmas={"journal_mode": "wal"},
-        )
-        db.connect()
+
         records = Record.select().where(Record.timestamp > self.start_timestamp)
         for idx, record in enumerate(records):
             self.assertEqual(
@@ -308,7 +309,6 @@ class TestIntegrationSKLearn(TestCase):
                 RecordStatus.SENT.value,
                 f"Entity {record.entity} at position {idx}, with id {record.id} not sent, current status: {record.status}",
             )
-        db.close()
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted

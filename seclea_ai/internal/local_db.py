@@ -1,17 +1,27 @@
 import datetime
 import json
+import os
 from enum import Enum
-from json import JSONDecodeError
 from pathlib import Path
 
 from peewee import CharField, DateTimeField, Field, IntegerField, Model, SqliteDatabase
 
 # TODO improve auth and pragmas etc.
 db = SqliteDatabase(
-    Path.home() / ".seclea" / "seclea_ai.db",
+    os.environ.get("DATABASE_PATH", ".seclea/seclea_ai.db"),
     thread_safe=True,
     pragmas={"journal_mode": "wal"},
 )
+
+
+def db_exec_wrapper(fn):
+    def wrap(*args, **kwargs):
+        db.connect()
+        result = fn(*args, **kwargs)
+        db.close()
+        return result
+
+    return wrap
 
 
 class RecordStatus(Enum):
@@ -27,12 +37,7 @@ class JsonField(Field):
         return json.dumps(value)
 
     def python_value(self, value):
-        try:
-            value = json.loads(value)
-        except JSONDecodeError:
-            value = None
-        finally:
-            return value
+        return json.loads(value)
 
 
 class BaseModel(Model):
@@ -42,27 +47,23 @@ class BaseModel(Model):
 
 # TODO rethink this - may be better split up
 class Record(BaseModel):
-
     remote_id = IntegerField(null=True)  # TODO this may change to string for uuids
-    entity = CharField(
-        null=True
-    )  # TODO remove or convert to ForeignKey - here for debugging for now.
-    key = CharField(null=True)  # mainly for tracking datasets and training runs may need to remove
-    dependencies = JsonField(null=True)  # this will be a list of ids
+    metadata = JsonField(null=False, default=dict())
+    object_ser = JsonField(null=False, default=dict())
+    dependencies = JsonField(null=False, default=list())  # this will be a list of ids
     status = CharField()  # TODO change to enum
     timestamp = DateTimeField(default=datetime.datetime.now)
-    # only used for datasets and modelstates.
-    path = CharField(null=True)
-    # only used for datasets - probably need to factor out a lot of this.
-    dataset_metadata = JsonField(null=True)
+    path: CharField()
 
 
 class AuthService(BaseModel):
-
     key = CharField()
     value = CharField()
 
 
-db.connect()
-db.create_tables([Record, AuthService])
-db.close()
+@db_exec_wrapper
+def create_tables():
+    db.create_tables([Record, AuthService])
+
+
+create_tables()

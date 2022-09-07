@@ -1,3 +1,4 @@
+import os.path
 from abc import ABC
 from pathlib import Path
 
@@ -9,10 +10,8 @@ def _assemble_key(record) -> str:
 
 
 class Processor(ABC):
-    def __init__(self, settings, **kwargs):
-        self._settings = settings
-        self._db = SqliteDatabase(
-            Path.home() / ".seclea" / "seclea_ai.db",
-            thread_safe=True,
-            pragmas={"journal_mode": "wal"},
-        )
+    cache_dir: str = "."
+
+    def __init__(self, cache_dir, **kwargs):
+        os.makedirs(cache_dir, exist_ok=True)
+        self.cache_dir = cache_dir
