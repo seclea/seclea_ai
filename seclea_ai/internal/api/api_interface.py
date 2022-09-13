@@ -62,6 +62,7 @@ class Api:
         self._model_endpoint = "collection/models"
         self._training_run_endpoint = "collection/training-runs"
         self._model_states_endpoint = "collection/model-states"
+        self._organization_endpoint = "organization"
 
     def __del__(self):
         self._session.close()
@@ -75,7 +76,15 @@ class Api:
         json.loads(d)
         pass
 
-    def get_project(self, project_id, organization_id, **filter_kwargs) -> Dict:
+    def get_organization(self, organization_name: str, **filter_kwargs):
+        return handle_response(
+            self._session.get(
+                url=f"{self._root_url}/{self._organization_endpoint}/",
+                params={"name": organization_name, **filter_kwargs},
+            )
+        ).json()
+
+    def get_project(self, project_id: str, organization_id: str, **filter_kwargs) -> Dict:
         return handle_response(
             self._session.get(
                 url=f"{self._root_url}/{self._project_endpoint}/{project_id}",
@@ -83,7 +92,7 @@ class Api:
             )
         ).json()
 
-    def get_projects(self, organization_id, **filter_kwargs) -> List:
+    def get_projects(self, organization_id: str, **filter_kwargs) -> List:
         return handle_response(
             self._session.get(
                 url=f"{self._root_url}/{self._project_endpoint}",
@@ -91,7 +100,12 @@ class Api:
             )
         ).json()
 
-    def upload_project(self, name, description, organization_id) -> Dict:
+    def upload_project(
+        self,
+        organization_id: str,
+        name: str,
+        description: str,
+    ) -> Dict:
         return handle_response(
             self._session.post(
                 url=f"{self._root_url}/{self._project_endpoint}",
@@ -104,7 +118,7 @@ class Api:
             )
         ).json()
 
-    def get_dataset(self, dataset_id: str, project_id, organization_id) -> Dict:
+    def get_dataset(self, project_id: str, organization_id: str, dataset_id: str) -> Dict:
         return handle_response(
             self._session.get(
                 url=f"{self._root_url}/{self._dataset_endpoint}/{dataset_id}",
@@ -112,14 +126,22 @@ class Api:
             )
         ).json()
 
+    def get_datasets(self, project_id: str, organization_id: str, **filter_kwargs) -> List:
+        return handle_response(
+            self._session.get(
+                url=f"{self._root_url}/{self._dataset_endpoint}",
+                params={"project": project_id, "organization": organization_id, **filter_kwargs},
+            )
+        ).json()
+
     def upload_dataset(
         self,
-        dataset_file_path: str,
         project_id: str,
         organization_id: str,
+        dataset_file_path: str,
         name: str,
         metadata: dict,
-        dataset_id: int,
+        dataset_hash: int,
         parent_dataset_id: str = None,
     ) -> Dict:
 
@@ -131,7 +153,7 @@ class Api:
                 "project": (None, project_id),
                 "name": (None, name),
                 "metadata": (None, json.dumps(metadata), "application/json"),
-                "hash": (None, str(dataset_id)),
+                "hash": (None, str(dataset_hash)),
                 "dataset": (os.path.basename(dataset_file_path), f),
             }
             if parent_dataset_id is not None:
@@ -146,7 +168,7 @@ class Api:
                 )
             ).json()
 
-    def get_models(self, project_id, organization_id, **filter_kwargs) -> List:
+    def get_models(self, project_id: str, organization_id: str, **filter_kwargs) -> List:
         """
         Get models - with optional filter parameters.
 
@@ -168,7 +190,9 @@ class Api:
             )
         ).json()
 
-    def upload_model(self, organization_id, project_id, model_name, framework_name) -> Dict:
+    def upload_model(
+        self, project_id: str, organization_id: str, model_name: str, framework_name: str
+    ) -> Dict:
         return handle_response(
             self._session.post(
                 url=f"{self._root_url}/{self._model_endpoint}",
@@ -182,8 +206,7 @@ class Api:
             )
         ).json()
 
-    # TODO review if use of id is confusing - may need to standardise id params
-    def get_training_runs(self, project_id: int, organization_id: str, **filter_kwargs) -> List:
+    def get_training_runs(self, project_id: str, organization_id: str, **filter_kwargs) -> List:
         return handle_response(
             self._session.get(
                 url=f"{self._root_url}/{self._training_run_endpoint}",
@@ -195,13 +218,12 @@ class Api:
             )
         ).json()
 
-    # TODO review typing.
     def upload_training_run(
         self,
-        organization_id: int,
-        project_id: int,
+        project_id: str,
+        organization_id: str,
         dataset_ids: List[str],
-        model_id: int,
+        model_id: str,
         training_run_name: str,
         params: Dict,
     ) -> Dict:
@@ -223,8 +245,7 @@ class Api:
             )
         ).json()
 
-    # TODO review if use of id is confusing - may need to standardise id params
-    def get_model_states(self, project_id: int, organization_id: str, **filter_kwargs) -> List:
+    def get_model_states(self, project_id: str, organization_id: str, **filter_kwargs) -> List:
         return handle_response(
             self._session.get(
                 url=f"{self._root_url}/{self._training_run_endpoint}",
@@ -238,10 +259,10 @@ class Api:
 
     def upload_model_state(
         self,
-        model_state_file_path: str,
-        organization_id: str,
         project_id: str,
-        training_run_id: int,
+        organization_id: str,
+        model_state_file_path: str,
+        training_run_id: str,
         sequence_num: int,
         final_state,
     ) -> Dict:
@@ -263,7 +284,7 @@ class Api:
                 )
             ).json()
 
-    def get_transformations(self, project_id, organization_id, **filter_kwargs) -> List:
+    def get_transformations(self, project_id: str, organization_id: str, **filter_kwargs) -> List:
         return handle_response(
             self._session.get(
                 url=f"{self._root_url}/{self._dataset_transformations_endpoint}",
@@ -276,7 +297,13 @@ class Api:
         ).json()
 
     def upload_transformation(
-        self, name: str, code_raw, code_encoded, dataset_id: int, organization_id, project_id
+        self,
+        project_id: str,
+        organization_id: str,
+        name: str,
+        code_raw,
+        code_encoded,
+        dataset_id: str,
     ) -> Dict:
 
         data = {

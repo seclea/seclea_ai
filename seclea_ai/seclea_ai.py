@@ -17,13 +17,12 @@ from peewee import SqliteDatabase
 
 from seclea_ai.internal.api.api_interface import Api
 from seclea_ai.internal.director import Director
-from seclea_ai.internal.exceptions import AuthenticationError, NotFoundError
+from seclea_ai.internal.exceptions import AuthenticationError
 from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.lib.seclea_utils.core import encode_func
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
 from seclea_ai.transformations import DatasetTransformation
 from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
-from .svc.api.collection.dataset import get_dataset
 
 logger = logging.getLogger("seclea_ai")
 
@@ -66,11 +65,9 @@ class SecleaAI:
             >>> seclea = SecleaAI(project_name="Test Project", project_root=".")
         """
         self._project_name = project_name
-        self._organization = organization
-
         self._settings = {
             "project_name": project_name,
-            "organization": organization,
+            "organization_name": organization,
             "project_root": project_root,
             "platform_url": platform_url,
             "auth_url": auth_url,
@@ -85,10 +82,11 @@ class SecleaAI:
         self._api = Api(
             self._settings, username=username, password=password
         )  # TODO add username and password?
-        self._project_id = self._init_project(project_name=project_name)
-        self._settings["project_id"] = self._project_id
         self._organization_name = organization
         self._organization_id = self._init_org(organization)
+        self._project_id = self._init_project(project_name=project_name)
+        self._settings["project_id"] = self._project_id
+        self._settings["organization_id"] = self._organization_id
         self._available_frameworks = {"sklearn", "xgboost", "lightgbm"}
         self._training_run = None
         self._director = Director(settings=self._settings, api=self._api, db=self._db)
@@ -243,13 +241,13 @@ class SecleaAI:
             #####
             parent_dset_hash = dataset_hash(parent, self._project_id)
             # check parent exists - check local db if not else error.
-            try:
-                res = self._api.get_dataset(
-                    organization_id=self._organization,
-                    project_id=self._project_id,
-                    hash=parent_dset_hash,
-                )
-            except NotFoundError:
+
+            res = self._api.get_datasets(
+                organization_id=self._organization_id,
+                project_id=self._project_id,
+                hash=parent_dset_hash,
+            )
+            if len(res) == 0:
                 # check local db
                 self._db.connect()
                 parent_record = Record.get_or_none(Record.key == parent_dset_hash)
@@ -262,13 +260,13 @@ class SecleaAI:
                         "that you have uploaded the parent dataset already"
                     )
             else:
-                parent_metadata = res["metadata"]
+                parent_metadata = res[0]["metadata"]
             #####
 
             upload_queue = self._generate_intermediate_datasets(
                 transformations=transformations,
                 dataset_name=dataset_name,
-                dataset_id=dset_hash,
+                final_dataset_hash=dset_hash,
                 user_metadata=metadata,
                 parent=parent,
                 parent_metadata=parent_metadata,
@@ -338,7 +336,7 @@ class SecleaAI:
             "record_id": dataset_record.id,
             "dataset": dataset,
             "dataset_name": dataset_name,
-            "dataset_id": dset_hash,
+            "dataset_hash": dset_hash,
             "metadata": metadata,
             "project": self._project_id,
         }
@@ -347,7 +345,13 @@ class SecleaAI:
         self._director.send_entity(dataset_upload_kwargs)
 
     def _generate_intermediate_datasets(
-        self, transformations, dataset_name, dataset_id, user_metadata, parent, parent_metadata
+        self,
+        transformations,
+        dataset_name,
+        final_dataset_hash,
+        user_metadata,
+        parent,
+        parent_metadata,
     ):
 
         # setup for generating datasets.
@@ -413,12 +417,11 @@ class SecleaAI:
                 )
 
             dset_name = f"{dataset_name}-{trans.func.__name__}"  # TODO improve this.
+            dset_hash = dataset_hash(dset, self._project_id)
 
             # handle the final dataset - check generated = passed in.
             if idx == last:
-                if (
-                    dataset_hash(dset, self._project_id) != dataset_id
-                ):  # TODO create or find better exception
+                if dset_hash != final_dataset_hash:  # TODO create or find better exception
                     raise AssertionError(
                         """Generated Dataset does not match the Dataset passed in.
                                      Please check your DatasetTransformation definitions and try again.
@@ -427,15 +430,11 @@ class SecleaAI:
                 else:
                     dset_name = dataset_name
             else:
-                if dataset_hash(dset, self._project_id) == dataset_hash(
-                    parent_dset, self._project_id
-                ):
+                if dset_hash == dataset_hash(parent_dset, self._project_id):
                     raise AssertionError(
                         f"""The transformation {trans.func.__name__} does not change the dataset.
                         Please remove it and try again."""
                     )
-
-            dset_id = dataset_hash(dset, self._project_id)
 
             # find parent dataset in local db - TODO improve
             self._db.connect()
@@ -449,7 +448,7 @@ class SecleaAI:
                 entity="dataset",
                 status=RecordStatus.IN_MEMORY.value,
                 dependencies=[parent_dataset_record_id],
-                key=str(dset_id),
+                key=str(dset_hash),
                 dataset_metadata=dset_metadata,
             )
 
@@ -459,7 +458,7 @@ class SecleaAI:
                 "record_id": dataset_record.id,
                 "dataset": copy.deepcopy(dset),  # TODO change keys
                 "dataset_name": copy.deepcopy(dset_name),
-                "dataset_id": dset_id,
+                "dataset_hash": dset_hash,
                 "metadata": dset_metadata,
             }
             # update the parent dataset - these chained transformations only make sense if they are pushing the
@@ -486,8 +485,6 @@ class SecleaAI:
                 "code_encoded": encode_func(trans.func, [], trans_kwargs),
             }
             upload_queue.append(transformation_kwargs)
-            # update parent to next dataset in queue
-            parent_dataset_record_id = dataset_record.id
 
         return upload_queue
 
@@ -567,13 +564,7 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_ids = [
-            # TODO change to api.get.
-            get_dataset(
-                self._transmission,
-                self._project,
-                self._organization_id,
-                hash=dataset_hash(dataset, self._project),
-            ).json()[0]["uuid"]
+            Record.get_or_none(Record.key == dataset_hash(dataset, self._project_id)).id
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
         ]
@@ -607,17 +598,15 @@ class SecleaAI:
         # create record
         self._db.connect()
         training_run_record = Record.create(
-            entity="training_run", status=RecordStatus.IN_MEMORY.value
+            entity="training_run", status=RecordStatus.IN_MEMORY.value, dependencies=dataset_ids
         )
 
         # sent training run for upload.
         training_run_details = {
             "entity": "training_run",
             "record_id": training_run_record.id,
-            "project": self._project_id,
             "training_run_name": training_run_name,
             "model_id": model_type_id,
-            "dataset_ids": dataset_ids,
             "params": params,
         }
         self._director.send_entity(training_run_details)
@@ -656,7 +645,7 @@ class SecleaAI:
          the model.
         """
         res = self._api.get_models(
-            organization_id=self._organization,
+            organization_id=self._organization_id,
             project_id=self._project_id,
             name=model_name,
             framework=framework.name,
@@ -667,7 +656,7 @@ class SecleaAI:
             return models[0]["uuid"]
         # if we got here that means that the model has not been uploaded yet. So we upload it.
         res = self._api.upload_model(
-            organization_id=self._organization,
+            organization_id=self._organization_id,
             project_id=self._project_id,
             model_name=model_name,
             framework_name=framework.name,
@@ -678,7 +667,7 @@ class SecleaAI:
         except KeyError:
             traceback.print_exc()
             resp = self._api.get_models(
-                organization_id=self._organization,
+                organization_id=self._organization_id,
                 project_id=self._project_id,
                 name=model_name,
                 framework=framework.name,
@@ -702,19 +691,15 @@ class SecleaAI:
             )
 
     def _init_org(self, organization_name: str) -> str:
-        orgs_res = self._transmission.get(url_path="/organization/")
-        # orgs_res = handle_response(
-        #     orgs_res, 200, f"There was an issue getting the project: {orgs_res.reason}"
-        # ) TODO convert to use api.
-        orgs = orgs_res.json()
-        for org in orgs:
-            if org["name"] == organization_name:
-                return org["uuid"]
-        raise ValueError(
-            f"Specified Organization {self._organization_name} does not exist. Please check and try again."
-        )
+        org_res = self._api.get_organization(organization_name=organization_name)
+        if len(org_res) == 0:
+            raise ValueError(
+                f"Specified Organization {self._organization_name} does not exist. Please check and try again."
+            )
+        else:
+            return org_res[0]["uuid"]
 
-    def _init_project(self, project_name) -> None:
+    def _init_project(self, project_name) -> str:
         """
         Initialises the project for the object. If the project does not exist on the server it will be created.
 
@@ -724,7 +709,7 @@ class SecleaAI:
         """
         try:
             project_json = self._api.get_projects(
-                organization_id=self._organization,
+                organization_id=self._organization_id,
                 name=project_name,
             )
             project = project_json[0]["uuid"]
@@ -733,14 +718,16 @@ class SecleaAI:
             proj_res = self._api.upload_project(
                 name=project_name,
                 description="Please add a description...",
-                organization_id=self._organization,
+                organization_id=self._organization_id,
             )
             try:
                 project = proj_res["uuid"]
             except KeyError:
                 # we want to know when this happens as this is unusual condition.
                 traceback.print_exc()
-                resp = self._api.get_projects(organization_id=self._organization, name=project_name)
+                resp = self._api.get_projects(
+                    organization_id=self._organization_id, name=project_name
+                )
                 project = resp[0]["uuid"]
         return project
 

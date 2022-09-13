@@ -1,6 +1,7 @@
 import os
 import time
 import unittest
+from pathlib import Path
 
 import peewee
 import responses
@@ -29,7 +30,12 @@ class TestSecleaAIThreading(unittest.TestCase):
             username="test",
             password="test",
         )
-        director = Director(settings={}, api=api)
+        db = peewee.SqliteDatabase(
+            Path.home() / ".seclea" / "seclea_ai.db",
+            thread_safe=True,
+            pragmas={"journal_mode": "wal"},
+        )
+        director = Director(settings={}, api=api, db=db)
 
         # ACT
         # try and record some data and trigger an unhandled exception in the thread

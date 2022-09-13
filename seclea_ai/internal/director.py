@@ -43,7 +43,11 @@ class Director:
         self.errors = list()
 
     def __del__(self):
-        self.terminate()
+        try:
+            self.terminate()
+        except AttributeError:
+            # means we already removed references - cannot do anything.
+            pass
 
     def terminate(self) -> None:
         """
