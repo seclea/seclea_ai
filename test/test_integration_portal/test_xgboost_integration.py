@@ -4,19 +4,18 @@ import uuid
 from pathlib import Path
 from unittest import TestCase
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+import xgboost as xgb
 from imblearn.over_sampling import SMOTE
 from peewee import SqliteDatabase
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
+from xgboost import DMatrix
 
 from seclea_ai import SecleaAI
 from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.transformations import DatasetTransformation
-
-import xgboost as xgb
-from xgboost import DMatrix
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
@@ -38,7 +37,7 @@ class TestIntegrationXGBoost(TestCase):
     def step_0_project_setup(self):
         self.start_timestamp = datetime.datetime.now()
         self.password = "asdf"  # nosec
-        self.username = "onespanadmin"  # nosec
+        self.username = "admin"  # nosec
         self.organization = "Onespan"
         self.project_name = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"

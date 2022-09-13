@@ -5,9 +5,9 @@ from pathlib import Path
 from unittest import TestCase
 
 import pandas as pd
+import tensorflow as tf
 from peewee import SqliteDatabase
 from sklearn.model_selection import train_test_split
-import tensorflow as tf
 
 from seclea_ai import SecleaAI
 from seclea_ai.internal.local_db import Record, RecordStatus
@@ -34,7 +34,7 @@ class TestIntegrationTensorflow(TestCase):
         self.start_timestamp = datetime.datetime.now()
         print(self.start_timestamp)
         self.password = "asdf"  # nosec
-        self.username = "onespanadmin"  # nosec
+        self.username = "admin"  # nosec
         self.organization = "Onespan"
         self.project_name = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"

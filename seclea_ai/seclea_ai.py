@@ -5,7 +5,8 @@ import copy
 import inspect
 import logging
 import traceback
-from pathlib import PurePath, Path
+from pathlib import Path
+from pathlib import PurePath
 from typing import Dict, List, Union
 
 import numpy as np
@@ -22,11 +23,11 @@ from seclea_ai.lib.seclea_utils.core import encode_func
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
 from seclea_ai.transformations import DatasetTransformation
 from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
+from .svc.api.collection.dataset import get_dataset
 
 logger = logging.getLogger("seclea_ai")
 
 
-# TODO make context manager
 class SecleaAI:
     def __init__(
         self,
@@ -86,6 +87,9 @@ class SecleaAI:
         )  # TODO add username and password?
         self._project_id = self._init_project(project_name=project_name)
         self._settings["project_id"] = self._project_id
+        self._organization_name = organization
+        self._organization_id = self._init_org(organization)
+        self._available_frameworks = {"sklearn", "xgboost", "lightgbm"}
         self._training_run = None
         self._director = Director(settings=self._settings, api=self._api, db=self._db)
         logger.debug("Successfully Initialised SecleaAI class")
@@ -228,7 +232,7 @@ class SecleaAI:
         elif isinstance(dataset, str):
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
 
-        dataset_id = dataset_hash(dataset, self._project_id)
+        dset_hash = dataset_hash(dataset, self._project_id)
 
         if transformations is not None:
 
@@ -237,18 +241,18 @@ class SecleaAI:
             #####
             # Validate parent exists and get metadata - check how often on portal, maybe remove?
             #####
-            parent_dset_id = dataset_hash(parent, self._project_id)
+            parent_dset_hash = dataset_hash(parent, self._project_id)
             # check parent exists - check local db if not else error.
             try:
                 res = self._api.get_dataset(
-                    dataset_id=str(parent_dset_id),
                     organization_id=self._organization,
                     project_id=self._project_id,
+                    hash=parent_dset_hash,
                 )
             except NotFoundError:
                 # check local db
                 self._db.connect()
-                parent_record = Record.get_or_none(Record.key == parent_dset_id)
+                parent_record = Record.get_or_none(Record.key == parent_dset_hash)
                 self._db.close()
                 if parent_record is not None:
                     parent_metadata = parent_record.dataset_metadata
@@ -264,7 +268,7 @@ class SecleaAI:
             upload_queue = self._generate_intermediate_datasets(
                 transformations=transformations,
                 dataset_name=dataset_name,
-                dataset_id=dataset_id,
+                dataset_id=dset_hash,
                 user_metadata=metadata,
                 parent=parent,
                 parent_metadata=parent_metadata,
@@ -272,6 +276,7 @@ class SecleaAI:
 
             # upload all the datasets and transformations.
             for up_kwargs in upload_queue:
+                # need to get dataset uuid from response to put into transformation?
                 up_kwargs["project"] = self._project_id
                 # add to storage and sending queues
                 if up_kwargs["entity"] == "dataset":
@@ -322,7 +327,7 @@ class SecleaAI:
         dataset_record = Record.create(
             entity="dataset",
             status=RecordStatus.IN_MEMORY.value,
-            key=str(dataset_id),
+            key=str(dset_hash),
             dataset_metadata=metadata,
         )
         self._db.close()
@@ -333,7 +338,7 @@ class SecleaAI:
             "record_id": dataset_record.id,
             "dataset": dataset,
             "dataset_name": dataset_name,
-            "dataset_id": dataset_id,
+            "dataset_id": dset_hash,
             "metadata": metadata,
             "project": self._project_id,
         }
@@ -562,7 +567,13 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_ids = [
-            dataset_hash(dataset, self._project_id)
+            # TODO change to api.get.
+            get_dataset(
+                self._transmission,
+                self._project,
+                self._organization_id,
+                hash=dataset_hash(dataset, self._project),
+            ).json()[0]["uuid"]
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
         ]
@@ -574,12 +585,11 @@ class SecleaAI:
         model_type_id = self._set_model(model_name=model_name, framework=framework)
 
         # check the latest training run TODO extract all this stuff
-        training_runs_res = self._api.get_training_runs(
+        training_runs = self._api.get_training_runs(
             project_id=self._project_id,
-            organization_id=self._organization,
+            organization_id=self._organization_id,
             model=model_type_id,
         )
-        training_runs = training_runs_res
 
         # Create the training run name
         largest = -1
@@ -654,7 +664,7 @@ class SecleaAI:
         models = res
         # not checking for more because there is a unique constraint across name and framework on backend.
         if len(models) == 1:
-            return models[0]["id"]
+            return models[0]["uuid"]
         # if we got here that means that the model has not been uploaded yet. So we upload it.
         res = self._api.upload_model(
             organization_id=self._organization,
@@ -664,7 +674,7 @@ class SecleaAI:
         )
         # TODO find out if this checking is ever needed - ie does it ever not return the created model object?
         try:
-            model_id = res["id"]
+            model_id = res["uuid"]
         except KeyError:
             traceback.print_exc()
             resp = self._api.get_models(
@@ -673,7 +683,7 @@ class SecleaAI:
                 name=model_name,
                 framework=framework.name,
             )
-            model_id = resp[0]["id"]
+            model_id = resp[0]["uuid"]
         return model_id
 
     @staticmethod
@@ -691,7 +701,20 @@ class SecleaAI:
                 "Output doesn't match the requirements. Please review the documentation."
             )
 
-    def _init_project(self, project_name) -> int:
+    def _init_org(self, organization_name: str) -> str:
+        orgs_res = self._transmission.get(url_path="/organization/")
+        # orgs_res = handle_response(
+        #     orgs_res, 200, f"There was an issue getting the project: {orgs_res.reason}"
+        # ) TODO convert to use api.
+        orgs = orgs_res.json()
+        for org in orgs:
+            if org["name"] == organization_name:
+                return org["uuid"]
+        raise ValueError(
+            f"Specified Organization {self._organization_name} does not exist. Please check and try again."
+        )
+
+    def _init_project(self, project_name) -> None:
         """
         Initialises the project for the object. If the project does not exist on the server it will be created.
 
@@ -704,7 +727,7 @@ class SecleaAI:
                 organization_id=self._organization,
                 name=project_name,
             )
-            project = project_json[0]["id"]
+            project = project_json[0]["uuid"]
         # errors if list is empty
         except IndexError:
             proj_res = self._api.upload_project(
@@ -713,12 +736,12 @@ class SecleaAI:
                 organization_id=self._organization,
             )
             try:
-                project = proj_res["id"]
+                project = proj_res["uuid"]
             except KeyError:
                 # we want to know when this happens as this is unusual condition.
                 traceback.print_exc()
                 resp = self._api.get_projects(organization_id=self._organization, name=project_name)
-                project = resp[0]["id"]
+                project = resp[0]["uuid"]
         return project
 
     @staticmethod
