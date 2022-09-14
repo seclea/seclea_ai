@@ -72,6 +72,7 @@ class SecleaAI:
             "platform_url": platform_url,
             "auth_url": auth_url,
             "cache_dir": PurePath(project_root) / ".seclea" / "cache" / project_name,
+            "max_storage_space": 1e10,  # default is 10GB for now.
             "offline": False,
         }
         self._db = SqliteDatabase(

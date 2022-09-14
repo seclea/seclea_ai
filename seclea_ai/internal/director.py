@@ -175,10 +175,10 @@ class Director:
 
     def _check_resources(self, entity_dict):
         # get size in memory
-        if getattr(entity_dict, "dataset", None) is not None:
+        if entity_dict.get("dataset", None) is not None:
             size = asizeof.asizeof(entity_dict["dataset"])
             stored_size = size / 10
-        elif getattr(entity_dict, "model", None) is not None:
+        elif entity_dict.get("model", None) is not None:
             size = asizeof.asizeof(entity_dict["model"])
             stored_size = size * 50
         else:
@@ -186,26 +186,17 @@ class Director:
 
         # get currently used space from db
         self._db.connect()
-        records = Record.get(Record.size == RecordStatus.STORED.value)
+        records = Record.get_or_none(Record.size == RecordStatus.STORED.value)
         current_stored = 0
-        for record in records:
-            current_stored += record.size
+        if records is not None:
+            for record in records:
+                current_stored += record.size
         self._db.close()
 
         # break on storage overflow
         if stored_size + current_stored > self._settings["max_storage_space"]:
             raise StorageSpaceError("Specified storage size exceeded")
 
-        # get size of entity
-        print(asizeof.asizeof(entity_dict))
-        for key, val in entity_dict.items():
-            if key == "dataset":
-                print(f"{key} size: {asizeof.asizeof(val)}")  # memory size
-                print(f"Stored size: {asizeof.asizeof(val.to_csv())}")  # stored size (approx 1/10)
-            if key == "model":
-                print(f"{key} size: {asizeof.asizeof(val)}")  # memory size
-                # stored size (approx 50x)
-
         # limit is in director (from settings)
-        # if entity would exceed either memory or storage throw an error.
-        pass
+        # NOTE not breaking on memory as reliability of estimating memory impact is too low
+        # and the fact that swap is common reduces the severity of the impact.
