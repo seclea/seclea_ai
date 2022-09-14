@@ -28,7 +28,7 @@ class TestIntegrationTensorflow(TestCase):
 
     def step_0_project_setup(self):
         self.password = "asdf"  # nosec
-        self.username = "admin"  # nosec
+        self.username = "admin-dev"  # nosec
         self.organization = "Onespan"
         self.project_name = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
