@@ -35,7 +35,7 @@ class TestSecleaAIThreading(unittest.TestCase):
             thread_safe=True,
             pragmas={"journal_mode": "wal"},
         )
-        director = Director(settings={}, api=api, db=db)
+        director = Director(settings={"max_storage_space": 1e10}, api=api, db=db)
 
         # ACT
         # try and record some data and trigger an unhandled exception in the thread
