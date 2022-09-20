@@ -4,6 +4,7 @@ Description for seclea_ai.py
 import copy
 import inspect
 import os
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
@@ -22,11 +23,10 @@ from seclea_ai.lib.seclea_utils.core import (
     encode_func,
     save_object,
 )
-import uuid
-from .lib.seclea_utils.dataset_management.dataset_utils import save_dataset, dataset_hash
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
 from seclea_ai.transformations import DatasetTransformation
-from .svc.api.collection.dataset import post_dataset
+from .lib.seclea_utils.dataset_management.dataset_utils import save_dataset, dataset_hash
+from .svc.api.collection.dataset import post_dataset, get_dataset
 from .svc.api.collection.model_state import post_model_state
 
 
@@ -87,7 +87,8 @@ class SecleaAI:
         self._auth_service.authenticate(self._transmission, username=username, password=password)
         self._project = None
         self._project_name = project_name
-        self._organization = organization
+        self._organization_name = organization
+        self._organization_id = self._init_org(organization)
         self._available_frameworks = {"sklearn", "xgboost", "lightgbm"}
         self._training_run = None
         self._cache_dir = os.path.join(Path.home(), f".seclea/{self._project_name}")
@@ -229,15 +230,19 @@ class SecleaAI:
             parent_dset_pk = dataset_hash(parent, self._project)
             # check parent exists - throw an error if not.
             res = self._transmission.get(
-                url_path=f"/collection/datasets/{parent_dset_pk}",
-                query_params={"project": self._project, "organization": self._organization},
+                url_path="/collection/datasets",
+                query_params={
+                    "project": self._project,
+                    "organization": self._organization_id,
+                    "hash": parent_dset_pk,
+                },
             )
             if not res.status_code == 200:
                 raise AssertionError(
                     "Parent Dataset does not exist on the Platform. Please check your arguments and "
                     "that you have uploaded the parent dataset already"
                 )
-            parent_metadata = res.json()["metadata"]
+            parent_metadata = res.json()[0]["metadata"]
             #####
 
             upload_queue = self._generate_intermediate_datasets(
@@ -258,6 +263,8 @@ class SecleaAI:
                     )
             # upload all the datasets and transformations.
             for up_kwargs in upload_queue:
+                # need to get dataset uuid from response to put into transformation.
+
                 self._upload_dataset(**up_kwargs)  # TODO change
             return
 
@@ -479,7 +486,12 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_pks = [
-            dataset_hash(dataset, self._project)
+            get_dataset(
+                self._transmission,
+                self._project,
+                self._organization_id,
+                hash=dataset_hash(dataset, self._project),
+            ).json()[0]["uuid"]
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
         ]
@@ -497,7 +509,7 @@ class SecleaAI:
             query_params={
                 "project": self._project,
                 "model": model_type_pk,
-                "organization": self._organization,
+                "organization": self._organization_id,
             },
         )
         training_runs = training_runs_res.json()
@@ -521,7 +533,7 @@ class SecleaAI:
             params=params,
         )
         # if the upload was successful, add the new training_run to the list to keep the names updated.
-        self._training_run = tr_res.json()["id"]
+        self._training_run = tr_res.json()["uuid"]
 
         # upload model state. TODO figure out how this fits with multiple model states.
         self._upload_model_state(
@@ -548,6 +560,19 @@ class SecleaAI:
                 "Output doesn't match the requirements. Please review the documentation."
             )
 
+    def _init_org(self, organization_name: str) -> str:
+        orgs_res = self._transmission.get(url_path="/organization/")
+        orgs_res = handle_response(
+            orgs_res, 200, f"There was an issue getting the project: {orgs_res.reason}"
+        )
+        orgs = orgs_res.json()
+        for org in orgs:
+            if org["name"] == organization_name:
+                return org["uuid"]
+        raise ValueError(
+            f"Specified Organization {self._organization_name} does not exist. Please check and try again."
+        )
+
     def _init_project(self, project_name) -> None:
         """
         Initialises the project for the object. If the project does not exist on the server it will be created.
@@ -560,7 +585,7 @@ class SecleaAI:
         if self._project is None:
             proj_res = self._create_project(project_name=project_name)
             try:
-                self._project = proj_res.json()["id"]
+                self._project = proj_res.json()["uuid"]
             except KeyError:
                 print(f"There was an issue: {proj_res.text}")
                 resp = self._transmission.get(
@@ -569,7 +594,7 @@ class SecleaAI:
                 resp = handle_response(
                     resp, 200, f"There was an issue getting the project: {resp.reason}"
                 )
-                self._project = resp.json()[0]["id"]
+                self._project = resp.json()[0]["uuid"]
 
     def _get_project(self, project_name: str) -> Any:
         """
@@ -581,14 +606,14 @@ class SecleaAI:
         """
         project_res = self._transmission.get(
             url_path="/collection/projects",
-            query_params={"name": project_name, "organization": self._organization},
+            query_params={"name": project_name, "organization": self._organization_id},
         )
         handle_response(
             project_res, 200, f"There was an issue getting the projects: {project_res.reason}"
         )
         if len(project_res.json()) == 0:
             return None
-        return project_res.json()[0]["id"]
+        return project_res.json()[0]["uuid"]
 
     def _create_project(self, project_name: str, description: str = "Please add a description.."):
         """
@@ -608,9 +633,9 @@ class SecleaAI:
             obj={
                 "name": project_name,
                 "description": description,
-                "organization": self._organization,
+                "organization": self._organization_id,
             },
-            query_params={"organization": self._organization},
+            query_params={"organization": self._organization_id},
         )
         return handle_response(
             res, expected=201, msg=f"There was an issue creating the project: {res.reason}"
@@ -632,7 +657,7 @@ class SecleaAI:
             self._transmission.get(
                 url_path="/collection/models",
                 query_params={
-                    "organization": self._organization,
+                    "organization": self._organization_id,
                     "project": self._project,
                     "name": model_name,
                     "framework": framework.name,
@@ -643,17 +668,17 @@ class SecleaAI:
         )
         models = res.json()
         if len(models) == 1:
-            return models[0]["id"]
+            return models[0]["uuid"]
         # if we got here that means that the model has not been uploaded yet. So we upload it.
         res = self._upload_model(model_name=model_name, framework=framework)
         try:
-            model_pk = res.json()["id"]
+            model_pk = res.json()["uuid"]
         except KeyError:
             resp = handle_response(
                 self._transmission.get(
                     url_path="/collection/models",
                     query_params={
-                        "organization": self._organization,
+                        "organization": self._organization_id,
                         "project": self._project,
                         "name": model_name,
                         "framework": framework.name,
@@ -662,7 +687,7 @@ class SecleaAI:
                 expected=200,
                 msg="There was an issue getting the model list",
             )
-            model_pk = resp.json()[0]["id"]
+            model_pk = resp.json()[0]["uuid"]
         return model_pk
 
     @staticmethod
@@ -715,7 +740,7 @@ class SecleaAI:
             transmission=self._transmission,
             dataset_file_path=dataset_file_path,
             project_pk=self._project,
-            organization_pk=self._organization,
+            organization_pk=self._organization_id,
             name=dataset_name,
             metadata=metadata,
             dataset_pk=dset_pk,
@@ -733,7 +758,7 @@ class SecleaAI:
                 # upload transformations.
                 self._upload_transformation(
                     transformation=transformation,
-                    dataset_pk=dset_pk,
+                    dataset_pk=response.json()["uuid"],
                 )
 
     def _upload_model(self, model_name: str, framework: ModelManagers):
@@ -746,12 +771,12 @@ class SecleaAI:
         res = self._transmission.send_json(
             url_path="/collection/models",
             obj={
-                "organization": self._organization,
+                "organization": self._organization_id,
                 "project": self._project,
                 "name": model_name,
                 "framework": framework.name,
             },
-            query_params={"organization": self._organization, "project": self._project},
+            query_params={"organization": self._organization_id, "project": self._project},
         )
         return handle_response(
             res, expected=201, msg=f"There was an issue uploading the model: {res.reason}"
@@ -771,14 +796,14 @@ class SecleaAI:
         res = self._transmission.send_json(
             url_path="/collection/training-runs",
             obj={
-                "organization": self._organization,
+                "organization": self._organization_id,
                 "project": self._project,
                 "datasets": dataset_pks,
                 "model": model_pk,
                 "name": training_run_name,
                 "params": params,
             },
-            query_params={"organization": self._organization, "project": self._project},
+            query_params={"organization": self._organization_id, "project": self._project},
         )
         return handle_response(
             res, expected=201, msg=f"There was an issue uploading the training run: {res.reason}"
@@ -788,7 +813,7 @@ class SecleaAI:
         self,
         model,
         training_run_pk: int,
-        dataset_pks: List[int],
+        dataset_pks: List[str],
         sequence_num: int,
         final: bool,
         model_manager: ModelManagers,
@@ -807,7 +832,7 @@ class SecleaAI:
         res = post_model_state(
             self._transmission,
             save_path,
-            self._organization,
+            self._organization_id,
             self._project,
             str(training_run_pk),
             sequence_num,
@@ -835,7 +860,7 @@ class SecleaAI:
         res = self._transmission.send_json(
             url_path="/collection/dataset-transformations",
             obj=data,
-            query_params={"organization": self._organization, "project": self._project},
+            query_params={"organization": self._organization_id, "project": self._project},
         )
         res = handle_response(
             res,
