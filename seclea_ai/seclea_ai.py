@@ -22,6 +22,7 @@ from seclea_ai.internal.local_db import Record, RecordStatus
 from seclea_ai.lib.seclea_utils.core import encode_func
 from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
 from seclea_ai.transformations import DatasetTransformation
+from .internal.config import read_config
 from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
 
 logger = logging.getLogger("seclea_ai")
@@ -32,9 +33,9 @@ class SecleaAI:
         self,
         project_name: str,
         organization: str,
-        project_root: str = ".",
-        platform_url: str = "https://platform.seclea.com",
-        auth_url: str = "https://auth.seclea.com",
+        project_root: str = None,
+        platform_url: str = None,
+        auth_url: str = None,
         username: str = None,
         password: str = None,
         clean_up: bool = False,
@@ -58,23 +59,34 @@ class SecleaAI:
 
         :return: SecleaAI object
 
-        :raises: ValueError - if the framework is not supported.
-
         Example::
 
-            >>> seclea = SecleaAI(project_name="Test Project", project_root=".")
+            >>> seclea = SecleaAI(project_name="Test Project", organization="Test Org", project_root=".")
         """
         self._project_name = project_name
-        self._settings = {
+        settings_defaults = {
+            "max_storage_space": int(10e9),  # default is 10GB for now.
+            "offline": False,
+            "project_root": ".",
+            "platform_url": "https://platform.seclea.com",
+            "auth_url": "https://auth.seclea.com",
+            "cache_dir": PurePath(project_root) / ".seclea" / "cache" / project_name,
             "project_name": project_name,
             "organization_name": organization,
-            "project_root": project_root,
-            "platform_url": platform_url,
-            "auth_url": auth_url,
-            "cache_dir": PurePath(project_root) / ".seclea" / "cache" / project_name,
-            "max_storage_space": 1e10,  # default is 10GB for now.
-            "offline": False,
         }
+        global_config = read_config(Path.home() / ".seclea" / "config.yml")
+        project_config = read_config(PurePath(project_root) / ".seclea" / "config.yml")
+        # order is important {least_important -> most_important} so default values are first overridden
+        self._settings = {**settings_defaults, **global_config, **project_config}
+
+        # apply init args - if specified
+        if platform_url is not None:
+            self._settings["platform_url"] = platform_url
+        if auth_url is not None:
+            self._settings["auth_url"] = auth_url
+        if project_root is not None:
+            self._settings["project_root"] = project_root
+
         self._db = SqliteDatabase(
             Path.home() / ".seclea" / "seclea_ai.db",
             thread_safe=True,
