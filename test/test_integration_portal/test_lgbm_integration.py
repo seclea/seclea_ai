@@ -1,6 +1,6 @@
+import datetime
 import os
 import uuid
-import datetime
 from pathlib import Path
 from unittest import TestCase
 
@@ -34,7 +34,7 @@ class TestIntegrationLGBM(TestCase):
     def step_0_project_setup(self):
         self.start_timestamp = datetime.datetime.now()
         self.password = "asdf"  # nosec
-        self.username = "onespanadmin"  # nosec
+        self.username = "admin-dev"  # nosec
         self.organization = "Onespan"
         self.project_name = f"test-project-{uuid.uuid4()}"
         self.portal_url = "http://localhost:8000"
@@ -232,8 +232,5 @@ class TestIntegrationLGBM(TestCase):
 
     def test_steps(self):
         for name, step in self._steps():
-            try:
-                step()
-                print("STEP COMPLETE")
-            except Exception as e:
-                self.fail(f"{step} failed ({type(e)}: {e})")
+            step()
+            print("STEP COMPLETE")

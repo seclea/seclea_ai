@@ -5,12 +5,18 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, Future
 from typing import Dict, List, Callable
 
+from peewee import SqliteDatabase
+from pympler import asizeof
+
+from .api.api_interface import Api
 from .exceptions import (
     APIError,
     AuthenticationError,
     RequestTimeoutError,
     ServiceDegradedError,
+    StorageSpaceError,
 )
+from .local_db import Record, RecordStatus
 from .processors.sender import Sender
 from .processors.writer import Writer
 from .threading import SingleThreadTaskExecutor
@@ -23,10 +29,11 @@ class Director:
     Something to wrap backend requests. Maybe use to change the base url??
     """
 
-    def __init__(self, settings, api):
+    def __init__(self, settings, api, db):
         # setup some defaults
         self._settings = settings
-        self._api = api
+        self._api: Api = api
+        self._db: SqliteDatabase = db
         self.writer = Writer(settings=settings)
         self.sender = Sender(settings=settings, api=api)
         self.write_threadpool_executor = ThreadPoolExecutor(max_workers=4)
@@ -36,7 +43,11 @@ class Director:
         self.errors = list()
 
     def __del__(self):
-        self.terminate()
+        try:
+            self.terminate()
+        except AttributeError:
+            # means we already removed references - cannot do anything.
+            pass
 
     def terminate(self) -> None:
         """
@@ -77,6 +88,7 @@ class Director:
         """
         # check for errors and throw if there are any
         self._check_and_throw()
+        self._check_resources(entity_dict=entity_dict)
         future = self.write_threadpool_executor.submit(
             self.writer.funcs[entity_dict["entity"]], **entity_dict
         )
@@ -160,3 +172,31 @@ class Director:
             )
             self.send_executing[new_future] = entity_dict
             new_future.add_done_callback(self._send_completed)
+
+    def _check_resources(self, entity_dict):
+        # get size in memory
+        if entity_dict.get("dataset", None) is not None:
+            size = asizeof.asizeof(entity_dict["dataset"])
+            stored_size = size / 10
+        elif entity_dict.get("model", None) is not None:
+            size = asizeof.asizeof(entity_dict["model"])
+            stored_size = size * 50
+        else:
+            return
+
+        # get currently used space from db
+        self._db.connect()
+        records = Record.get_or_none(Record.size == RecordStatus.STORED.value)
+        current_stored = 0
+        if records is not None:
+            for record in records:
+                current_stored += record.size
+        self._db.close()
+
+        # break on storage overflow
+        if stored_size + current_stored > self._settings["max_storage_space"]:
+            raise StorageSpaceError("Specified storage size exceeded")
+
+        # limit is in director (from settings)
+        # NOTE not breaking on memory as reliability of estimating memory impact is too low
+        # and the fact that swap is common reduces the severity of the impact.

@@ -74,3 +74,11 @@ class ServiceDegradedError(APIError):
     """
 
     pass
+
+
+class StorageSpaceError(Exception):
+    """
+    Raised when available storage space would be exceeded.
+    """
+
+    pass

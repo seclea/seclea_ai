@@ -1,6 +1,7 @@
 import os
 import time
 import unittest
+from pathlib import Path
 
 import peewee
 import responses
@@ -23,13 +24,23 @@ class TestSecleaAIThreading(unittest.TestCase):
             url="http://localhost:8010/api/token/verify/",
             status=200,
         )
+        responses.add(
+            method=responses.POST,
+            url="http://localhost:8010/api/token/obtain/",
+            status=200,
+        )
         # set up director object which initialises threadpool.
         api = Api(  # nosec B106
             settings={"auth_url": "http://localhost:8010", "platform_url": "http://localhost:8000"},
             username="test",
             password="test",
         )
-        director = Director(settings={}, api=api)
+        db = peewee.SqliteDatabase(
+            Path.home() / ".seclea" / "seclea_ai.db",
+            thread_safe=True,
+            pragmas={"journal_mode": "wal"},
+        )
+        director = Director(settings={"max_storage_space": 1e10}, api=api, db=db)
 
         # ACT
         # try and record some data and trigger an unhandled exception in the thread

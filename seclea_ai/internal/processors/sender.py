@@ -1,7 +1,7 @@
 import logging
 import os
 import time
-from typing import Dict, List
+from typing import Dict
 
 from .processor import Processor
 from ..exceptions import BadRequestError
@@ -34,10 +34,8 @@ class Sender(Processor):
     def _send_training_run(
         self,
         record_id,
-        project,
         training_run_name: str,
-        model_id: int,
-        dataset_ids: List[str],
+        model_id: str,
         params: Dict,
         **kwargs,
     ):
@@ -47,11 +45,16 @@ class Sender(Processor):
         :return:
         """
         tr_record = Record.get_by_id(record_id)
-        if project is None:
-            raise Exception("You need to create a project before uploading a training run")
+        dataset_ids = list()
+
+        # get the remote id's of the datasets from the db (they must be there due to send ordering)
+        for dependency in tr_record.dependencies:
+            record = Record.get_by_id(dependency)
+            dataset_ids.append(record.remote_id)
+
         try:
             response = self._api.upload_training_run(
-                organization_id=self._settings["organization"],
+                organization_id=self._settings["organization_id"],
                 project_id=self._settings["project_id"],
                 dataset_ids=dataset_ids,
                 model_id=model_id,
@@ -63,14 +66,14 @@ class Sender(Processor):
             logger.debug(e)
             if "already exists" in str(e):
                 logger.warning(f"Entity already exists, skipping TrainingRun, id: {record_id}")
-                model_state = self._api.get_training_runs(
-                    organization_id=self._settings["organization"],
+                training_runs = self._api.get_training_runs(
+                    organization_id=self._settings["organization_id"],
                     project_id=self._settings["project_id"],
                     name=training_run_name,
                     dataset_ids=dataset_ids,
                     model_id=model_id,
                 )
-                tr_record.remote_id = model_state[0]["id"]
+                tr_record.remote_id = training_runs[0]["uuid"]
                 tr_record.status = RecordStatus.SENT.value
                 tr_record.save()
                 return record_id
@@ -85,7 +88,7 @@ class Sender(Processor):
             raise
         else:
             tr_record.status = RecordStatus.SENT.value
-            tr_record.remote_id = response["id"]
+            tr_record.remote_id = response["uuid"]
             tr_record.save()
             return record_id
 
@@ -116,7 +119,7 @@ class Sender(Processor):
         try:
             response = self._api.upload_model_state(
                 model_state_file_path=record.path,
-                organization_id=self._settings["organization"],
+                organization_id=self._settings["organization_id"],
                 project_id=self._settings["project_id"],
                 training_run_id=parent_id,
                 sequence_num=sequence_num,
@@ -129,11 +132,11 @@ class Sender(Processor):
                 logger.warning(f"Entity already exists, skipping ModelState, id: {record_id}")
                 model_state = self._api.get_model_states(
                     project_id=self._settings["project_id"],
-                    organization_id=self._settings["organization"],
+                    organization_id=self._settings["organization_id"],
                     training_run_id=parent_id,
                     sequence_num=sequence_num,
                 )
-                record.remote_id = model_state[0]["id"]
+                record.remote_id = model_state[0]["uuid"]
                 record.status = RecordStatus.SENT.value
                 record.save()
                 os.remove(record.path)
@@ -149,7 +152,7 @@ class Sender(Processor):
             raise
         else:
             # update record status in sqlite - TODO refactor out to common function.
-            record.remote_id = response["id"]  # TODO improve parsing.
+            record.remote_id = response["uuid"]  # TODO improve parsing.
             record.status = RecordStatus.SENT.value
             record.save()
             # clean up file
@@ -161,7 +164,7 @@ class Sender(Processor):
         record_id: int,
         metadata: Dict,
         dataset_name: str,
-        dataset_id,
+        dataset_hash: int,
         **kwargs,
     ):
 
@@ -190,10 +193,10 @@ class Sender(Processor):
             response = self._api.upload_dataset(
                 dataset_file_path=dataset_record.path,
                 project_id=self._settings["project_id"],
-                organization_id=self._settings["organization"],
+                organization_id=self._settings["organization_id"],
                 name=dataset_name,
                 metadata=metadata,
-                dataset_id=dataset_id,
+                dataset_hash=dataset_hash,
                 parent_dataset_id=parent_id,
             )
         # something went wrong - record in status and raise for handling in director.
@@ -202,12 +205,12 @@ class Sender(Processor):
             logger.debug(e)
             if "already exists" in str(e):
                 logger.warning(f"Entity already exists, skipping Dataset, id: {record_id}")
-                dataset = self._api.get_dataset(
+                dataset = self._api.get_datasets(
                     project_id=self._settings["project_id"],
-                    organization_id=self._settings["organization"],
-                    dataset_id=dataset_id,
+                    organization_id=self._settings["organization_id"],
+                    hash=dataset_hash,
                 )
-                dataset_record.remote_id = dataset["hash"]  # TODO make id (portal issue)
+                dataset_record.remote_id = dataset[0]["uuid"]
                 dataset_record.status = RecordStatus.SENT.value
                 dataset_record.save()
                 os.remove(dataset_record.path)
@@ -222,9 +225,7 @@ class Sender(Processor):
             raise
         else:
             # update record status in sqlite
-            dataset_record.remote_id = response[
-                "hash"
-            ]  # TODO improve parsing. - should be id - portal issue
+            dataset_record.remote_id = response["uuid"]  # TODO improve parsing.
             dataset_record.status = RecordStatus.SENT.value
             dataset_record.save()
             # clean up file
@@ -254,7 +255,7 @@ class Sender(Processor):
         try:
             response = self._api.upload_transformation(
                 project_id=self._settings["project_id"],
-                organization_id=self._settings["organization"],
+                organization_id=self._settings["organization_id"],
                 code_raw=code_raw,
                 code_encoded=code_encoded,
                 name=name,
@@ -271,12 +272,12 @@ class Sender(Processor):
                 )
                 transformations = self._api.get_transformations(
                     project_id=self._settings["project_id"],
-                    organization_id=self._settings["organization"],
+                    organization_id=self._settings["organization_id"],
                     code_raw=code_raw,
                     name=name,
                     dataset_id=dataset_id,
                 )
-                record.remote_id = transformations[0]["id"]
+                record.remote_id = transformations[0]["uuid"]
                 record.status = RecordStatus.SENT.value
                 record.save()
                 return
@@ -290,6 +291,6 @@ class Sender(Processor):
             raise
         else:
             record.status = RecordStatus.SENT.value
-            record.remote_id = response["id"]
+            record.remote_id = response["uuid"]
             record.save()
             return record_id
