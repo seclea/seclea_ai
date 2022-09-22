@@ -829,7 +829,7 @@ class SecleaAI:
         model = Tracked(model)
         file_name = f"data-{dataset_pks[0]}-model-{sequence_num}"
         save_path = os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_pk}")
-        model.object_manager.full_path = file_name, save_path
+        model.object_manager.full_path = save_path, file_name
 
         save_path = os.path.join(*model.save_tracked(path=save_path))
 
