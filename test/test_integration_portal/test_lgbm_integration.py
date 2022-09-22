@@ -232,8 +232,5 @@ class TestIntegrationLGBM(TestCase):
 
     def test_steps(self):
         for name, step in self._steps():
-            try:
-                step()
-                print("STEP COMPLETE")
-            except Exception as e:
-                self.fail(f"{step} failed ({type(e)}: {e})")
+            step()
+            print("STEP COMPLETE")

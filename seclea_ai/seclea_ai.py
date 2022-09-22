@@ -31,9 +31,9 @@ logger = logging.getLogger("seclea_ai")
 class SecleaAI:
     def __init__(
         self,
-        project_name: str,
-        organization: str,
-        project_root: str = None,
+        project_root: str = ".",
+        project_name: str = None,
+        organization: str = None,
         platform_url: str = None,
         auth_url: str = None,
         username: str = None,
@@ -43,11 +43,11 @@ class SecleaAI:
         """
         Create a SecleaAI object to manage a session. Requires a project name and framework.
 
+        :param project_root: The path to the root of the project. Default: "."
+
         :param project_name: The name of the project.
 
         :param organization: The name of the project's organization.
-
-        :param project_root: The path to the root of the project. Default: "."
 
         :param platform_url: The url of the platform server. Default: "https://platform.seclea.com"
 
@@ -65,27 +65,30 @@ class SecleaAI:
         """
         self._project_name = project_name
         settings_defaults = {
+            "project_root": project_root,  # note this is an exception - must be configured in init or use default.
             "max_storage_space": int(10e9),  # default is 10GB for now.
             "offline": False,
-            "project_root": ".",
+            "cache_dir": PurePath(project_root) / ".seclea" / "cache" / project_name,
             "platform_url": "https://platform.seclea.com",
             "auth_url": "https://auth.seclea.com",
-            "cache_dir": PurePath(project_root) / ".seclea" / "cache" / project_name,
-            "project_name": project_name,
-            "organization_name": organization,
         }
+        # read in the config files - everything can be specified in there except project root.
         global_config = read_config(Path.home() / ".seclea" / "config.yml")
         project_config = read_config(PurePath(project_root) / ".seclea" / "config.yml")
         # order is important {least_important -> most_important} so default values are first overridden
         self._settings = {**settings_defaults, **global_config, **project_config}
 
-        # apply init args - if specified
+        # apply init args - if specified TODO find a more elegant way to do this.
         if platform_url is not None:
             self._settings["platform_url"] = platform_url
         if auth_url is not None:
             self._settings["auth_url"] = auth_url
-        if project_root is not None:
-            self._settings["project_root"] = project_root
+        if project_name is not None:
+            self._settings["project_name"] = project_name
+        if organization is not None:
+            self._settings["organization_name"] = organization
+
+        self._validate_settings(["project_name", "organization_name"])
 
         self._db = SqliteDatabase(
             Path.home() / ".seclea" / "seclea_ai.db",
@@ -811,3 +814,16 @@ class SecleaAI:
                 return "tabular"
             return "time_series"
         return "tabular"
+
+    def _validate_settings(self, required_keys: List[str]) -> None:
+        """
+        Validates that settings contains non None values for the required keys
+        :param required_keys: List[str] list of required keys
+        :return: None
+        :raises: KeyError: if one of the keys is not present.
+        """
+        for key in required_keys:
+            if self._settings[key] is None:
+                raise KeyError(
+                    f"Key: {key} must be specified either in creation args or in the config files."
+                )
