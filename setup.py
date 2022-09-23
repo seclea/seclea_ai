@@ -23,6 +23,7 @@ setup(
     ],
     python_requires=">=3.7",
     install_requires=[
+        "circuitbreaker>=1.4.0",
         "dill>=0.3.4",
         "pandas>=1.3.0",
         "pyyaml>=6.0",

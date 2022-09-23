@@ -105,14 +105,14 @@ Some wait for background to complete in the User Thread but should have timeout.
   SecleaAI *-- Api
   SecleaAI *-- DB
   
-  AuthService *-- Transmission
+  AuthService *-- Session
   AuthService *-- DB
   
   Director *-- Writer
   Director *-- Sender
   
   Api *-- AuthService
-  Api *-- Transmission
+  Api *-- Session
   
   Writer *-- DB
   
@@ -131,6 +131,7 @@ Some wait for background to complete in the User Thread but should have timeout.
 
   class AuthService {
     db: DB
+    session: Session
     
     +authenticate()
   }
@@ -140,8 +141,13 @@ Some wait for background to complete in the User Thread but should have timeout.
     store_q: Queue
     send_q: Queue
     db: DB
-    store_thread: Writer(ProcessorThread)
-    send_thread: Sender(ProcessorThread)
+    writer = Writer
+    sender = Sender
+    write_threadpool_executor = ThreadPoolExecutor(max_workers=4)
+    send_thread_executor = SingleThreadTaskExecutor()
+    send_executing: Dict[Future, Dict] = dict()
+    write_executing: List[Future] = list()
+    errors = list()
     
     +store_entity()
     +send_entity()
@@ -150,7 +156,7 @@ Some wait for background to complete in the User Thread but should have timeout.
   
   class Api {
     auth: AuthService
-    
+    session: Session
   }
   
   class Writer {

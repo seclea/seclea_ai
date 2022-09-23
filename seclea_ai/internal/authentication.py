@@ -7,7 +7,6 @@ from peewee import SqliteDatabase
 from requests import Response, Session
 
 from seclea_ai.internal.exceptions import AuthenticationError
-
 from seclea_ai.internal.local_db import AuthService
 
 try:
@@ -28,13 +27,14 @@ def handle_response(res: Response, msg):
 
 # TODO fix this - the flow either here or in the threads is not working consistently.
 class AuthenticationService:
-    def __init__(self, url: str):
+    def __init__(self, url: str, session: Session):
         self._url = url
         self._db = SqliteDatabase(
             Path.home() / ".seclea" / "seclea_ai.db",
             thread_safe=True,
             pragmas={"journal_mode": "wal"},
         )
+        self._session = session
         self._path_token_obtain = "api/token/obtain/"  # nosec - bandit thinks this is a pw or key..
         self._path_token_refresh = (
             "api/token/refresh/"  # nosec - bandit thinks this is a pw or key..
@@ -43,7 +43,7 @@ class AuthenticationService:
         self._key_token_access = "access_token"  # nosec - bandit thinks this is a pw or key..
         self._key_token_refresh = "refresh_token"  # nosec - bandit thinks this is a pw or key..
 
-    def authenticate(self, session: Session, username=None, password=None):
+    def authenticate(self, username=None, password=None):
         """
         Attempts to authenticate with server and then passes credential to specified transmission
 
@@ -52,12 +52,12 @@ class AuthenticationService:
         :return:
         """
         self._db.connect()
-        if not self.verify_token(session=session):
-            if not self.refresh_token(session=session):
-                self._obtain_initial_tokens(session=session, username=username, password=password)
+        if not self.verify_token():
+            if not self.refresh_token():
+                self._obtain_initial_tokens(username=username, password=password)
         self._db.close()
 
-    def verify_token(self, session: Session) -> bool:
+    def verify_token(self) -> bool:
         """
         Verifies if access token in database is valid
         :return: bool valid
@@ -68,19 +68,21 @@ class AuthenticationService:
             self._key_token_access: AuthService.get(AuthService.key == self._key_token_access).value
         }
 
-        session.cookies.update(cookies)  # TODO check cookie first - keep original for some reason?
+        self._session.cookies.update(
+            cookies
+        )  # TODO check cookie first - keep original for some reason?
         logger.debug(f"Cookies: {cookies}")  # TODO remove
 
         try:
-            response = session.post(url=f"{self._url}/{self._path_token_verify}")
+            response = self._session.post(url=f"{self._url}/{self._path_token_verify}")
         except Exception:
             traceback.print_exc()
             raise
-            # session.cookies.pop(self._key_token_access)  # reset the cookie. TODO check this flow
+            # self._session.cookies.pop(self._key_token_access)  # reset the cookie. TODO check this flow
             # return False
         return response.status_code == 200
 
-    def refresh_token(self, session: Session) -> bool:
+    def refresh_token(self) -> bool:
         """
         Refreshes the access token by posting the refresh token.
 
@@ -94,8 +96,8 @@ class AuthenticationService:
             ).value
         }
         # TODO add more validation logic like in verify? - factor out?
-        session.cookies.update(cookies)
-        response = session.post(url=f"{self._url}/{self._path_token_refresh}")
+        self._session.cookies.update(cookies)
+        response = self._session.post(url=f"{self._url}/{self._path_token_refresh}")
         self._save_response_tokens(response)
         return response.status_code == 200
 
@@ -128,7 +130,7 @@ class AuthenticationService:
                 defaults={"value": cookies[self._key_token_access]},
             )
 
-    def _obtain_initial_tokens(self, session: Session, username=None, password=None) -> None:
+    def _obtain_initial_tokens(self, username=None, password=None) -> None:
         """
         Wrapper method to get initial tokens, either with passed in credentials. (For non secure scripting use only)
         This method saves the tokens in the db.
@@ -144,7 +146,9 @@ class AuthenticationService:
         else:
             print("Warning - Avoid storing credentials in code where possible!")
             credentials = {"username": username, "password": password}
-        response = session.post(url=f"{self._url}/{self._path_token_obtain}", data=credentials)
+        response = self._session.post(
+            url=f"{self._url}/{self._path_token_obtain}", data=credentials
+        )
         logger.debug(
             f"Initial Tokens - Status: {response.status_code} - content {response.content} - cookies - {response.cookies}"
         )
