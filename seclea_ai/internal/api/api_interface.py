@@ -10,7 +10,7 @@ import requests
 from circuitbreaker import circuit
 from requests import Response
 
-from .api_decorators import api_request, degraded_service_exceptions
+from .api_utils import api_request, degraded_service_exceptions
 from ...internal.authentication import AuthenticationService
 
 
@@ -47,6 +47,7 @@ class Api:
         json.loads(d)
         pass
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def get_organization(self, organization_name: str, **filter_kwargs) -> Response:
         return self._session.get(
@@ -54,6 +55,7 @@ class Api:
             params={"name": organization_name, **filter_kwargs},
         )
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def get_project(self, project_id: str, organization_id: str, **filter_kwargs) -> Response:
         """
@@ -77,6 +79,7 @@ class Api:
             params={"organization": organization_id, **filter_kwargs},
         )
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def upload_project(
         self,
@@ -94,6 +97,7 @@ class Api:
             params={"organization": organization_id},
         )
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def get_dataset(self, project_id: str, organization_id: str, dataset_id: str) -> Response:
         return self._session.get(
@@ -101,6 +105,7 @@ class Api:
             params={"project": project_id, "organization": organization_id},
         )
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def get_datasets(self, project_id: str, organization_id: str, **filter_kwargs) -> Response:
         return self._session.get(
@@ -108,6 +113,7 @@ class Api:
             params={"project": project_id, "organization": organization_id, **filter_kwargs},
         )
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def upload_dataset(
         self,
@@ -141,6 +147,7 @@ class Api:
                 params=dataset_queryparams,
             )
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def get_models(self, project_id: str, organization_id: str, **filter_kwargs) -> Response:
         """
@@ -162,6 +169,7 @@ class Api:
             params={"organization": organization_id, "project": project_id, **filter_kwargs},
         )
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def upload_model(
         self, project_id: str, organization_id: str, model_name: str, framework_name: str
@@ -177,6 +185,7 @@ class Api:
             params={"organization": organization_id, "project": project_id},
         )
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def get_training_runs(self, project_id: str, organization_id: str, **filter_kwargs) -> Response:
         return self._session.get(
@@ -188,6 +197,7 @@ class Api:
             },
         )
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def upload_training_run(
         self,
@@ -214,6 +224,7 @@ class Api:
             params={"organization": organization_id, "project": project_id},
         )
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def get_model_states(self, project_id: str, organization_id: str, **filter_kwargs) -> Response:
         return self._session.get(
@@ -225,6 +236,7 @@ class Api:
             },
         )
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def upload_model_state(
         self,
@@ -251,6 +263,7 @@ class Api:
                 },
             )
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def get_transformations(
         self, project_id: str, organization_id: str, **filter_kwargs
@@ -264,6 +277,7 @@ class Api:
             },
         )
 
+    @circuit(expected_exception=degraded_service_exceptions)
     @api_request
     def upload_transformation(
         self,
