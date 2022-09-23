@@ -1,4 +1,3 @@
-from functools import wraps
 from typing import Callable, Any, Dict, List, Union
 
 from requests import Response
@@ -44,7 +43,6 @@ def api_request(func: Callable[..., Response]) -> Callable[..., Union[List, Dict
     :raises: any of the errors in handle_response.
     """
 
-    @wraps(func)
     def inner(*args: Any, **kwargs: Any) -> Union[List, Dict]:
         return handle_response(func(*args, **kwargs)).json()
 
