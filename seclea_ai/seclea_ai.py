@@ -213,7 +213,7 @@ class SecleaAI:
         elif isinstance(dataset, str):
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
         tracked_ds = Tracked(dataset)
-        dset_pk = tracked_ds.object_manager.hash(tracked_ds, self._project)
+        dset_pk = tracked_ds.object_manager.hash_object_with_project(tracked_ds, self._project)
 
         if transformations is not None:
 
@@ -222,7 +222,7 @@ class SecleaAI:
             #####
             # Validate parent exists and get metadata - can factor out
             #####
-            parent_dset_pk = parent.object_manager.hash(parent, self._project)
+            parent_dset_pk = parent.object_manager.hash_object_with_project(parent, self._project)
             # check parent exists - throw an error if not.
             res = self._transmission.get(
                 url_path="/collection/datasets",
@@ -252,7 +252,7 @@ class SecleaAI:
             # check for duplicates
             for up_kwargs in upload_queue:
                 if (
-                    Tracked(up_kwargs["dataset"]).object_manager.hash(
+                    Tracked(up_kwargs["dataset"]).object_manager.hash_object_with_project(
                         up_kwargs["dataset"], self._project
                     )
                     == up_kwargs["parent_hash"]
@@ -381,7 +381,8 @@ class SecleaAI:
             # handle the final dataset - check generated = passed in.
             if idx == last:
                 if (
-                    Tracked(dset).object_manager.hash(dset, self._project) != dset_pk
+                    Tracked(dset).object_manager.hash_object_with_project(dset, self._project)
+                    != dset_pk
                 ):  # TODO create or find better exception
                     raise AssertionError(
                         """Generated Dataset does not match the Dataset passed in.
@@ -396,7 +397,9 @@ class SecleaAI:
                 "dataset": copy.deepcopy(dset),  # TODO change keys
                 "dataset_name": copy.deepcopy(dset_name),
                 "metadata": dset_metadata,
-                "parent_hash": Tracked(parent_dset).object_manager.hash(parent_dset, self._project),
+                "parent_hash": Tracked(parent_dset).object_manager.hash_object_with_project(
+                    parent_dset, self._project
+                ),
                 "transformation": copy.deepcopy(trans),
             }
             # update the parent dataset - these chained transformations only make sense if they are pushing the
@@ -490,7 +493,9 @@ class SecleaAI:
                 self._transmission,
                 self._project,
                 self._organization_id,
-                hash=Tracked(dataset).object_manager.hash(dataset, self._project),
+                hash=Tracked(dataset).object_manager.hash_object_with_project(
+                    dataset, self._project
+                ),
             ).json()[0]["uuid"]
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
@@ -735,7 +740,7 @@ class SecleaAI:
         dataset.object_manager.full_path = self._cache_dir, uuid.uuid4().__str__()
         dataset_file_path = os.path.join(*dataset.save_tracked(path=self._cache_dir))
 
-        dset_pk = Tracked(dataset).object_manager.hash(dataset, self._project)
+        dset_pk = Tracked(dataset).object_manager.hash_object_with_project(dataset, self._project)
 
         response = post_dataset(
             transmission=self._transmission,
