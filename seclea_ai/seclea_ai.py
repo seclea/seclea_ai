@@ -352,7 +352,7 @@ class SecleaAI:
 
             automatic_metadata = dict(
                 index=0 if dset.index.name is None else dset.index.name,
-                split=trans.split if trans is not None else parent_mdata["split"],
+                split=trans.split if trans.split is not None else parent_mdata["split"],
                 features=list(features),
                 categorical_features=list(
                     set(list(features))
