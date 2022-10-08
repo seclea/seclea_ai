@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlitedict import SqliteDict  # nosec
+import pickledb as db  # nosec
 
 
 class Storage:
@@ -16,14 +16,11 @@ class Storage:
         self._path = f"{root}/{db_name}"
         Path(root).mkdir(parents=True, exist_ok=True)
         # TODO this is unclosed during testing...
-        self.db = SqliteDict(self._path)
+        self.db = db.load(self._path, True)
 
     @property
     def path(self):
         return self._path
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.db.close()
 
     @path.setter
     def path(self, path: str):
@@ -35,12 +32,10 @@ class Storage:
         Path(path_root).mkdir(parents=True, exist_ok=True)
         self._path = path
         # TODO this is unclosed during testing...
-        self.db.close()
-        self.db = SqliteDict(self._path)
+        self.db = db.load(self._path, True)
 
     def write(self, key, val):
-        self.db[key] = val
-        self.db.commit()
+        self.db.set(key, val)
 
     def get(self, key):
         return self.db.get(key)
