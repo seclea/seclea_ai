@@ -14,20 +14,15 @@ from pandas import DataFrame, Series
 from pandas.errors import ParserError
 from requests import Response
 
-from seclea_ai.authentication import AuthenticationService
-from seclea_ai.exceptions import AuthenticationError
-from seclea_ai.lib.seclea_utils.core import (
-    CompressionFactory,
-    RequestWrapper,
-    decode_func,
-    encode_func,
-    save_object,
-)
-from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers, serialize
-from seclea_ai.transformations import DatasetTransformation
-from .lib.seclea_utils.dataset_management.dataset_utils import save_dataset, dataset_hash
+from .authentication import AuthenticationService
+from .exceptions import AuthenticationError
+from .lib.seclea_utils.core.transmission import RequestWrapper
+from .lib.seclea_utils.model_management import ModelManagers
+from .lib.seclea_utils.object_management import Tracked
 from .svc.api.collection.dataset import post_dataset, get_dataset
 from .svc.api.collection.model_state import post_model_state
+from .transformations import DatasetTransformation
+from .lib.seclea_utils.core.transformations import encode_func, decode_func
 
 
 def handle_response(res: Response, expected: int, msg: str) -> Response:
@@ -217,17 +212,17 @@ class SecleaAI:
             dataset = self._aggregate_dataset(dataset, index=metadata["index"])
         elif isinstance(dataset, str):
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
-
-        dset_pk = dataset_hash(dataset, self._project)
+        tracked_ds = Tracked(dataset)
+        dset_pk = tracked_ds.object_manager.hash_object_with_project(tracked_ds, self._project)
 
         if transformations is not None:
 
-            parent = self._assemble_dataset(transformations[0].raw_data_kwargs)
+            parent = Tracked(self._assemble_dataset(transformations[0].raw_data_kwargs))
 
             #####
             # Validate parent exists and get metadata - can factor out
             #####
-            parent_dset_pk = dataset_hash(parent, self._project)
+            parent_dset_pk = parent.object_manager.hash_object_with_project(parent, self._project)
             # check parent exists - throw an error if not.
             res = self._transmission.get(
                 url_path="/collection/datasets",
@@ -237,7 +232,7 @@ class SecleaAI:
                     "hash": parent_dset_pk,
                 },
             )
-            if not res.status_code == 200:
+            if not res.status_code == 200 or len(res.json()) == 0:
                 raise AssertionError(
                     "Parent Dataset does not exist on the Platform. Please check your arguments and "
                     "that you have uploaded the parent dataset already"
@@ -256,7 +251,12 @@ class SecleaAI:
 
             # check for duplicates
             for up_kwargs in upload_queue:
-                if dataset_hash(up_kwargs["dataset"], self._project) == up_kwargs["parent_hash"]:
+                if (
+                    Tracked(up_kwargs["dataset"]).object_manager.hash_object_with_project(
+                        up_kwargs["dataset"], self._project
+                    )
+                    == up_kwargs["parent_hash"]
+                ):
                     raise AssertionError(
                         f"""The transformation {up_kwargs['transformation'].func.__name__} does not change the dataset.
                         Please remove it and try again."""
@@ -381,7 +381,8 @@ class SecleaAI:
             # handle the final dataset - check generated = passed in.
             if idx == last:
                 if (
-                    dataset_hash(dset, self._project) != dset_pk
+                    Tracked(dset).object_manager.hash_object_with_project(dset, self._project)
+                    != dset_pk
                 ):  # TODO create or find better exception
                     raise AssertionError(
                         """Generated Dataset does not match the Dataset passed in.
@@ -396,7 +397,9 @@ class SecleaAI:
                 "dataset": copy.deepcopy(dset),  # TODO change keys
                 "dataset_name": copy.deepcopy(dset_name),
                 "metadata": dset_metadata,
-                "parent_hash": dataset_hash(parent_dset, self._project),
+                "parent_hash": Tracked(parent_dset).object_manager.hash_object_with_project(
+                    parent_dset, self._project
+                ),
                 "transformation": copy.deepcopy(trans),
             }
             # update the parent dataset - these chained transformations only make sense if they are pushing the
@@ -490,7 +493,9 @@ class SecleaAI:
                 self._transmission,
                 self._project,
                 self._organization_id,
-                hash=dataset_hash(dataset, self._project),
+                hash=Tracked(dataset).object_manager.hash_object_with_project(
+                    dataset, self._project
+                ),
             ).json()[0]["uuid"]
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
@@ -731,10 +736,11 @@ class SecleaAI:
             os.makedirs(self._cache_dir)
 
         # TODO refactor to make multithreading safe.
-        dataset_file_path = save_dataset(
-            dataset, dataset_name, os.path.join(self._cache_dir, uuid.uuid4().__str__())
-        )
-        dset_pk = dataset_hash(dataset, self._project)
+        dataset = Tracked(dataset)
+        dataset.object_manager.full_path = self._cache_dir, uuid.uuid4().__str__()
+        dataset_file_path = os.path.join(*dataset.save_tracked(path=self._cache_dir))
+
+        dset_pk = Tracked(dataset).object_manager.hash_object_with_project(dataset, self._project)
 
         response = post_dataset(
             transmission=self._transmission,
@@ -822,12 +828,12 @@ class SecleaAI:
             os.path.join(self._cache_dir, str(training_run_pk)),
             exist_ok=True,
         )
-        model_data = serialize(model, model_manager)
+        model = Tracked(model)
         file_name = f"data-{dataset_pks[0]}-model-{sequence_num}"
         save_path = os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_pk}")
-        save_path = save_object(
-            model_data, file_name, save_path, compression=CompressionFactory.ZSTD
-        )
+        model.object_manager.full_path = save_path, file_name
+
+        save_path = os.path.join(*model.save_tracked(path=save_path))
 
         res = post_model_state(
             self._transmission,
