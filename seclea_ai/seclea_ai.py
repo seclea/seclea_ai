@@ -15,15 +15,14 @@ from pandas import DataFrame, Series
 from pandas.errors import ParserError
 from peewee import SqliteDatabase
 
-from seclea_ai.internal.api.api_interface import Api
-from seclea_ai.internal.director import Director
-from seclea_ai.internal.exceptions import AuthenticationError
-from seclea_ai.internal.local_db import Record, RecordStatus
-from seclea_ai.lib.seclea_utils.core import encode_func
-from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelManagers
-from seclea_ai.transformations import DatasetTransformation
+from .internal.api.api_interface import Api
+from .internal.director import Director
+from .internal.exceptions import AuthenticationError
+from .internal.local_db import Record, RecordStatus
+from .lib.seclea_utils.core.transformations import encode_func
+from .lib.seclea_utils.model_management.get_model_manager import ModelManagers
+from .transformations import DatasetTransformation
 from .internal.config import read_config
-from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
 from .lib.seclea_utils.object_management import Tracked
 
 logger = logging.getLogger("seclea_ai")
@@ -452,7 +451,7 @@ class SecleaAI:
                     dset_name = dataset_name
             else:
                 if dset_hash == Tracked(parent_dset).object_manager.hash_object_with_project(
-                    dset, self._project_id
+                    parent_dset, self._project_id
                 ):
                     raise AssertionError(
                         f"""The transformation {trans.func.__name__} does not change the dataset.
@@ -462,7 +461,10 @@ class SecleaAI:
             # find parent dataset in local db - TODO improve
             self._db.connect()
             parent_record = Record.get_or_none(
-                Record.key == dataset_hash(parent_dset, self._project_id)
+                Record.key
+                == Tracked(parent_dset).object_manager.hash_object_with_project(
+                    parent_dset, self._project_id
+                )
             )
             parent_dataset_record_id = parent_record.id
 

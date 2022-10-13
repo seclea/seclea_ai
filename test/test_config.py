@@ -2,7 +2,7 @@ import os
 import unittest
 
 from seclea_ai.internal.config import human_2_numeric_bytes, read_yaml
-from seclea_ai.lib.seclea_utils.core import CustomNamedTemporaryFile
+from seclea_ai.lib.seclea_utils.core.file_management import CustomNamedTemporaryFile
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "")
