@@ -24,6 +24,7 @@ from seclea_ai.lib.seclea_utils.model_management.get_model_manager import ModelM
 from seclea_ai.transformations import DatasetTransformation
 from .internal.config import read_config
 from .lib.seclea_utils.dataset_management.dataset_utils import dataset_hash
+from .lib.seclea_utils.object_management import Tracked
 
 logger = logging.getLogger("seclea_ai")
 
@@ -246,16 +247,19 @@ class SecleaAI:
         elif isinstance(dataset, str):
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
 
-        dset_hash = dataset_hash(dataset, self._project_id)
+        tracked_ds = Tracked(dataset)
+        dset_hash = tracked_ds.object_manager.hash_object_with_project(tracked_ds, self._project_id)
 
         if transformations is not None:
 
-            parent = self._assemble_dataset(transformations[0].raw_data_kwargs)
+            parent = Tracked(self._assemble_dataset(transformations[0].raw_data_kwargs))
 
             #####
             # Validate parent exists and get metadata - check how often on portal, maybe remove?
             #####
-            parent_dset_hash = dataset_hash(parent, self._project_id)
+            parent_dset_hash = parent.object_manager.hash_object_with_project(
+                parent, self._project_id
+            )
             # check parent exists - check local db if not else error.
 
             res = self._api.get_datasets(
@@ -369,7 +373,6 @@ class SecleaAI:
         parent,
         parent_metadata,
     ):
-
         # setup for generating datasets.
         last = len(transformations) - 1
         upload_queue = list()
@@ -408,7 +411,7 @@ class SecleaAI:
 
             automatic_metadata = dict(
                 index=0 if dset.index.name is None else dset.index.name,
-                split=trans.split if trans is not None else parent_mdata["split"],
+                split=trans.split if trans.split is not None else parent_mdata["split"],
                 features=list(features),
                 categorical_features=list(
                     set(list(features))
@@ -433,7 +436,9 @@ class SecleaAI:
                 )
 
             dset_name = f"{dataset_name}-{trans.func.__name__}"  # TODO improve this.
-            dset_hash = dataset_hash(dset, self._project_id)
+            dset_hash = Tracked(dset).object_manager.hash_object_with_project(
+                dset, self._project_id
+            )
 
             # handle the final dataset - check generated = passed in.
             if idx == last:
@@ -446,7 +451,9 @@ class SecleaAI:
                 else:
                     dset_name = dataset_name
             else:
-                if dset_hash == dataset_hash(parent_dset, self._project_id):
+                if dset_hash == Tracked(parent_dset).object_manager.hash_object_with_project(
+                    dset, self._project_id
+                ):
                     raise AssertionError(
                         f"""The transformation {trans.func.__name__} does not change the dataset.
                         Please remove it and try again."""
@@ -540,8 +547,12 @@ class SecleaAI:
             test_dataset = self._assemble_dataset({"X": X_test, "y": y_test})
         if X_val is not None and y_val is not None:
             val_dataset = self._assemble_dataset({"X": X_val, "y": y_val})
-
-        self.upload_training_run(model, train_dataset, test_dataset, val_dataset)
+        self.upload_training_run(
+            model=model,
+            train_dataset=train_dataset,
+            test_dataset=test_dataset,
+            val_dataset=val_dataset,
+        )
 
     def upload_training_run(
         self,
@@ -580,7 +591,12 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_ids = [
-            Record.get_or_none(Record.key == dataset_hash(dataset, self._project_id)).id
+            Record.get_or_none(
+                Record.key
+                == Tracked(dataset).object_manager.hash_object_with_project(
+                    dataset, self._project_id
+                )
+            ).id
             for dataset in [train_dataset, test_dataset, val_dataset]
             if dataset is not None
         ]
