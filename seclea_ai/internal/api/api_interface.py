@@ -4,7 +4,7 @@ Everything to do with the API to the backend.
 import json
 import logging
 import os
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import requests
 from circuitbreaker import circuit
@@ -49,7 +49,7 @@ class Api:
 
     @circuit(expected_exception=degraded_service_exceptions)
     @api_request
-    def get_organization(self, organization_name: str, **filter_kwargs) -> Response:
+    def get_organization(self, organization_name: str, **filter_kwargs) -> Union[Response, List]:
         return self._session.get(
             url=f"{self._root_url}/{self._organization_endpoint}/",
             params={"name": organization_name, **filter_kwargs},
@@ -57,7 +57,9 @@ class Api:
 
     @circuit(expected_exception=degraded_service_exceptions)
     @api_request
-    def get_project(self, project_id: str, organization_id: str, **filter_kwargs) -> Response:
+    def get_project(
+        self, project_id: str, organization_id: str, **filter_kwargs
+    ) -> Union[Response, Dict]:
         """
 
         :param project_id:
@@ -73,7 +75,7 @@ class Api:
 
     @circuit(expected_exception=degraded_service_exceptions)
     @api_request
-    def get_projects(self, organization_id: str, **filter_kwargs) -> Response:
+    def get_projects(self, organization_id: str, **filter_kwargs) -> Union[Response, List]:
         return self._session.get(
             url=f"{self._root_url}/{self._project_endpoint}",
             params={"organization": organization_id, **filter_kwargs},
@@ -86,7 +88,7 @@ class Api:
         organization_id: str,
         name: str,
         description: str,
-    ) -> Response:
+    ) -> Union[Response, Dict]:
         return self._session.post(
             url=f"{self._root_url}/{self._project_endpoint}",
             json={
@@ -99,7 +101,9 @@ class Api:
 
     @circuit(expected_exception=degraded_service_exceptions)
     @api_request
-    def get_dataset(self, project_id: str, organization_id: str, dataset_id: str) -> Response:
+    def get_dataset(
+        self, project_id: str, organization_id: str, dataset_id: str
+    ) -> Union[Response, Dict]:
         return self._session.get(
             url=f"{self._root_url}/{self._dataset_endpoint}/{dataset_id}",
             params={"project": project_id, "organization": organization_id},
@@ -107,7 +111,9 @@ class Api:
 
     @circuit(expected_exception=degraded_service_exceptions)
     @api_request
-    def get_datasets(self, project_id: str, organization_id: str, **filter_kwargs) -> Response:
+    def get_datasets(
+        self, project_id: str, organization_id: str, **filter_kwargs
+    ) -> Union[Response, List]:
         return self._session.get(
             url=f"{self._root_url}/{self._dataset_endpoint}",
             params={"project": project_id, "organization": organization_id, **filter_kwargs},
@@ -124,7 +130,7 @@ class Api:
         metadata: dict,
         dataset_hash: int,
         parent_dataset_id: str = None,
-    ) -> Response:
+    ) -> Union[Response, Dict]:
 
         dataset_queryparams = {"project": project_id, "organization": organization_id}
         self.test_json_valid(metadata)
@@ -149,7 +155,9 @@ class Api:
 
     @circuit(expected_exception=degraded_service_exceptions)
     @api_request
-    def get_models(self, project_id: str, organization_id: str, **filter_kwargs) -> Response:
+    def get_models(
+        self, project_id: str, organization_id: str, **filter_kwargs
+    ) -> Union[Response, List]:
         """
         Get models - with optional filter parameters.
 
@@ -173,7 +181,7 @@ class Api:
     @api_request
     def upload_model(
         self, project_id: str, organization_id: str, model_name: str, framework_name: str
-    ) -> Response:
+    ) -> Union[Response, Dict]:
         return self._session.post(
             url=f"{self._root_url}/{self._model_endpoint}",
             json={
@@ -187,7 +195,9 @@ class Api:
 
     @circuit(expected_exception=degraded_service_exceptions)
     @api_request
-    def get_training_runs(self, project_id: str, organization_id: str, **filter_kwargs) -> Response:
+    def get_training_runs(
+        self, project_id: str, organization_id: str, **filter_kwargs
+    ) -> Union[Response, Dict]:
         return self._session.get(
             url=f"{self._root_url}/{self._training_run_endpoint}",
             params={
@@ -207,7 +217,7 @@ class Api:
         model_id: str,
         training_run_name: str,
         params: Dict,
-    ) -> Response:
+    ) -> Union[Response, Dict]:
         data = {
             "organization": organization_id,
             "project": project_id,
@@ -226,7 +236,9 @@ class Api:
 
     @circuit(expected_exception=degraded_service_exceptions)
     @api_request
-    def get_model_states(self, project_id: str, organization_id: str, **filter_kwargs) -> Response:
+    def get_model_states(
+        self, project_id: str, organization_id: str, **filter_kwargs
+    ) -> Union[Response, List]:
         return self._session.get(
             url=f"{self._root_url}/{self._training_run_endpoint}",
             params={
@@ -246,7 +258,7 @@ class Api:
         training_run_id: str,
         sequence_num: int,
         final_state,
-    ) -> Response:
+    ) -> Union[Response, Dict]:
         with open(model_state_file_path, "rb") as f:
             return self._session.post(
                 url=f"{self._root_url}/{self._model_states_endpoint}",
@@ -267,7 +279,7 @@ class Api:
     @api_request
     def get_transformations(
         self, project_id: str, organization_id: str, **filter_kwargs
-    ) -> Response:
+    ) -> Union[Response, List]:
         return self._session.get(
             url=f"{self._root_url}/{self._dataset_transformations_endpoint}",
             params={
@@ -287,7 +299,7 @@ class Api:
         code_raw,
         code_encoded,
         dataset_id: str,
-    ) -> Response:
+    ) -> Union[Response, Dict]:
 
         data = {
             "name": name,
