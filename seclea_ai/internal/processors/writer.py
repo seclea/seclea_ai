@@ -5,10 +5,9 @@ from pandas import DataFrame
 
 from .processor import Processor
 from ...internal.local_db import Record, RecordStatus
-from ...lib.seclea_utils.core import save_object, CompressionFactory
-from ...lib.seclea_utils.model_management import ModelManagers, serialize
 
 # TODO wrap all db requests in transactions to reduce clashes.
+from ...lib.seclea_utils.object_management import Tracked
 
 """
 Exceptions to handle
@@ -39,23 +38,18 @@ class Writer(Processor):
             # upload a dataset - only works for a single transformation.
             os.makedirs(self._settings["cache_dir"], exist_ok=True)
 
-            # TODO take another look at this section.
-            path_root = uuid.uuid4()
-            dataset_path = self._settings["cache_dir"] / f"{path_root}_tmp.csv"
-            dataset.to_csv(dataset_path, index=True)
-            with open(dataset_path, "rb") as rb:
-                comp_path = save_object(
-                    rb,
-                    file_name=f"{path_root}_compressed",
-                    path=self._settings["cache_dir"],
-                    compression=CompressionFactory.ZSTD,
-                )
-            # tidy up intermediate file
-            os.remove(dataset_path)
+            # TODO - need to ensure that underlying saving logic is thread safe.
+            dataset = Tracked(
+                dataset, cleanup=True
+            )  # cleanup removes the intermediate directory after object cleaned.
+            dataset.object_manager.full_path = self._settings["cache_dir"], uuid.uuid4().__str__()
+            dataset_file_path = os.path.join(
+                *dataset.save_tracked(path=self._settings["cache_dir"])
+            )
 
             # update the record TODO refactor out.
-            dataset_record.path = comp_path
-            dataset_record.size = os.path.getsize(comp_path)
+            dataset_record.path = dataset_file_path
+            dataset_record.size = os.path.getsize(dataset_file_path)
             dataset_record.status = RecordStatus.STORED.value
             dataset_record.save()
             return record_id
@@ -71,7 +65,6 @@ class Writer(Processor):
         record_id,
         model,
         sequence_num: int,
-        model_manager: ModelManagers,
         **kwargs,
     ):
         """
@@ -89,13 +82,12 @@ class Writer(Processor):
             save_path = self._settings["cache_dir"] / f"{str(training_run_id)}"
             os.makedirs(save_path, exist_ok=True)
 
-            model_data = serialize(model, model_manager)
-            save_path = save_object(
-                model_data,
-                file_name=f"model-{sequence_num}",  # TODO include more identifying info in filename - seclea_ai 798
-                path=save_path,
-                compression=CompressionFactory.ZSTD,
-            )
+            # TODO check underlying save logic is thread safe
+            model = Tracked(model)
+            file_name = f"model-{sequence_num}"
+            model.object_manager.full_path = save_path, file_name
+
+            save_path = os.path.join(*model.save_tracked(path=save_path))
 
             record.path = save_path
             record.size = os.path.getsize(save_path)
