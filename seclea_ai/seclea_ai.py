@@ -68,7 +68,7 @@ class SecleaAI:
             "project_root": project_root,  # note this is an exception - must be configured in init or use default.
             "max_storage_space": int(10e9),  # default is 10GB for now.
             "offline": False,
-            "cache_dir": PurePath(project_root) / ".seclea" / "cache" / project_name,
+            "cache_dir": (Path(project_root) / ".seclea" / "cache" / project_name).absolute(),
             "platform_url": "https://platform.seclea.com",
             "auth_url": "https://auth.seclea.com",
         }
