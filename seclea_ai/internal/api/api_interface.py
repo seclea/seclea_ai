@@ -75,7 +75,7 @@ class Api:
 
     @circuit(expected_exception=degraded_service_exceptions)
     @api_request
-    def get_projects(self, organization_id: str, **filter_kwargs) -> Union[Response, List]:
+    def get_projects(self, organization_id: str, **filter_kwargs) -> Union[Response, List[Dict]]:
         return self._session.get(
             url=f"{self._root_url}/{self._project_endpoint}",
             params={"organization": organization_id, **filter_kwargs},
@@ -113,7 +113,7 @@ class Api:
     @api_request
     def get_datasets(
         self, project_id: str, organization_id: str, **filter_kwargs
-    ) -> Union[Response, List]:
+    ) -> Union[Response, List[Dict]]:
         return self._session.get(
             url=f"{self._root_url}/{self._dataset_endpoint}",
             params={"project": project_id, "organization": organization_id, **filter_kwargs},
@@ -157,7 +157,7 @@ class Api:
     @api_request
     def get_models(
         self, project_id: str, organization_id: str, **filter_kwargs
-    ) -> Union[Response, List]:
+    ) -> Union[Response, List[Dict]]:
         """
         Get models - with optional filter parameters.
 
@@ -197,7 +197,7 @@ class Api:
     @api_request
     def get_training_runs(
         self, project_id: str, organization_id: str, **filter_kwargs
-    ) -> Union[Response, Dict]:
+    ) -> Union[Response, List[Dict]]:
         return self._session.get(
             url=f"{self._root_url}/{self._training_run_endpoint}",
             params={
@@ -238,7 +238,7 @@ class Api:
     @api_request
     def get_model_states(
         self, project_id: str, organization_id: str, **filter_kwargs
-    ) -> Union[Response, List]:
+    ) -> Union[Response, List[Dict]]:
         return self._session.get(
             url=f"{self._root_url}/{self._training_run_endpoint}",
             params={
@@ -279,7 +279,7 @@ class Api:
     @api_request
     def get_transformations(
         self, project_id: str, organization_id: str, **filter_kwargs
-    ) -> Union[Response, List]:
+    ) -> Union[Response, List[Dict]]:
         return self._session.get(
             url=f"{self._root_url}/{self._dataset_transformations_endpoint}",
             params={
