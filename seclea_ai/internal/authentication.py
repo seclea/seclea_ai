@@ -6,8 +6,8 @@ from pathlib import Path
 from peewee import SqliteDatabase
 from requests import Response, Session
 
-from seclea_ai.internal.exceptions import AuthenticationError
-from seclea_ai.internal.local_db import AuthService
+from ..internal.exceptions import AuthenticationError
+from ..internal.models.auth_credentials import AuthCredentials
 
 try:
     import google.colab  # noqa F401
@@ -62,10 +62,12 @@ class AuthenticationService:
         Verifies if access token in database is valid
         :return: bool valid
         """
-        if AuthService.get_or_none(AuthService.key == self._key_token_access) is None:
+        if AuthCredentials.get_or_none(AuthCredentials.key == self._key_token_access) is None:
             return False
         cookies = {
-            self._key_token_access: AuthService.get(AuthService.key == self._key_token_access).value
+            self._key_token_access: AuthCredentials.get(
+                AuthCredentials.key == self._key_token_access
+            ).value
         }
 
         self._session.cookies.update(
@@ -88,11 +90,11 @@ class AuthenticationService:
 
         :return: bool Success
         """
-        if AuthService.get_or_none(AuthService.key == self._key_token_refresh) is None:
+        if AuthCredentials.get_or_none(AuthCredentials.key == self._key_token_refresh) is None:
             return False
         cookies = {
-            self._key_token_refresh: AuthService.get(
-                AuthService.key == self._key_token_refresh
+            self._key_token_refresh: AuthCredentials.get(
+                AuthCredentials.key == self._key_token_refresh
             ).value
         }
         # TODO add more validation logic like in verify? - factor out?
@@ -120,12 +122,12 @@ class AuthenticationService:
         """
         cookies = response.cookies.get_dict()
         if self._key_token_refresh in cookies:
-            AuthService.get_or_create(
+            AuthCredentials.get_or_create(
                 key=self._key_token_refresh,
                 defaults={"value": cookies[self._key_token_refresh]},
             )
         if self._key_token_access in cookies:
-            AuthService.get_or_create(
+            AuthCredentials.get_or_create(
                 key=self._key_token_access,
                 defaults={"value": cookies[self._key_token_access]},
             )

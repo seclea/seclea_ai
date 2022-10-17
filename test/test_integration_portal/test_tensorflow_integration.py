@@ -10,7 +10,7 @@ from peewee import SqliteDatabase
 from sklearn.model_selection import train_test_split
 
 from seclea_ai import SecleaAI
-from seclea_ai.internal.local_db import Record, RecordStatus
+from seclea_ai.internal.models.record import Record, RecordStatus
 from seclea_ai.transformations import DatasetTransformation
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -4,7 +4,7 @@ import uuid
 from pandas import DataFrame
 
 from .processor import Processor
-from ...internal.local_db import Record, RecordStatus
+from ...internal.models.record import Record, RecordStatus
 
 # TODO wrap all db requests in transactions to reduce clashes.
 from ...lib.seclea_utils.object_management import Tracked

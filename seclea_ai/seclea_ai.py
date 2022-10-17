@@ -18,7 +18,7 @@ from peewee import SqliteDatabase
 from .internal.api.api_interface import Api
 from .internal.director import Director
 from .internal.exceptions import AuthenticationError
-from .internal.local_db import Record, RecordStatus
+from .internal.models.record import Record, RecordStatus
 from .lib.seclea_utils.core.transformations import encode_func
 from .lib.seclea_utils.model_management.get_model_manager import ModelManagers
 from .transformations import DatasetTransformation

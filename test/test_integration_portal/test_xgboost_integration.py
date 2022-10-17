@@ -14,7 +14,7 @@ from sklearn.preprocessing import LabelEncoder
 from xgboost import DMatrix
 
 from seclea_ai import SecleaAI
-from seclea_ai.internal.local_db import Record, RecordStatus
+from seclea_ai.internal.models.record import Record, RecordStatus
 from seclea_ai.transformations import DatasetTransformation
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
