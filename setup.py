@@ -8,8 +8,8 @@ with open("README.md", "r") as fh:
 setup(
     name="seclea_ai",
     version="0.1.2",
-    author="octavio",
-    author_email="octavio.delser@gmail.com",
+    author="Seclea Maintainers",
+    author_email="support@seclea.com",
     description="Seclea integration.",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -24,10 +24,13 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "circuitbreaker>=1.4.0",
+        "decorator>=5.1.1",
         "dill>=0.3.4",
         "pandas>=1.3.0",
+        "pympler>=1.0.1",
         "pyyaml>=6.0",
         "requests>=2.0.0",
+        "wrapt>=1.14.1",
         "zstandard>=0.15.2",
     ],
 )

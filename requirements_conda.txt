@@ -1,6 +1,7 @@
 boto3>=1.22.0
 certifi==2021.5.30
 chardet==3.0.4
+decorator>=5.1.1
 dill>=0.3.4
 idna>=2.9
 jupyter==1.0.0
@@ -11,6 +12,7 @@ pandas>=1.1.5
 peewee==3.14.10
 pillow>=9.1.0
 pre-commit>=2.20.0
+pympler>=1.0.1
 pyyaml>=6.0
 requests>=2.22.0
 responses>=0.13.0
@@ -19,5 +21,6 @@ setuptools>=49.2.1
 Sphinx==4.5.0
 tensorflow>=2.0.0
 urllib3>=1.26.5
+wrapt>=1.14.1
 xgboost>=1.5.1
 zstandard>=0.15.1
