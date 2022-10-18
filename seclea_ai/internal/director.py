@@ -186,11 +186,10 @@ class Director:
 
         # get currently used space from db
         self._db.connect()
-        records = Record.get_or_none(Record.size == RecordStatus.STORED.value)
+        records = Record.select().where(Record.status == RecordStatus.STORED)
         current_stored = 0
-        if records is not None:
-            for record in records:
-                current_stored += record.size
+        for record in records:
+            current_stored += record.size
         self._db.close()
 
         # break on storage overflow

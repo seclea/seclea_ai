@@ -6,7 +6,7 @@ from typing import Dict
 from .processor import Processor
 from ..exceptions import BadRequestError
 from ...internal.api.api_interface import Api
-from ...internal.models.record import RecordStatus, Record
+from ...internal.models.record import RecordStatus, Record, RecordEntity
 
 logger = logging.getLogger("seclea_ai")
 
@@ -25,10 +25,10 @@ class Sender(Processor):
         self._settings = settings
         self._api = api
         self.funcs = {
-            "dataset": self._send_dataset,
-            "model_state": self._send_model_state,
-            "transformation": self._send_transformation,
-            "training_run": self._send_training_run,
+            RecordEntity.DATASET: self._send_dataset,
+            RecordEntity.MODEL_STATE: self._send_model_state,
+            RecordEntity.DATASET_TRANSFORMATION: self._send_transformation,
+            RecordEntity.TRAINING_RUN: self._send_training_run,
         }
 
     def _send_training_run(
@@ -74,20 +74,20 @@ class Sender(Processor):
                     model_id=model_id,
                 )
                 tr_record.remote_id = training_runs[0]["uuid"]
-                tr_record.status = RecordStatus.SENT.value
+                tr_record.status = RecordStatus.SENT
                 tr_record.save()
                 return record_id
             else:
-                tr_record.status = RecordStatus.SEND_FAIL.value
+                tr_record.status = RecordStatus.SEND_FAIL
                 tr_record.save()
                 raise
         # something went wrong - record in status and raise for handling in director.
         except Exception:
-            tr_record.status = RecordStatus.SEND_FAIL.value
+            tr_record.status = RecordStatus.SEND_FAIL
             tr_record.save()
             raise
         else:
-            tr_record.status = RecordStatus.SENT.value
+            tr_record.status = RecordStatus.SENT
             tr_record.remote_id = response["uuid"]
             tr_record.save()
             return record_id
@@ -110,7 +110,7 @@ class Sender(Processor):
         # wait for storage to complete if it hasn't
         start = time.time()
         give_up = 1.0
-        while record.status != RecordStatus.STORED.value:
+        while record.status != RecordStatus.STORED:
             if time.time() - start >= give_up:
                 raise TimeoutError("Waited too long for Model State storage")
             time.sleep(0.1)
@@ -137,23 +137,23 @@ class Sender(Processor):
                     sequence_num=sequence_num,
                 )
                 record.remote_id = model_state[0]["uuid"]
-                record.status = RecordStatus.SENT.value
+                record.status = RecordStatus.SENT
                 record.save()
                 os.remove(record.path)
                 return record_id
             else:
-                record.status = RecordStatus.SEND_FAIL.value
+                record.status = RecordStatus.SEND_FAIL
                 record.save()
                 raise
         # something went wrong - record in status and raise for handling in director.
         except Exception:
-            record.status = RecordStatus.SEND_FAIL.value
+            record.status = RecordStatus.SEND_FAIL
             record.save()
             raise
         else:
             # update record status in sqlite - TODO refactor out to common function.
             record.remote_id = response["uuid"]  # TODO improve parsing.
-            record.status = RecordStatus.SENT.value
+            record.status = RecordStatus.SENT
             record.save()
             # clean up file
             os.remove(record.path)
@@ -182,7 +182,7 @@ class Sender(Processor):
         # wait for storage to complete if it hasn't
         start = time.time()
         give_up = 1.0
-        while dataset_record.status != RecordStatus.STORED.value:
+        while dataset_record.status != RecordStatus.STORED:
             logger.debug(dataset_record.status)
             if time.time() - start >= give_up:
                 raise TimeoutError("Waited too long for Dataset Storage")
@@ -211,22 +211,22 @@ class Sender(Processor):
                     hash=dataset_hash,
                 )
                 dataset_record.remote_id = dataset[0]["uuid"]
-                dataset_record.status = RecordStatus.SENT.value
+                dataset_record.status = RecordStatus.SENT
                 dataset_record.save()
                 os.remove(dataset_record.path)
                 return record_id
             else:
-                dataset_record.status = RecordStatus.SEND_FAIL.value
+                dataset_record.status = RecordStatus.SEND_FAIL
                 dataset_record.save()
                 raise
         except Exception:
-            dataset_record.status = RecordStatus.SEND_FAIL.value
+            dataset_record.status = RecordStatus.SEND_FAIL
             dataset_record.save()
             raise
         else:
             # update record status in sqlite
             dataset_record.remote_id = response["uuid"]  # TODO improve parsing.
-            dataset_record.status = RecordStatus.SENT.value
+            dataset_record.status = RecordStatus.SENT
             dataset_record.save()
             # clean up file
             os.remove(dataset_record.path)
@@ -241,7 +241,7 @@ class Sender(Processor):
             # wait for storage to complete if it hasn't
             start = time.time()
             give_up = 1.0
-            while dataset_record.status != RecordStatus.SENT.value:
+            while dataset_record.status != RecordStatus.SENT:
                 logger.debug(dataset_record.status)
                 if time.time() - start >= give_up:
                     raise TimeoutError("Waited too long for Dataset upload")
@@ -278,19 +278,19 @@ class Sender(Processor):
                     dataset_id=dataset_id,
                 )
                 record.remote_id = transformations[0]["uuid"]
-                record.status = RecordStatus.SENT.value
+                record.status = RecordStatus.SENT
                 record.save()
                 return
             else:
-                record.status = RecordStatus.SEND_FAIL.value
+                record.status = RecordStatus.SEND_FAIL
                 record.save()
                 raise
         except Exception:
-            record.status = RecordStatus.SEND_FAIL.value
+            record.status = RecordStatus.SEND_FAIL
             record.save()
             raise
         else:
-            record.status = RecordStatus.SENT.value
+            record.status = RecordStatus.SENT
             record.remote_id = response["uuid"]
             record.save()
             return record_id

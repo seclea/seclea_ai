@@ -18,7 +18,7 @@ from peewee import SqliteDatabase
 from .internal.api.api_interface import Api
 from .internal.director import Director
 from .internal.exceptions import AuthenticationError
-from .internal.models.record import Record, RecordStatus
+from .internal.models.record import Record, RecordStatus, RecordEntity
 from .lib.seclea_utils.core.transformations import encode_func
 from .lib.seclea_utils.model_management.get_model_manager import ModelManagers
 from .transformations import DatasetTransformation
@@ -296,7 +296,7 @@ class SecleaAI:
                 # need to get dataset uuid from response to put into transformation?
                 up_kwargs["project"] = self._project_id
                 # add to storage and sending queues
-                if up_kwargs["entity"] == "dataset":
+                if up_kwargs["entity"] == RecordEntity.DATASET:
                     self._director.store_entity(up_kwargs)
                 self._director.send_entity(up_kwargs)
             return
@@ -342,8 +342,9 @@ class SecleaAI:
         # TODO make lack of parent more obvious??
         self._db.connect()
         dataset_record = Record.create(
-            entity="dataset",
-            status=RecordStatus.IN_MEMORY.value,
+            project_id=self._project_id,
+            entity=RecordEntity.DATASET,
+            status=RecordStatus.IN_MEMORY,
             key=str(dset_hash),
             dataset_metadata=metadata,
         )
@@ -351,7 +352,7 @@ class SecleaAI:
 
         # New arch
         dataset_upload_kwargs = {
-            "entity": "dataset",
+            "entity": RecordEntity.DATASET,
             "record_id": dataset_record.id,
             "dataset": dataset,
             "dataset_name": dataset_name,
@@ -470,8 +471,9 @@ class SecleaAI:
 
             # create local db record.
             dataset_record = Record.create(
-                entity="dataset",
-                status=RecordStatus.IN_MEMORY.value,
+                project_id=self._project_id,
+                entity=RecordEntity.DATASET,
+                status=RecordStatus.IN_MEMORY,
                 dependencies=[parent_dataset_record_id],
                 key=str(dset_hash),
                 dataset_metadata=dset_metadata,
@@ -479,7 +481,7 @@ class SecleaAI:
 
             # add data to queue to upload later after final dataset checked
             upload_kwargs = {
-                "entity": "dataset",
+                "entity": RecordEntity.DATASET,
                 "record_id": dataset_record.id,
                 "dataset": copy.deepcopy(dset),  # TODO change keys
                 "dataset_name": copy.deepcopy(dset_name),
@@ -494,8 +496,9 @@ class SecleaAI:
 
             # add dependency to dataset
             trans_record = Record.create(
-                entity="transformation",
-                status=RecordStatus.IN_MEMORY.value,
+                project_id=self._project_id,
+                entity=RecordEntity.DATASET_TRANSFORMATION,
+                status=RecordStatus.IN_MEMORY,
                 dependencies=[dataset_record.id],
             )
             self._db.close()
@@ -503,7 +506,7 @@ class SecleaAI:
             # TODO unpack transformation into kwargs for upload - need to create trans upload func first.
             trans_kwargs = {**trans.data_kwargs, **trans.kwargs}
             transformation_kwargs = {
-                "entity": "transformation",
+                "entity": RecordEntity.DATASET_TRANSFORMATION,
                 "record_id": trans_record.id,
                 "name": trans.func.__name__,
                 "code_raw": inspect.getsource(trans.func),
@@ -606,20 +609,20 @@ class SecleaAI:
         # Model stuff
         model_name = model.__class__.__name__
         framework = self._get_framework(model)
-        # check the model exists upload if not TODO convert to add to queue
+        # check the model exists upload if not
         model_type_id = self._set_model(model_name=model_name, framework=framework)
 
         # check the latest training run TODO extract all this stuff
-        training_runs = self._api.get_training_runs(
-            project_id=self._project_id,
-            organization_id=self._organization_id,
-            model=model_type_id,
+        training_runs = (
+            Record.select()
+            .where(Record.project_id == self._project_id)
+            .where(Record.entity == RecordEntity.TRAINING_RUN)
         )
 
         # Create the training run name
         largest = -1
         for training_run in training_runs:
-            num = int(training_run["name"].split(" ")[2])
+            num = int(training_run.name.split(" ")[2])
             if num > largest:
                 largest = num
         training_run_name = f"Training Run {largest + 1}"
@@ -627,17 +630,19 @@ class SecleaAI:
         # extract params from the model
         params = framework.value.get_params(model)
 
-        # search for datasets in local db? Maybe not needed..
-
         # create record
         self._db.connect()
         training_run_record = Record.create(
-            entity="training_run", status=RecordStatus.IN_MEMORY.value, dependencies=dataset_ids
+            project_id=self._project_id,
+            name=training_run_name,
+            entity=RecordEntity.TRAINING_RUN,
+            status=RecordStatus.IN_MEMORY,
+            dependencies=dataset_ids,
         )
 
         # sent training run for upload.
         training_run_details = {
-            "entity": "training_run",
+            "entity": RecordEntity.TRAINING_RUN,
             "record_id": training_run_record.id,
             "training_run_name": training_run_name,
             "model_id": model_type_id,
@@ -647,8 +652,9 @@ class SecleaAI:
 
         # create local db record
         model_state_record = Record.create(
-            entity="model_state",
-            status=RecordStatus.IN_MEMORY.value,
+            project_id=self._project_id,
+            entity=RecordEntity.MODEL_STATE,
+            status=RecordStatus.IN_MEMORY,
             dependencies=[training_run_record.id],
         )
         self._db.close()
@@ -656,7 +662,7 @@ class SecleaAI:
         # send model state for save and upload
         # TODO make a function interface rather than the queue interface. Need a response to confirm it is okay.
         model_state_details = {
-            "entity": "model_state",
+            "entity": RecordEntity.MODEL_STATE,
             "record_id": model_state_record.id,
             "model": model,
             "sequence_num": 0,

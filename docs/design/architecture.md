@@ -182,53 +182,68 @@ if they make sense for validation etc.
 ```mermaid
     classDiagram
 
-    Record <|-- DatasetRecord
-    Record <|-- ModelStateRecord
-    Record <|-- TrainingRunRecord
-    Record <|-- DatasetTransformationRecord
-    Record <|-- ModelRecord
-    Record <|-- ProjectRecord
-    RecordStatus *-- Record
+    Entity <|-- Dataset
+    Entity <|-- ModelState
+    Entity <|-- TrainingRun
+    Entity <|-- DatasetTransformation
+    Entity <|-- Model
+    Entity <|-- Project
+    Record *-- Entity
 
-    class RecordStatus {
+    class Record {
         record: Record
         status: Saving | Transmitting | Failed | Completed
         error: str
         retries: int 
     }
 
-    class Record {
+    class Entity {
+        remote_id: str
+        name: str
         file_path: str
         size: int
     }
 
-    class DatasetRecord {
+    class Dataset {
         file_path: str
         size: int
         intermediate: bool
         metadata: dict (to str for sqlite)
     }
 
-    class ModelStateRecord {
+    class ModelState {
+        id: int (autogen)
+        remote_id: str
         file_path: str
         size: int
         metadata: dict (to str for sqlite)
+        
     }
 
-    class DatasetTransformationRecord {
-    
+    class DatasetTransformation {
+      id: int (autogen)
+      remote_id: str
+      name: str
+      dataset: Dataset
     }
 
-    class TrainingRunRecord {
-    
+    class TrainingRun {
+      id: int (autogen)
+      remote_id: str
+      name: str
     }
 
-    class ModelRecord {
-    
+    class Model {
+      id: int (autogen)
+      remote_id: str
+      name: str
+      framework: str?
     }
 
-    class ProjectRecord {
-    
+    class Project {
+      id: int (autogen)
+      remote_id: str
+      name: str
     }
 ```
 

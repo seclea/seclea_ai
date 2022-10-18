@@ -4,7 +4,7 @@ import uuid
 from pandas import DataFrame
 
 from .processor import Processor
-from ...internal.models.record import Record, RecordStatus
+from ...internal.models.record import Record, RecordStatus, RecordEntity
 
 # TODO wrap all db requests in transactions to reduce clashes.
 from ...lib.seclea_utils.object_management import Tracked
@@ -20,8 +20,8 @@ class Writer(Processor):
         super().__init__(settings=settings)
         self._settings = settings
         self.funcs = {
-            "dataset": self._save_dataset,
-            "model_state": self._save_model_state,
+            RecordEntity.DATASET: self._save_dataset,
+            RecordEntity.MODEL_STATE: self._save_model_state,
         }
 
     def _save_dataset(
@@ -50,13 +50,13 @@ class Writer(Processor):
             # update the record TODO refactor out.
             dataset_record.path = dataset_file_path
             dataset_record.size = os.path.getsize(dataset_file_path)
-            dataset_record.status = RecordStatus.STORED.value
+            dataset_record.status = RecordStatus.STORED
             dataset_record.save()
             return record_id
 
         except Exception:
             # update the record TODO refactor out.
-            dataset_record.status = RecordStatus.STORE_FAIL.value
+            dataset_record.status = RecordStatus.STORE_FAIL
             dataset_record.save()
             raise
 
@@ -91,11 +91,11 @@ class Writer(Processor):
 
             record.path = save_path
             record.size = os.path.getsize(save_path)
-            record.status = RecordStatus.STORED.value
+            record.status = RecordStatus.STORED
             record.save()
             return record_id
 
         except Exception:
-            record.status = RecordStatus.STORE_FAIL.value
+            record.status = RecordStatus.STORE_FAIL
             record.save()
             raise
