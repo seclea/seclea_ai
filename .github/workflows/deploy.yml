@@ -53,7 +53,7 @@ jobs:
           message: "Update version number in setup.py."
           # The flag used on the pull strategy. Use NO-PULL to avoid the action pulling at all.
           # Default: '--no-rebase'
-          tag: ${{ github.event.inputs.tag }}
+          tag: ${{ github.event.inputs.tag }}${{ github.event.inputs.build_number }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
