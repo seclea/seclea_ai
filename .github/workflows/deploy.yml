@@ -36,7 +36,7 @@ jobs:
       - name: Build Sphinx Documentation
         run: |
           sudo apt install -y pandoc
-          pip3 install -r requirements.txt
+          pip3 install sphinx sphinx-rtd-theme nbsphinx myst_parser
           ./scripts/make_doc_site.sh
 
       - name: Commit changes to main.
