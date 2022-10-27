@@ -14,7 +14,6 @@ Welcome to Seclea AI's documentation!
    tutorial.rst
    seclea_ai.rst
    changelog.rst
-   Getting_Started_with_Seclea.md
 
 Indices and tables
 ==================
