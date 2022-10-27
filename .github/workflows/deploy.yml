@@ -7,6 +7,11 @@ on:
         description: "Release tag - in the format vX.X.X where X are numbers"
         required: true
         type: string
+      build_number:
+        description: "The build number prefixed with '-'. Only in case of rebuild of existing version (package build issue only) eg. -1 would become vX.X.X-1"
+        required: false
+        default: ""
+        type: string
 
 jobs:
   build-and-upload:
@@ -26,7 +31,8 @@ jobs:
 
       - name: Increment version in setup.py
         run: |
-          ./scripts/update-version.sh $( echo ${{ github.event.inputs.tag }} | cut -c 2- )
+          echo ${{ github.event.inputs.tag }}${{ github.event.inputs.build_number }}
+          ./scripts/update-version.sh $( echo ${{ github.event.inputs.tag }}${{ github.event.inputs.build_number }} | cut -c 2- )
 
       - name: Build Sphinx Documentation
         run: |
