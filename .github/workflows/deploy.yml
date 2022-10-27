@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout dev - including submodules
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: dev
           token: ${{ secrets.TOKEN_AUTOMATION }}
@@ -54,7 +54,7 @@ jobs:
           message: "Update version number in setup.py."
 
       - name: Checkout main - including submodules
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: main
           token: ${{ secrets.TOKEN_AUTOMATION }}
@@ -81,7 +81,7 @@ jobs:
           tag: ${{ github.event.inputs.tag }}
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: "3.8"
 
