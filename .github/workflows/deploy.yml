@@ -31,7 +31,6 @@ jobs:
 
       - name: Increment version in setup.py
         run: |
-          echo ${{ github.event.inputs.tag }}${{ github.event.inputs.build_number }}
           ./scripts/update-version.sh $( echo ${{ github.event.inputs.tag }}${{ github.event.inputs.build_number }} | cut -c 2- )
 
       - name: Build Sphinx Documentation
@@ -62,7 +61,7 @@ jobs:
 
       - name: Increment version in setup.py
         run: |
-          ./scripts/update-version.sh $( echo ${{ github.event.inputs.tag }} | cut -c 2- )
+          ./scripts/update-version.sh $( echo ${{ github.event.inputs.tag }}${{ github.event.inputs.build_number }} | cut -c 2- )
 
       - name: Commit changes to main.
         uses: EndBug/add-and-commit@v9 # You can change this to use a specific version
