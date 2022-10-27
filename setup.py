@@ -15,6 +15,14 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/seclea/seclea_ai",
     packages=find_packages(exclude=["**test", "**example_files"]),
+    package_data={
+        "seclea_ai": [
+            "lib/seclea_utils/clib/pigz.exe",
+            "lib/seclea_utils/clib/pigz/zopfli/src/zopfli/*",
+            "lib/seclea_utils/clib/pigz/zopfli/*",
+            "lib/seclea_utils/clib/pigz/*",
+        ]
+    },
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",
