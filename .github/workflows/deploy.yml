@@ -22,10 +22,10 @@ jobs:
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
 
     steps:
-      - name: Checkout dev - including submodules
+      - name: Checkout main - including submodules
         uses: actions/checkout@v3
         with:
-          ref: dev
+          ref: main
           token: ${{ secrets.TOKEN_AUTOMATION }}
           submodules: "recursive"
 
@@ -38,30 +38,6 @@ jobs:
           sudo apt install -y pandoc
           pip3 install -r requirements.txt
           ./scripts/make_doc_site.sh
-
-      - name: Commit changes to dev.
-        uses: EndBug/add-and-commit@v9 # You can change this to use a specific version
-        with:
-          add: "."
-          author_email: automation@seclea.com
-          # Determines the way the action fills missing author name and email. Three options are available:
-          # - github_actor -> UserName <UserName@users.noreply.github.com>
-          # - user_info -> Your Display Name <your-actual@email.com>
-          # - github_actions -> github-actions <email associated with the github logo>
-          # Default:
-          default_author: github_actions
-          message: "Update version number in setup.py."
-
-      - name: Checkout main - including submodules
-        uses: actions/checkout@v3
-        with:
-          ref: main
-          token: ${{ secrets.TOKEN_AUTOMATION }}
-          submodules: "recursive"
-
-      - name: Increment version in setup.py
-        run: |
-          ./scripts/update-version.sh $( echo ${{ github.event.inputs.tag }}${{ github.event.inputs.build_number }} | cut -c 2- )
 
       - name: Commit changes to main.
         uses: EndBug/add-and-commit@v9 # You can change this to use a specific version
