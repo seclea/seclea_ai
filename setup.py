@@ -3,11 +3,13 @@ try:
 except ImportError:
     from distutils.core import find_packages, setup
 
+version = "1.0.0-1"
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 setup(
     name="seclea_ai",
-    version="1.0.0-1",
+    version=version,
     author="octavio",
     author_email="octavio.delser@gmail.com",
     description="Seclea integration.",
