@@ -18,8 +18,8 @@ There are two main steps to using the package:
 
 - After each time you train a new model you will upload it using ``SecleaAI.upload_training_run()``.
 
-Example Usage
-#############
+Example Notebook
+################
 
 .. include :: Getting_Started_with_Seclea.md
    :parser: myst_parser.sphinx_
