@@ -13,6 +13,8 @@
 import os
 import sys
 
+from setup import version
+
 # go up two levels to find python package
 sys.path.insert(0, os.path.abspath("../.."))
 print(sys.path)
@@ -24,7 +26,7 @@ copyright = "2021, Seclea"
 author = "Seclea"
 
 # The full version, including alpha/beta/rc tags
-release = "0.0.47"
+release = version
 
 
 # -- General configuration ---------------------------------------------------
