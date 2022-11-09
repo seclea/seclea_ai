@@ -216,6 +216,11 @@ class SecleaAI:
         dset_pk = tracked_ds.object_manager.hash_object_with_project(tracked_ds, self._project)
 
         if transformations is not None:
+            # specific guard against mis specified initial data.
+            if not isinstance(list(transformations[0].raw_data_kwargs.values())[0], DataFrame):
+                raise ValueError(
+                    f"The initial DatasetTransformation data_kwargs must be a DataFrame, found {list(transformations[0].raw_data_kwargs.values())[0]}, of type {type(list(transformations[0].raw_data_kwargs.values())[0])}"
+                )
 
             parent = Tracked(self._assemble_dataset(transformations[0].raw_data_kwargs))
 
