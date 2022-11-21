@@ -1,15 +1,12 @@
-try:
-    from setuptools import find_packages, setup
-except ImportError:
-    from distutils.core import find_packages, setup
+from setuptools import find_packages, setup
 
-version = "1.0.0-1"
+from __version__ import __version__
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 setup(
     name="seclea_ai",
-    version=version,
+    version=__version__,
     author="octavio",
     author_email="octavio.delser@gmail.com",
     description="Seclea integration.",
@@ -34,9 +31,10 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "dill>=0.3.4",
+        "decorator",
         "pandas>=1.3.0",
         "pickleDB>=0.9.2",
         "requests>=2.0.0",
-        "zstandard>=0.15.2",
+        "wrapt",
     ],
 )
