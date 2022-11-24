@@ -216,6 +216,11 @@ class SecleaAI:
         dset_pk = tracked_ds.object_manager.hash_object_with_project(tracked_ds, self._project)
 
         if transformations is not None:
+            # specific guard against mis specified initial data.
+            if not isinstance(list(transformations[0].raw_data_kwargs.values())[0], DataFrame):
+                raise ValueError(
+                    f"The initial DatasetTransformation data_kwargs must be a DataFrame, found {list(transformations[0].raw_data_kwargs.values())[0]}, of type {type(list(transformations[0].raw_data_kwargs.values())[0])}"
+                )
 
             parent = Tracked(self._assemble_dataset(transformations[0].raw_data_kwargs))
 
@@ -488,18 +493,26 @@ class SecleaAI:
         self._auth_service.authenticate(self._transmission)
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
-        dataset_pks = [
-            get_dataset(
-                self._transmission,
-                self._project,
-                self._organization_id,
-                hash=Tracked(dataset).object_manager.hash_object_with_project(
-                    dataset, self._project
-                ),
-            ).json()[0]["uuid"]
-            for dataset in [train_dataset, test_dataset, val_dataset]
-            if dataset is not None
-        ]
+        dataset_pks = list()
+        for idx, dataset in enumerate([train_dataset, test_dataset, val_dataset]):
+            if dataset is not None:
+                try:
+                    dataset_pks.append(
+                        get_dataset(
+                            self._transmission,
+                            self._project,
+                            self._organization_id,
+                            hash=Tracked(dataset).object_manager.hash_object_with_project(
+                                dataset, self._project
+                            ),
+                        ).json()[0]["uuid"]
+                    )
+                except IndexError:
+                    # we tried to access [0] of an empty return
+                    dset_map = {0: "Train", 1: "Test", 2: "Validation"}
+                    raise ValueError(
+                        f"The {dset_map[idx]} dataset was not found on the Platform. Please check and try again"
+                    )
 
         model_name = model.__class__.__name__
 
@@ -752,9 +765,19 @@ class SecleaAI:
             dataset_pk=dset_pk,
             parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
         )
-        handle_response(
-            response, 201, f"There was some issue uploading the dataset: {response.reason}"
-        )
+        # handle duplicate upload with warning only.
+        if (
+            response.status_code == 400
+            and "fields project, hash must make a unique seta" in response.text
+        ):
+            print(
+                "Warning: you are uploading the same dataset again, "
+                "if this is expected (for example you are re running a script) feel free to ignore this warning."
+            )
+        else:
+            handle_response(
+                response, 201, f"There was some issue uploading the dataset: {response.reason}"
+            )
         # tidy up files.
         os.remove(dataset_file_path)
 
