@@ -560,7 +560,6 @@ class SecleaAI:
             dataset_pks=dataset_pks,
             sequence_num=0,
             final=True,
-            model_manager=framework,
         )
 
     @staticmethod
@@ -845,7 +844,6 @@ class SecleaAI:
         dataset_pks: List[str],
         sequence_num: int,
         final: bool,
-        model_manager: ModelManagers,
     ):
         os.makedirs(
             os.path.join(self._cache_dir, str(training_run_pk)),
