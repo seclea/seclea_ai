@@ -57,7 +57,9 @@ jobs:
         run: brew install libomp
       - name: Install Dependencies
         run: |
-          pip install -r requirements.txt
+          curl -sSL https://install.python-poetry.org | python3 -
+          poetry env use python3.10
+          poetry install
       - name: Run Tests
         run: |
-          python -m unittest discover
+          poetry run python3 -m unittest discover
