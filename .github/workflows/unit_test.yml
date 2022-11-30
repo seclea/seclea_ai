@@ -42,6 +42,8 @@ jobs:
         with:
           token: ${{ secrets.TOKEN_AUTOMATION }}
           submodules: "recursive"
+      - name: Setup Poetry
+        uses: abatilo/actions-poetry@v2
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
@@ -50,8 +52,6 @@ jobs:
       - name: Check for macos and install libomp for Boosting libraries to work
         if: startsWith(matrix.os, 'macOS')
         run: brew install libomp
-      - name: Run image
-        uses: abatilo/actions-poetry@v2
       - name: Install deps
         run: |
           poetry install
