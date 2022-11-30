@@ -61,4 +61,6 @@ jobs:
           poetry install
       - name: Run tests
         run: |
-          poetry run python3 -m unittest discover
+          poetry env info
+          poetry --version
+          poetry run python -m unittest discover
