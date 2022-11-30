@@ -54,4 +54,5 @@ jobs:
       - name: Run Tests
         run: |
           poetry install
+          poetry env use python${{matrix.python-version}}
           poetry run python3 -m unittest discover
