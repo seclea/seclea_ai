@@ -30,7 +30,7 @@ jobs:
         python-version: ["3.8", "3.9", "3.10"]
         include:
           - os: ubuntu-latest
-            path: ~/.cache/pip
+            path: ~/.cache/pypoetrty
           - os: macos-latest
             path: ~/Library/Caches/pip
           - os: windows-latest
@@ -42,12 +42,6 @@ jobs:
         with:
           token: ${{ secrets.TOKEN_AUTOMATION }}
           submodules: "recursive"
-      - uses: actions/cache@v3
-        with:
-          path: ${{ matrix.path }}
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
@@ -55,11 +49,8 @@ jobs:
       - name: Check for macos and install libomp for Boosting libraries to work
         if: startsWith(matrix.os, 'macOS')
         run: brew install libomp
-      - name: Install Dependencies
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          poetry env use python${{matrix.python-version}}
-          poetry install
+      - name: Run image
+          uses: abatilo/actions-poetry@v2
       - name: Run Tests
         run: |
           poetry run python3 -m unittest discover
