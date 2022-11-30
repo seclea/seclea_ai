@@ -50,7 +50,7 @@ jobs:
         if: startsWith(matrix.os, 'macOS')
         run: brew install libomp
       - name: Run image
-          uses: abatilo/actions-poetry@v2
+        uses: abatilo/actions-poetry@v2
       - name: Run Tests
         run: |
           poetry run python3 -m unittest discover
