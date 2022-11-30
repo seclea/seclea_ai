@@ -24,7 +24,7 @@ readme = "README.md"
 packages = [{ include = "seclea_ai" }]
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.11"
+python = ">=3.8,<3.11"
 boto3 = "^1.26.16"
 certifi = "^2022.9.24"
 chardet = "^5.0.0"
