@@ -58,7 +58,7 @@ jobs:
       - name: Install Dependencies
         run: |
           curl -sSL https://install.python-poetry.org | python3 -
-          poetry env use python3.10
+          poetry env use python${{matrix.python-version}}
           poetry install
       - name: Run Tests
         run: |
