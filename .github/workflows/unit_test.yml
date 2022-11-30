@@ -55,8 +55,9 @@ jobs:
       - name: Activate poetry env
         run: |
           echo "========== [ env activation ]=============="
+          python3 --version
           echo python${{matrix.python-version}}
-          poetry env use python${{matrix.python-version}}
+          poetry env use python3
       - name: Install deps
         run: |
           poetry install
