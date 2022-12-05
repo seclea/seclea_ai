@@ -767,7 +767,7 @@ class SecleaAI:
         # handle duplicate upload with warning only.
         if (
             response.status_code == 400
-            and "fields project, hash must make a unique seta" in response.text
+            and "fields project, hash must make a unique set" in response.text
         ):
             print(
                 "Warning: you are uploading the same dataset again, "
