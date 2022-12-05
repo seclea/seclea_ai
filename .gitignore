@@ -101,3 +101,6 @@ test/testing/MNIST
 
 # Jupyter stuff
 .ipynb_checkpoints
+
+# tutorial notebook - temp only
+Seclea_Tutorial_Session.ipynb
