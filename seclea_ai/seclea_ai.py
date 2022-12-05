@@ -560,7 +560,6 @@ class SecleaAI:
             dataset_pks=dataset_pks,
             sequence_num=0,
             final=True,
-            model_manager=framework,
         )
 
     @staticmethod
@@ -768,7 +767,7 @@ class SecleaAI:
         # handle duplicate upload with warning only.
         if (
             response.status_code == 400
-            and "fields project, hash must make a unique seta" in response.text
+            and "fields project, hash must make a unique set" in response.text
         ):
             print(
                 "Warning: you are uploading the same dataset again, "
@@ -845,7 +844,6 @@ class SecleaAI:
         dataset_pks: List[str],
         sequence_num: int,
         final: bool,
-        model_manager: ModelManagers,
     ):
         os.makedirs(
             os.path.join(self._cache_dir, str(training_run_pk)),
