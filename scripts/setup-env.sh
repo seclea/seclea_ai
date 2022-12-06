@@ -1,7 +1,15 @@
 pwd
 poetry env use python3.10
 if [[ $(uname -m) == 'arm64' ]]; then
-  echo "macos"
+  echo "========[ arm64 ]==========="
+  brew install openssl
+  brew install libomp
+  brew install gcc@11
+  export GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1
+  export GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1
+  export LDFLAGS="-L/opt/homebrew/opt/openssl@3/lib"
+  export CPPFLAGS="-I/opt/homebrew/opt/openssl@3/include"
+
   unset CC
   unset CXX
   poetry install
