@@ -1,0 +1,58 @@
+###########
+# BUILDER #
+###########
+
+FROM ubuntu:22.04 AS builder
+
+# set work directory
+WORKDIR /usr/src/app
+
+# set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# install psycopg2 dependencies
+RUN apt-get update # && apt install postgresql-dev gcc python3-dev
+
+RUN apt-get install -y python3.10-dev
+RUN apt-get install -y python3.10-venv
+RUN apt-get install -y python3-pip
+# install dependencies
+ENV  POETRY_VERSION=1.2.2
+RUN pip install "poetry==$POETRY_VERSION"
+RUN python3 -m venv /venv
+
+COPY pyproject.toml poetry.lock ./
+
+COPY . .
+RUN . /venv/bin/activate && poetry install
+#########
+# FINAL # separated to reduce final size
+#########
+
+FROM ubuntu:22.04
+# create the app user
+RUN addgroup --system app && adduser --system app --ingroup app
+RUN apt-get update # && apt install postgresql-dev gcc python3-dev
+RUN apt-get install -y python3.10 python3.10-dev
+RUN apt-get install -y python3-pip
+RUN apt-get install -y python3.10-venv
+RUN apt-get install -y build-essential
+RUN apt-get install -y  libc6-dev libc6 libssl-dev zlib1g-dev curl gcc-9
+RUN apt-get install -y libc-bin
+RUN rm -rf /home/app/web/seclea_ai/lib/seclea_utils/clib/compiled/*
+
+# create the appropriate directories
+ENV APP_HOME=/home/app/web
+RUN mkdir $APP_HOME
+WORKDIR $APP_HOME
+
+# install nodejs
+COPY --from=builder /venv /venv
+# copy project
+COPY . $APP_HOME
+
+# chown all the files to the app user and build the frontend
+ENV PATH="$/venv/bin:$PATH"
+# change to the app user - security reason
+ENTRYPOINT ["/home/app/web/scripts/integration_test.sh"]
