@@ -14,8 +14,8 @@ ENV PYTHONUNBUFFERED 1
 # install psycopg2 dependencies
 RUN apt-get update # && apt install postgresql-dev gcc python3-dev
 
-RUN apt-get install -y python3.10-dev
-RUN apt-get install -y python3.10-venv
+RUN apt-get install -y python3.9-dev
+RUN apt-get install -y python3.9-venv
 RUN apt-get install -y python3-pip
 # install dependencies
 ENV  POETRY_VERSION=1.2.2
@@ -34,9 +34,9 @@ FROM ubuntu:22.04
 # create the app user
 RUN addgroup --system app && adduser --system app --ingroup app
 RUN apt-get update # && apt install postgresql-dev gcc python3-dev
-RUN apt-get install -y python3.10 python3.10-dev
+RUN apt-get install -y python3.9 python3.9-dev
 RUN apt-get install -y python3-pip
-RUN apt-get install -y python3.10-venv
+RUN apt-get install -y python3.9-venv
 RUN apt-get install -y build-essential
 RUN apt-get install -y  libc6-dev libc6 libssl-dev zlib1g-dev curl gcc-9
 RUN apt-get install -y libc-bin
