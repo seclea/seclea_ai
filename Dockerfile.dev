@@ -26,7 +26,7 @@ RUN python3 -m venv /venv
 COPY pyproject.toml poetry.lock ./
 
 COPY . .
-RUN . /venv/bin/activate && poetry install
+RUN . /venv/bin/activate ; poetry env use python3.9; poetry install
 #########
 # FINAL # separated to reduce final size
 #########
