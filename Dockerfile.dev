@@ -18,6 +18,19 @@ RUN add-apt-repository ppa:deadsnakes/ppa
 RUN apt-get install -y python3.9-dev
 RUN apt-get install -y python3.9-venv
 RUN apt-get install -y python3-pip
+RUN apt-get update && apt-get install wget
+RUN wget https://github.com/bazelbuild/bazelisk/releases/download/v1.12.0/bazelisk-linux-arm64 -O /usr/local/bin/bazelisk && \
+    chmod +x /usr/local/bin/bazelisk
+
+RUN git clone -b v0.26.0 https://github.com/tensorflow/io.git
+RUN python -m pip install tensorflow==2.10.0rc0
+RUN cd io && bazelisk && python tools/build/configure.py
+RUN cd io && bazelisk build //tensorflow_io/... //tensorflow_io_gcs_filesystem/...
+RUN cd io && \
+    python3 setup.py --data bazel-bin -q bdist_wheel --project tensorflow_io_gcs_filesystem && \
+    python3 setup.py --data bazel-bin -q bdist_wheel && \
+    python3 -m pip install dist/* --force-reinstall
+RUN python3 -m pip install 
 # install dependencies
 ENV  POETRY_VERSION=1.2.2
 RUN pip install "poetry==$POETRY_VERSION"
