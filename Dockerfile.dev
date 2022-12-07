@@ -35,6 +35,8 @@ FROM ubuntu:22.04
 # create the app user
 RUN addgroup --system app && adduser --system app --ingroup app
 RUN apt-get update # && apt install postgresql-dev gcc python3-dev
+RUN apt-get install -y software-properties-common
+RUN add-apt-repository ppa:deadsnakes/ppa
 RUN apt-get install -y python3.9 python3.9-dev
 RUN apt-get install -y python3-pip
 RUN apt-get install -y python3.9-venv
