@@ -48,7 +48,7 @@ xgboost = "^1.7.1"
 pytest = "^7.2.0"
 torch = "1.12.1"
 torchray = "1.0.0.1"
-tensorflow = {url = "https://storage.googleapis.com/tensorflow/mac/cpu/tensorflow-1.9.0-py3-none-any.whl"}
+tensorflow = "2.10.0"
 #tensorflow = { version = "2.10.0", markers = "platform_machine=='x86_64' or sys_platform=='win32'" }
 #tensorflow-macos = { version = "^2.10.0", markers = "platform_machine!='x86_64' and sys_platform=='darwin'" }
 [build-system]
