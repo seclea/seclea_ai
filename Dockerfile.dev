@@ -10,7 +10,10 @@ WORKDIR /usr/src/app
 # set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-
+ENV DEBIAN_FRONTEND=noninteractive
+ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+ARG TZ=Etc/UTC
 # install psycopg2 dependencies
 RUN apt-get update # && apt install postgresql-dev gcc python3-dev
 RUN apt-get install -y software-properties-common
@@ -33,6 +36,10 @@ RUN . /venv/bin/activate ; poetry env use python3.9; poetry install
 #########
 
 FROM ubuntu:22.04
+ENV DEBIAN_FRONTEND=noninteractive
+ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+ARG TZ=Etc/UTC
 # create the app user
 RUN addgroup --system app && adduser --system app --ingroup app
 RUN apt-get update # && apt install postgresql-dev gcc python3-dev
