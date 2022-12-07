@@ -1708,6 +1708,10 @@ tensorboard = ">=1.9.0,<1.10.0"
 termcolor = ">=1.1.0"
 wheel = ">=0.26"
 
+[package.source]
+type = "url"
+url = "https://storage.googleapis.com/tensorflow/mac/cpu/tensorflow-1.9.0-py3-none-any.whl"
+
 [[package]]
 name = "termcolor"
 version = "2.1.1"
@@ -2012,7 +2016,7 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.11"
-content-hash = "120766922e4a4b7bc06b3659e3aacfc2fd68acf26333b9b3e58b7f6e2ded83a6"
+content-hash = "bd35fbb031b585cfd0d3b8a10957c8833ca797a64760c4ee0449e80b063bdb78"
 
 [metadata.files]
 absl-py = [
@@ -3273,20 +3277,7 @@ tensorboard = [
     {file = "tensorboard-1.9.0-py2-none-any.whl", hash = "sha256:97661706fbe857c372405e0f5bd7c3db2197b5e70cec88f6924b726fde65c2c1"},
     {file = "tensorboard-1.9.0-py3-none-any.whl", hash = "sha256:42a04637a636e16054b065907c81396b83a9702948ecd14218f19dc5cf85de98"},
 ]
-tensorflow = [
-    {file = "tensorflow-1.9.0-cp27-cp27m-macosx_10_11_x86_64.whl", hash = "sha256:01fca4d85855131c874cff811e0786f240e7270d5dfa699883bde60f550752b6"},
-    {file = "tensorflow-1.9.0-cp27-cp27mu-manylinux1_x86_64.whl", hash = "sha256:9215db0fa590a2da6a08d6c7ca41d940727c40332c80c968f1459470d6bf8873"},
-    {file = "tensorflow-1.9.0-cp33-cp33m-macosx_10_11_x86_64.whl", hash = "sha256:c6c8ec1b5a30e1fccebc4ddbee18b6df2bbaf3cf128ee086bc538738c1b3b9be"},
-    {file = "tensorflow-1.9.0-cp33-cp33m-manylinux1_x86_64.whl", hash = "sha256:393de695264357de6505a7dc86c7787b6caf0c1ec54830fe8dad105d090fd6a2"},
-    {file = "tensorflow-1.9.0-cp34-cp34m-macosx_10_11_x86_64.whl", hash = "sha256:7d90a57373501b3fae0a109f5e5176883ec5417a43868970564b84ae9e64709d"},
-    {file = "tensorflow-1.9.0-cp34-cp34m-manylinux1_x86_64.whl", hash = "sha256:7486408e0ce0381edc2935c3cdbc4052d7a5e8c36083c058ffa013ac6047bb24"},
-    {file = "tensorflow-1.9.0-cp35-cp35m-macosx_10_11_x86_64.whl", hash = "sha256:d351f7db08b8de322536c5886fada3e37feae809bfd37368050f9eeea544b87e"},
-    {file = "tensorflow-1.9.0-cp35-cp35m-manylinux1_x86_64.whl", hash = "sha256:3e8b783966a02d83027a92c3c55083ad8d8a0ddf4ad920f40ffaae107be79c78"},
-    {file = "tensorflow-1.9.0-cp35-cp35m-win_amd64.whl", hash = "sha256:22d71e13947b85ca8fb625db4d7094c68ebc014fee911db9d658205965268980"},
-    {file = "tensorflow-1.9.0-cp36-cp36m-macosx_10_11_x86_64.whl", hash = "sha256:42cc87627c3b0f2d60776412eaaea3aa0856650a77f94bec841535908f77ee45"},
-    {file = "tensorflow-1.9.0-cp36-cp36m-manylinux1_x86_64.whl", hash = "sha256:cd83f4a50c0eaf18526e4e56e519c3593d998d1d213df161bbc78fffdd097cb8"},
-    {file = "tensorflow-1.9.0-cp36-cp36m-win_amd64.whl", hash = "sha256:51aa006ce0c7cbca3381e05bc7658f59cfec90a11480f2d35afd342cef8294d8"},
-]
+tensorflow = []
 termcolor = [
     {file = "termcolor-2.1.1-py3-none-any.whl", hash = "sha256:fa852e957f97252205e105dd55bbc23b419a70fec0085708fc0515e399f304fd"},
     {file = "termcolor-2.1.1.tar.gz", hash = "sha256:67cee2009adc6449c650f6bcf3bdeed00c8ba53a8cda5362733c53e0a39fb70b"},
