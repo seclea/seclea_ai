@@ -2,7 +2,8 @@
 # BUILDER #
 ###########
 
-FROM tensorflow/tensorflow:latest
+FROM --platform=$BUILDPLATFORM tensorflow/tensorflow:latest
+RUN echo $BUILDPLATFORM
 RUN apt-get update
 RUN apt-get install -y gcc libpq-dev
 RUN python3 --version
