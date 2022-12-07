@@ -19,6 +19,8 @@ RUN apt-get install -y python3.9-dev
 RUN apt-get install -y python3.9-venv
 RUN apt-get install -y python3-pip
 RUN apt-get update && apt-get install wget
+RUN apt-get install git
+
 RUN wget https://github.com/bazelbuild/bazelisk/releases/download/v1.12.0/bazelisk-linux-arm64 -O /usr/local/bin/bazelisk && \
     chmod +x /usr/local/bin/bazelisk
 
@@ -30,7 +32,7 @@ RUN cd io && \
     python3 setup.py --data bazel-bin -q bdist_wheel --project tensorflow_io_gcs_filesystem && \
     python3 setup.py --data bazel-bin -q bdist_wheel && \
     python3 -m pip install dist/* --force-reinstall
-RUN python3 -m pip install 
+RUN python3 -m pip install
 # install dependencies
 ENV  POETRY_VERSION=1.2.2
 RUN pip install "poetry==$POETRY_VERSION"
