@@ -541,7 +541,13 @@ class SecleaAI:
         training_run_name = f"Training Run {largest + 1}"
 
         # extract params from the model
-        params = framework.value.get_params(model)
+        model = Tracked(model)
+        params = model.object_manager.get_params(model)
+
+        metadata = {
+            "class_name": ".".join([model.__class__.__module__, model.__class__.__name__]),
+            "application_type": model.object_manager.get_application_type(model).value,
+        }
 
         # upload training run
         tr_res = self._upload_training_run(
@@ -549,6 +555,7 @@ class SecleaAI:
             model_pk=model_type_pk,
             dataset_pks=dataset_pks,
             params=params,
+            metadata=metadata,
         )
         # if the upload was successful, add the new training_run to the list to keep the names updated.
         self._training_run = tr_res.json()["uuid"]
@@ -811,7 +818,12 @@ class SecleaAI:
         )
 
     def _upload_training_run(
-        self, training_run_name: str, model_pk: int, dataset_pks: List[str], params: Dict
+        self,
+        training_run_name: str,
+        model_pk: int,
+        dataset_pks: List[str],
+        params: Dict,
+        metadata: Dict,
     ):
         """
 
@@ -830,6 +842,7 @@ class SecleaAI:
                 "model": model_pk,
                 "name": training_run_name,
                 "params": params,
+                "metadata": metadata,
             },
             query_params={"organization": self._organization_id, "project": self._project},
         )
@@ -839,7 +852,7 @@ class SecleaAI:
 
     def _upload_model_state(
         self,
-        model,
+        model: Tracked,
         training_run_pk: int,
         dataset_pks: List[str],
         sequence_num: int,
@@ -849,7 +862,6 @@ class SecleaAI:
             os.path.join(self._cache_dir, str(training_run_pk)),
             exist_ok=True,
         )
-        model = Tracked(model)
         file_name = f"data-{dataset_pks[0]}-model-{sequence_num}"
         save_path = os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_pk}")
         model.object_manager.full_path = save_path, file_name

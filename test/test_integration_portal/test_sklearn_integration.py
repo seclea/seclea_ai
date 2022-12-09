@@ -7,6 +7,7 @@ import pandas as pd
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn import datasets
 
 from seclea_ai import SecleaAI
 from seclea_ai.transformations import DatasetTransformation
@@ -272,6 +273,11 @@ class TestIntegrationSKLearn(TestCase):
         model = RandomForestClassifier(random_state=42)
         model.fit(self.X_sm_scaled, self.y_sm)
         # preds = model.predict(self.X_test_scaled)
+
+        iris_X, iris_y = datasets.load_iris(return_X_y=True, as_frame=True)
+
+        multiclass_model = RandomForestClassifier(random_state=42)
+        multiclass_model.fit(X=iris_X, y=iris_y)
 
         self.controller_1.upload_training_run_split(
             model,
