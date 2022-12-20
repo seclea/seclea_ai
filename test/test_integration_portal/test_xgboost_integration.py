@@ -50,7 +50,7 @@ class TestIntegrationXGBoost(TestCase):
         self.sample_df_1 = pd.read_csv(f"{folder_path}/insurance_claims.csv")
         self.sample_df_1_name = "Insurance Fraud Dataset"
         self.sample_df_1_meta = {
-            "outcome_name": "fraud_reported",
+            "outputs": ["fraud_reported"],
             "favourable_outcome": "N",
             "unfavourable_outcome": "Y",
             "continuous_features": [

@@ -48,7 +48,7 @@ class TestIntegrationLGBM(TestCase):
         self.sample_df = pd.read_csv(f"{folder_path}/adult_data.csv", index_col=0)
         self.sample_df_name = "Census dataset"
         self.sample_df_meta = {
-            "outcome_name": "income-per-year",
+            "outputs": ["income-per-year"],
             "favourable_outcome": ">50k",
             "unfavourable_outcome": "<=50k",
             "continuous_features": [

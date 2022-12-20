@@ -3,15 +3,14 @@ import unittest
 
 import pandas as pd
 
-from seclea_ai import SecleaAI
-
+from seclea_ai.dataset_utils import get_dataset_type
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "")
 print(folder_path)
 
 
-class TestSecleaAI(unittest.TestCase):
+class TestDatasetUtils(unittest.TestCase):
 
     # def test_check_features_different_names(self):
     #     parent_metadata = {
@@ -43,8 +42,8 @@ class TestSecleaAI(unittest.TestCase):
         )
 
         # ACT
-        res1 = SecleaAI._get_dataset_type(non_timeseries_dataset)
-        res2 = SecleaAI._get_dataset_type(timeseries_dataset)
+        res1 = get_dataset_type(non_timeseries_dataset)
+        res2 = get_dataset_type(timeseries_dataset)
 
         # ASSERT
         self.assertEqual("tabular", res1)
