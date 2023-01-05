@@ -8,7 +8,7 @@ import xgboost as xgb
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from xgboost import DMatrix
+from xgboost import DMatrix, XGBClassifier
 
 from seclea_ai import SecleaAI
 from seclea_ai.transformations import DatasetTransformation
@@ -50,7 +50,7 @@ class TestIntegrationXGBoost(TestCase):
         self.sample_df_1 = pd.read_csv(f"{folder_path}/insurance_claims.csv")
         self.sample_df_1_name = "Insurance Fraud Dataset"
         self.sample_df_1_meta = {
-            "outcome_name": "fraud_reported",
+            "outputs": ["fraud_reported"],
             "favourable_outcome": "N",
             "unfavourable_outcome": "Y",
             "continuous_features": [
@@ -239,8 +239,19 @@ class TestIntegrationXGBoost(TestCase):
         num_rounds = 5
         model = xgb.train(params=params, dtrain=dtrain, num_boost_round=num_rounds)
 
+        sklearn_model = XGBClassifier()
+        sklearn_model.fit(self.X_sm, self.y_sm)
+
         self.controller_1.upload_training_run_split(
             model,
+            X_train=self.X_sm,
+            y_train=self.y_sm,
+            X_test=self.X_test,
+            y_test=self.y_test,
+        )
+
+        self.controller_1.upload_training_run_split(
+            model=sklearn_model,
             X_train=self.X_sm,
             y_train=self.y_sm,
             X_test=self.X_test,

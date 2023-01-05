@@ -8,13 +8,18 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
-import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
-from pandas.errors import ParserError
 from requests import Response
 
 from .authentication import AuthenticationService
+from .dataset_utils import (
+    get_dataset_type,
+    ensure_required_metadata,
+    add_required_metadata,
+    aggregate_dataset,
+    assemble_dataset,
+)
 from .exceptions import AuthenticationError
 from .lib.seclea_utils.core.transmission import RequestWrapper
 from .lib.seclea_utils.model_management import ModelManagers
@@ -118,8 +123,8 @@ class SecleaAI:
 
     def upload_dataset_split(
         self,
-        X: Union[DataFrame, np.ndarray],
-        y: Union[DataFrame, np.ndarray],
+        X: DataFrame,
+        y: Union[DataFrame, Series],
         dataset_name: str,
         metadata: Dict,
         transformations: List[DatasetTransformation] = None,
@@ -133,8 +138,12 @@ class SecleaAI:
 
         :param dataset_name: The name of the Dataset
 
-        :param metadata: Any metadata about the Dataset. Required keys are:
-            "index" and "continuous_features"
+        :param metadata: Any metadata about the Dataset. Required key is:
+             "continuous_features"
+             To enable bias features include:
+                "favorable_outcome"
+            Recommended keys:
+                "outputs_type": "classification" | "regression"
 
         :param transformations: A list of DatasetTransformation's.
 
@@ -145,9 +154,18 @@ class SecleaAI:
 
         :return: None
         """
-        dataset = self._assemble_dataset({"X": X, "y": y})
+        # deprecated outcome_name check
+        deprecated = metadata.get("outcome_name", None)
+        if deprecated is not None:
+            raise ValueError("'outcome_name' is deprecated - use 'outputs' instead.")
+        dataset = assemble_dataset({"X": X, "y": y})
         # potentially fragile vvv TODO check this vvv
-        metadata["outcome_name"] = y.name
+        if isinstance(y, Series):
+            metadata["outputs"] = [y.name]
+        elif isinstance(y, DataFrame):
+            metadata["outputs"] = y.columns.tolist()
+        else:
+            raise ValueError("y needs to be either Series or DataFrame.")
         # try and extract the index automatically
         try:
             metadata["index"] = X.index.name
@@ -204,12 +222,17 @@ class SecleaAI:
 
 
         """
+        # deprecated outcome_name check
+        deprecated = metadata.get("outcome_name", None)
+        if deprecated is not None:
+            raise ValueError("outcome_name is deprecated - use outputs instead.")
+
         # processing the final dataset - make sure it's a DataFrame
         if self._project is None:
             raise Exception("You need to create a project before uploading a dataset")
 
         if isinstance(dataset, List):
-            dataset = self._aggregate_dataset(dataset, index=metadata["index"])
+            dataset = aggregate_dataset(dataset, index=metadata["index"])
         elif isinstance(dataset, str):
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
         tracked_ds = Tracked(dataset)
@@ -222,7 +245,7 @@ class SecleaAI:
                     f"The initial DatasetTransformation data_kwargs must be a DataFrame, found {list(transformations[0].raw_data_kwargs.values())[0]}, of type {type(list(transformations[0].raw_data_kwargs.values())[0])}"
                 )
 
-            parent = Tracked(self._assemble_dataset(transformations[0].raw_data_kwargs))
+            parent = Tracked(assemble_dataset(transformations[0].raw_data_kwargs))
 
             #####
             # Validate parent exists and get metadata - can factor out
@@ -274,14 +297,18 @@ class SecleaAI:
             return
 
         # this only happens if this has no transformations ie. it is a Raw Dataset.
+        # set up the defaults - user optional keys
         metadata_defaults_spec = dict(
             continuous_features=[],
-            outcome_name=None,
+            outputs=[],
+            outputs_type=None,
             num_samples=len(dataset),
             favourable_outcome=None,
             unfavourable_outcome=None,
-            dataset_type=self._get_dataset_type(dataset),
+            dataset_type=get_dataset_type(dataset),
         )
+        metadata = ensure_required_metadata(metadata=metadata, defaults_spec=metadata_defaults_spec)
+        # set up automatic values
         try:
             features = (
                 dataset.columns
@@ -289,20 +316,20 @@ class SecleaAI:
         except KeyError:
             # this means outcome was set to None
             features = dataset.columns
-
-        metadata = self._ensure_required_metadata(
-            metadata=metadata, defaults_spec=metadata_defaults_spec
-        )
         automatic_metadata = dict(
             index=0 if dataset.index.name is None else dataset.index.name,
+            outputs_info=tracked_ds.object_manager.get_outputs_info(
+                dataset=dataset, outputs=metadata["outputs"], outputs_type=metadata["outputs_type"]
+            ),
             split=None,
             features=list(features),
             categorical_features=list(
                 set(list(features))
                 - set(metadata["continuous_features"]).intersection(set(list(features)))
             ),
+            framework=tracked_ds.object_manager.framework,  # needs to be on a Tracked object.
         )
-        metadata = self._add_required_metadata(metadata=metadata, required_spec=automatic_metadata)
+        metadata = add_required_metadata(metadata=metadata, required_spec=automatic_metadata)
 
         metadata["categorical_values"] = [
             {col: dataset[col].unique().tolist()} for col in metadata["categorical_features"]
@@ -324,6 +351,11 @@ class SecleaAI:
         upload_queue = list()
         parent_mdata = parent_metadata
         parent_dset = parent
+        # let user specify outputs_type - defaults to take the parents outputs_type (which has None as default)
+        try:
+            outputs_type = user_metadata["outputs_type"]
+        except KeyError:
+            outputs_type = None
 
         output = dict()
         # iterate over transformations, assembling intermediate datasets
@@ -332,19 +364,20 @@ class SecleaAI:
             output = trans(output)
 
             # construct the generated dataset from outputs
-            dset = self._assemble_dataset(output)
+            dset = assemble_dataset(output)
 
             dset_metadata = copy.deepcopy(user_metadata)
             # validate and ensure required metadata
             metadata_defaults_spec = dict(
                 continuous_features=parent_mdata["continuous_features"],
-                outcome_name=parent_mdata["outcome_name"],
+                outputs=parent_mdata["outputs"],
+                outputs_type=parent_mdata["outputs_type"] if outputs_type is None else outputs_type,
                 num_samples=len(dset),
                 favourable_outcome=parent_mdata["favourable_outcome"],
                 unfavourable_outcome=parent_mdata["unfavourable_outcome"],
-                dataset_type=self._get_dataset_type(dset),
+                dataset_type=get_dataset_type(dset),
             )
-            dset_metadata = self._ensure_required_metadata(
+            dset_metadata = ensure_required_metadata(
                 metadata=dset_metadata, defaults_spec=metadata_defaults_spec
             )
             try:
@@ -357,15 +390,21 @@ class SecleaAI:
 
             automatic_metadata = dict(
                 index=0 if dset.index.name is None else dset.index.name,
+                outputs_info=Tracked(dset).object_manager.get_outputs_info(
+                    dataset=dset,
+                    outputs=dset_metadata["outputs"],
+                    outputs_type=dset_metadata["outputs_type"],
+                ),
                 split=trans.split if trans.split is not None else parent_mdata["split"],
                 features=list(features),
                 categorical_features=list(
                     set(list(features))
                     - set(dset_metadata["continuous_features"]).intersection(set(list(features)))
                 ),
+                framework=parent.object_manager.framework,  # needs to be on a Tracked object.
             )
 
-            dset_metadata = self._add_required_metadata(
+            dset_metadata = add_required_metadata(
                 metadata=dset_metadata, required_spec=automatic_metadata
             )
 
@@ -444,13 +483,13 @@ class SecleaAI:
 
         :return: None
         """
-        train_dataset = self._assemble_dataset({"X": X_train, "y": y_train})
+        train_dataset = assemble_dataset({"X": X_train, "y": y_train})
         test_dataset = None
         val_dataset = None
         if X_test is not None and y_test is not None:
-            test_dataset = self._assemble_dataset({"X": X_test, "y": y_test})
+            test_dataset = assemble_dataset({"X": X_test, "y": y_test})
         if X_val is not None and y_val is not None:
-            val_dataset = self._assemble_dataset({"X": X_val, "y": y_val})
+            val_dataset = assemble_dataset({"X": X_val, "y": y_val})
         self.upload_training_run(
             model=model,
             train_dataset=train_dataset,
@@ -541,7 +580,13 @@ class SecleaAI:
         training_run_name = f"Training Run {largest + 1}"
 
         # extract params from the model
-        params = framework.value.get_params(model)
+        model = Tracked(model)
+        params = model.object_manager.get_params(model)
+
+        metadata = {
+            "class_name": ".".join([model.__class__.__module__, model.__class__.__name__]),
+            "application_type": model.object_manager.get_application_type(model).value,
+        }
 
         # upload training run
         tr_res = self._upload_training_run(
@@ -549,6 +594,7 @@ class SecleaAI:
             model_pk=model_type_pk,
             dataset_pks=dataset_pks,
             params=params,
+            metadata=metadata,
         )
         # if the upload was successful, add the new training_run to the list to keep the names updated.
         self._training_run = tr_res.json()["uuid"]
@@ -561,21 +607,6 @@ class SecleaAI:
             sequence_num=0,
             final=True,
         )
-
-    @staticmethod
-    def _assemble_dataset(data: Dict[str, DataFrame]) -> DataFrame:
-        if len(data) == 1:
-            return next(iter(data.values()))
-        elif len(data) == 2:
-            # create dataframe from X and y and upload - will have one item in metadata, the output_col
-            for key, val in data.items():
-                if not (isinstance(val, DataFrame) or isinstance(val, Series)):
-                    data[key] = DataFrame(val)
-            return pd.concat([x for x in data.values()], axis=1)
-        else:
-            raise AssertionError(
-                "Output doesn't match the requirements. Please review the documentation."
-            )
 
     def _init_org(self, organization_name: str) -> str:
         orgs_res = self._transmission.get(url_path="/organization/")
@@ -707,34 +738,6 @@ class SecleaAI:
             model_pk = resp.json()[0]["uuid"]
         return model_pk
 
-    @staticmethod
-    def _ensure_required_metadata(metadata: Dict, defaults_spec: Dict) -> Dict:
-        """
-        Ensures that required metadata that can be specified by the user are filled.
-        @param metadata: The metadata dict
-        @param defaults_spec:
-        @return: metadata
-        """
-        for required_key, default in defaults_spec.items():
-            try:
-                if metadata[required_key] is None:
-                    metadata[required_key] = default
-            except KeyError:
-                metadata[required_key] = default
-        return metadata
-
-    @staticmethod
-    def _add_required_metadata(metadata: Dict, required_spec: Dict) -> Dict:
-        """
-        Adds required - non user specified fields to the metadata
-        @param metadata: The metadata dict
-        @param required_spec:
-        @return: metadata
-        """
-        for required_key, default in required_spec.items():
-            metadata[required_key] = default
-        return metadata
-
     def _upload_dataset(
         self,
         dataset: DataFrame,
@@ -752,7 +755,7 @@ class SecleaAI:
         dataset.object_manager.full_path = self._cache_dir, uuid.uuid4().__str__()
         dataset_file_path = os.path.join(*dataset.save_tracked(path=self._cache_dir))
 
-        dset_pk = Tracked(dataset).object_manager.hash_object_with_project(dataset, self._project)
+        dset_hash = Tracked(dataset).object_manager.hash_object_with_project(dataset, self._project)
 
         response = post_dataset(
             transmission=self._transmission,
@@ -761,7 +764,7 @@ class SecleaAI:
             organization_pk=self._organization_id,
             name=dataset_name,
             metadata=metadata,
-            dataset_pk=dset_pk,
+            dataset_hash=dset_hash,
             parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
         )
         # handle duplicate upload with warning only.
@@ -811,7 +814,12 @@ class SecleaAI:
         )
 
     def _upload_training_run(
-        self, training_run_name: str, model_pk: int, dataset_pks: List[str], params: Dict
+        self,
+        training_run_name: str,
+        model_pk: int,
+        dataset_pks: List[str],
+        params: Dict,
+        metadata: Dict,
     ):
         """
 
@@ -830,6 +838,7 @@ class SecleaAI:
                 "model": model_pk,
                 "name": training_run_name,
                 "params": params,
+                "metadata": metadata,
             },
             query_params={"organization": self._organization_id, "project": self._project},
         )
@@ -839,7 +848,7 @@ class SecleaAI:
 
     def _upload_model_state(
         self,
-        model,
+        model: Tracked,
         training_run_pk: int,
         dataset_pks: List[str],
         sequence_num: int,
@@ -849,7 +858,6 @@ class SecleaAI:
             os.path.join(self._cache_dir, str(training_run_pk)),
             exist_ok=True,
         )
-        model = Tracked(model)
         file_name = f"data-{dataset_pks[0]}-model-{sequence_num}"
         save_path = os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_pk}")
         model.object_manager.full_path = save_path, file_name
@@ -912,19 +920,6 @@ class SecleaAI:
         return list(map(decode_func, transformations))
 
     @staticmethod
-    def _aggregate_dataset(datasets: List[str], index) -> DataFrame:
-        """
-        Aggregates a list of dataset paths into a single file for upload.
-        NOTE the files must be split by row and have the same format otherwise this will fail or cause unexpected format
-        issues later.
-        :param datasets:
-        :return:
-        """
-        loaded_datasets = [pd.read_csv(dset, index_col=index) for dset in datasets]
-        aggregated = pd.concat(loaded_datasets, axis=0)
-        return aggregated
-
-    @staticmethod
     def _get_framework(model) -> ModelManagers:
         module = model.__class__.__module__
         # order is important as xgboost and lightgbm contain sklearn compliant packages.
@@ -940,13 +935,3 @@ class SecleaAI:
             return ModelManagers.SKLEARN
         else:
             return ModelManagers.NOT_IMPORTED
-
-    @staticmethod
-    def _get_dataset_type(dataset: DataFrame) -> str:
-        if not np.issubdtype(dataset.index.dtype, np.integer):
-            try:
-                pd.to_datetime(dataset.index.values)
-            except (ParserError, ValueError):  # Can't cnvrt some
-                return "tabular"
-            return "time_series"
-        return "tabular"
