@@ -23,7 +23,7 @@ def post_dataset(
     organization_pk: str,
     name: str,
     metadata: dict,
-    dataset_pk: str,
+    dataset_hash: int,
     parent_dataset_hash: str = None,
 ) -> Response:
     """
@@ -33,7 +33,7 @@ def post_dataset(
     @param organization_pk:
     @param name:
     @param metadata:
-    @param dataset_pk:
+    @param dataset_hash:
     @param parent_dataset_hash:
     @return:
     """
@@ -45,7 +45,7 @@ def post_dataset(
             "project": (None, project_pk),
             "name": (None, name),
             "metadata": (None, json.dumps(metadata), "application/json"),
-            "hash": (None, str(dataset_pk)),
+            "hash": (None, str(dataset_hash)),
             "parent_hash": (None, parent_dataset_hash),
             "dataset": (os.path.basename(dataset_file_path), f),
         }

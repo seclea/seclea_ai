@@ -48,7 +48,7 @@ class TestIntegrationLGBM(TestCase):
         self.sample_df = pd.read_csv(f"{folder_path}/adult_data.csv", index_col=0)
         self.sample_df_name = "Census dataset"
         self.sample_df_meta = {
-            "outcome_name": "income-per-year",
+            "outputs": ["income-per-year"],
             "favourable_outcome": ">50k",
             "unfavourable_outcome": "<=50k",
             "continuous_features": [
@@ -184,8 +184,11 @@ class TestIntegrationLGBM(TestCase):
                 "native-country",
             ],
         )
+
         # setup training params
         params = dict(max_depth=2, eta=1, objective="binary", num_threads=4, metric="auc")
+        # TODO test with a custom objective function.
+        # fail_params = dict(max_depth=2, eta=1, fobj="TODO fill in", num_threads=4, metric="auc")
         num_rounds = 5
         # train model
         model = lgb.train(
@@ -194,9 +197,20 @@ class TestIntegrationLGBM(TestCase):
             num_boost_round=num_rounds,
         )
 
+        sklearn_model = lgb.LGBMClassifier()
+        sklearn_model.fit(self.X_train, self.y_train)
+
         # upload model
         self.controller.upload_training_run_split(
             model,
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            y_test=self.y_test,
+        )
+
+        self.controller.upload_training_run_split(
+            model=sklearn_model,
             X_train=self.X_train,
             y_train=self.y_train,
             X_test=self.X_test,
