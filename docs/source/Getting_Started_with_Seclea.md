@@ -50,9 +50,9 @@ this tutorial if you are working on this in Colab or without reference to the re
 Now we can upload the initial data to the Seclea Platform. 
 
 This should include whatever information we know about the dataset at this point as metadata. 
-There are only two keys to add in metadata for now - outcome_name and continuous_features.
+There are only two keys to add in metadata for now - outputs and continuous_features.
 
-You can leave out outcome_name if you haven't decided what you will be predicting yet, but you should
+You can leave out outputs if you haven't decided what you will be predicting yet, but you should
 know or be able to find out the continuous features at this point.
 
 You can also update these when uploading datasets
@@ -68,7 +68,7 @@ import pandas as pd
 data = pd.read_csv('insurance_claims.csv', index_col="policy_number")
 
 # define the metadata for the dataset.
-dataset_metadata = {"outcome_name": "fraud_reported",
+dataset_metadata = {"outputs": ["fraud_reported"],
                     "favourable_outcome": "N",
                     "unfavourable_outcome": "Y",
                     "continuous_features": [
