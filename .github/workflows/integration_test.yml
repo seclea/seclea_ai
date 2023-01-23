@@ -28,7 +28,7 @@ jobs:
       matrix:
         # only using ubuntu as that is the only OS that supports services. OS support should be fine from dev.
         os: [ubuntu-latest]
-        python-version: ["3.7"] #, "3.8", "3.9", "3.10"] out for testing.
+        python-version: ["3.8"] #, "3.8", "3.9", "3.10"] out for testing.
         include:
           - os: ubuntu-latest
             path: ~/.cache/pip
@@ -173,26 +173,28 @@ jobs:
 
     steps:
       - name: Checkout repo - including submodules
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           token: ${{ secrets.TOKEN_AUTOMATION }}
           submodules: "recursive"
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: ${{ matrix.path }}
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Dependencies
         run: |
-          pip install -r requirements.txt
+          curl -sSL https://install.python-poetry.org | python3 -
+          poetry env use python3.10
+          poetry install
       - name: Create user
         run: |
           docker exec $(docker ps | grep account | cut -d ' ' -f1) bash scripts/load_default_data.sh
       - name: Run Tests
         run: |
-          python -m unittest discover test/test_integration_portal
+          poetry run python3 -m unittest discover test/test_integration_portal

@@ -52,7 +52,7 @@ class TestIntegrationTensorflow(TestCase):
         self.sample_df = pd.read_csv(f"{folder_path}/energydata_categorical.csv", index_col="date")
         self.sample_df_name = "Energy Data"
         self.sample_df_meta = {
-            "outcome_name": "appliances",
+            "outputs": ["appliances"],
             "continuous_features": [
                 "lights",
                 "T1",

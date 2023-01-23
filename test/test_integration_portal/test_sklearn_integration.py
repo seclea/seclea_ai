@@ -10,6 +10,7 @@ from imblearn.over_sampling import SMOTE
 from peewee import SqliteDatabase
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn import datasets
 
 from seclea_ai import SecleaAI
 from seclea_ai.internal.models.record import Record, RecordStatus
@@ -53,7 +54,7 @@ class TestIntegrationSKLearn(TestCase):
         self.sample_df_1 = pd.read_csv(f"{folder_path}/insurance_claims.csv")
         self.sample_df_1_name = "Insurance Fraud Dataset"
         self.sample_df_1_meta = {
-            "outcome_name": "fraud_reported",
+            "outputs": ["fraud_reported"],
             "favourable_outcome": "N",
             "unfavourable_outcome": "Y",
             "continuous_features": [
@@ -277,6 +278,11 @@ class TestIntegrationSKLearn(TestCase):
         model = RandomForestClassifier(random_state=42)
         model.fit(self.X_sm_scaled, self.y_sm)
         # preds = model.predict(self.X_test_scaled)
+
+        iris_X, iris_y = datasets.load_iris(return_X_y=True, as_frame=True)
+
+        multiclass_model = RandomForestClassifier(random_state=42)
+        multiclass_model.fit(X=iris_X, y=iris_y)
 
         self.controller.upload_training_run_split(
             model,

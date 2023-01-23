@@ -17,6 +17,8 @@ import sys
 sys.path.insert(0, os.path.abspath("../.."))
 print(sys.path)
 
+from __version__ import __version__  # noqa E402
+
 # -- Project information -----------------------------------------------------
 
 project = "Seclea AI"
@@ -24,7 +26,7 @@ copyright = "2021, Seclea"
 author = "Seclea"
 
 # The full version, including alpha/beta/rc tags
-release = "0.0.47"
+release = __version__
 
 
 # -- General configuration ---------------------------------------------------
