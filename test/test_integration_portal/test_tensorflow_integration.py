@@ -165,7 +165,6 @@ class TestIntegrationTensorflow(TestCase):
             ]
         )
 
-        # TODO find multiclass classification loss and metrics etc.
         model.compile(
             optimizer="adam",
             loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
