@@ -17,14 +17,14 @@ exclude = '''
 
 [tool.poetry]
 name = "seclea-ai"
-version = "0.1.0"
+version = "1.0.1"
 description = ""
 authors = ["occy88 <octavio.delser@gmail.com>"]
 readme = "README.md"
 packages = [{ include = "seclea_ai" }]
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.11"
+python = ">=3.8"
 boto3 = "^1.26.16"
 certifi = "^2022.9.24"
 chardet = "^5.0.0"
