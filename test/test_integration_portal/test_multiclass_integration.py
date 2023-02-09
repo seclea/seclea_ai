@@ -2,9 +2,13 @@ import os
 import uuid
 from unittest import TestCase
 
+import lightgbm as lgb
 import pandas as pd
 import tensorflow as tf
+import xgboost as xgb
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
+from xgboost import DMatrix
 
 from seclea_ai import SecleaAI
 from seclea_ai.transformations import DatasetTransformation
@@ -13,7 +17,7 @@ base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
 
 
-class TestIntegrationTensorflow(TestCase):
+class TestMulticlassDataIntegration(TestCase):
     """
     Monolithic testing of the Seclea AI file
     order of functions is preserved.
@@ -43,7 +47,9 @@ class TestIntegrationTensorflow(TestCase):
         )
 
     def step_1_upload_dataset(self):
-        self.sample_df = pd.read_csv(f"{folder_path}/energydata_categorical.csv", index_col="date")
+        self.sample_df = pd.read_csv(
+            f"{folder_path}/data/energydata_categorical.csv", index_col="date"
+        )
         self.sample_df_name = "Energy Data"
         self.sample_df_meta = {
             "outputs": ["appliances"],
@@ -150,13 +156,77 @@ class TestIntegrationTensorflow(TestCase):
             transformations=self.complicated_transformations_test,
         )
 
-    def step_3_upload_training_run(self):
+    def step_3_upload_sklearn_training_run(self):
+        # sklearn
+        sklearn_model = RandomForestClassifier(random_state=42)
+        sklearn_model.fit(self.X_train, self.y_train)
 
+        self.controller.upload_training_run_split(
+            sklearn_model,
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            y_test=self.y_test,
+        )
+
+        sklearn_model = RandomForestClassifier(random_state=42, n_estimators=32)
+        sklearn_model.fit(self.X_train, self.y_train)
+        self.controller.upload_training_run_split(
+            sklearn_model,
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            y_test=self.y_test,
+        )
+
+    def step_4_upload_xgboost_training_run(self):
+        xgb_dtrain = DMatrix(data=self.X_train, label=self.y_train, enable_categorical=True)
+        params = dict(max_depth=3, eta=1, objective="multi:softmax", num_class=4)
+        num_rounds = 5
+        xgb_model = xgb.train(params=params, dtrain=xgb_dtrain, num_boost_round=num_rounds)
+
+        self.controller.upload_training_run_split(
+            xgb_model,
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            y_test=self.y_test,
+        )
+
+    def step_5_upload_lgbm_training_run(self):
+
+        lgb_dtrain = lgb.Dataset(
+            data=self.X_train,
+            label=self.y_train,
+            free_raw_data=True,
+            categorical_feature=[],
+        )
+
+        # setup training params
+        params = dict(max_depth=3, eta=1, objective="softmax", num_classes=4)
+        num_rounds = 5
+        # train model
+        lgb_model = lgb.train(
+            params=params,
+            train_set=lgb_dtrain,
+            num_boost_round=num_rounds,
+        )
+
+        # upload model
+        self.controller.upload_training_run_split(
+            lgb_model,
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            y_test=self.y_test,
+        )
+
+    def step_6_upload_tensorflow_training_run(self):
         # define model
         normalizer = tf.keras.layers.Normalization(axis=-1)
         normalizer.adapt(self.X_train)
 
-        model: tf.keras.Sequential = tf.keras.Sequential(
+        tf_model: tf.keras.Sequential = tf.keras.Sequential(
             [
                 normalizer,
                 tf.keras.layers.Dense(512, activation="relu", input_shape=(111,)),
@@ -165,16 +235,16 @@ class TestIntegrationTensorflow(TestCase):
             ]
         )
 
-        model.compile(
+        tf_model.compile(
             optimizer="adam",
             loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
             metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
         )
 
-        model.fit(x=self.X_train, y=self.y_train, epochs=5)
+        tf_model.fit(x=self.X_train, y=self.y_train, epochs=5)
 
         self.controller.upload_training_run_split(
-            model,
+            tf_model,
             X_train=self.X_train,
             y_train=self.y_train,
             X_test=self.X_test,
