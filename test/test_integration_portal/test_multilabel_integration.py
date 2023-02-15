@@ -211,6 +211,13 @@ class TestMultilabelDataIntegration(TestCase):
         )
 
         tf_model.fit(x=self.X_train, y=self.y_train, epochs=5)
+        self.controller.upload_training_run_split(
+            tf_model,
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            y_test=self.y_test,
+        )
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
