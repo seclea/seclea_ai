@@ -1,5 +1,4 @@
 import os
-import uuid
 from unittest import TestCase
 
 import lightgbm as lgb
@@ -37,11 +36,11 @@ class TestBinaryDataIntegration(TestCase):
         self.password = "asdf"  # nosec
         self.username = "admin-dev"  # nosec
         self.organization = "Onespan"
-        self.project_name_1 = f"test-project-{uuid.uuid4()}"
+        self.project_name = "Binary Classification Project"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
-            self.project_name_1,
+            self.project_name,
             self.organization,
             self.portal_url,
             self.auth_url,
