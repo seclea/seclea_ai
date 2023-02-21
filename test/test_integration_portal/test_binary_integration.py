@@ -37,7 +37,7 @@ class TestBinaryDataIntegration(TestCase):
         self.password = "asdf"  # nosec
         self.username = "admin-dev"  # nosec
         self.organization = "Onespan"
-        self.project_name_1 = f"test-project-{uuid.uuid4()}"
+        self.project_name_1 = f"SKLEARN-integration-project"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
