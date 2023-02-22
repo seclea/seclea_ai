@@ -21,13 +21,13 @@ from .dataset_utils import (
     assemble_dataset,
 )
 from .exceptions import AuthenticationError
+from .lib.seclea_utils.core.transformations import encode_func, decode_func
 from .lib.seclea_utils.core.transmission import RequestWrapper
 from .lib.seclea_utils.model_management import ModelManagers
 from .lib.seclea_utils.object_management import Tracked
 from .svc.api.collection.dataset import post_dataset, get_dataset
 from .svc.api.collection.model_state import post_model_state
 from .transformations import DatasetTransformation
-from .lib.seclea_utils.core.transformations import encode_func, decode_func
 
 
 def handle_response(res: Response, expected: int, msg: str) -> Response:
@@ -533,19 +533,20 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_pks = list()
+        dataset_metadata = None
         for idx, dataset in enumerate([train_dataset, test_dataset, val_dataset]):
             if dataset is not None:
                 try:
-                    dataset_pks.append(
-                        get_dataset(
-                            self._transmission,
-                            self._project,
-                            self._organization_id,
-                            hash=Tracked(dataset).object_manager.hash_object_with_project(
-                                dataset, self._project
-                            ),
-                        ).json()[0]["uuid"]
-                    )
+                    dataset = get_dataset(
+                        self._transmission,
+                        self._project,
+                        self._organization_id,
+                        hash=Tracked(dataset).object_manager.hash_object_with_project(
+                            dataset, self._project
+                        ),
+                    ).json()[0]
+                    dataset_metadata = dataset["metadata"]
+                    dataset_pks.append(dataset["uuid"])
                 except IndexError:
                     # we tried to access [0] of an empty return
                     dset_map = {0: "Train", 1: "Test", 2: "Validation"}
@@ -585,7 +586,9 @@ class SecleaAI:
 
         metadata = {
             "class_name": ".".join([model.__class__.__module__, model.__class__.__name__]),
-            "application_type": model.object_manager.get_application_type(model).value,
+            "application_type": model.object_manager.get_application_type(
+                model, dataset_metadata["outputs_info"]
+            ).value,
         }
 
         # upload training run
