@@ -5,6 +5,7 @@ import pandas as pd
 import tensorflow as tf
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
 
 from seclea_ai import SecleaAI
 from seclea_ai.transformations import DatasetTransformation
@@ -160,26 +161,21 @@ class TestMultilabelDataIntegration(TestCase):
 
     def step_3_upload_sklearn_training_run(self):
         # sklearn
-        sklearn_model = RandomForestClassifier(random_state=42)
-        sklearn_model.fit(self.X_train, self.y_train)
+        models = [RandomForestClassifier, DecisionTreeClassifier]
+        configs = [{"random_state": 42}, {"random_state": 42, "max_depth": 3}]
 
-        self.controller.upload_training_run_split(
-            sklearn_model,
-            X_train=self.X_train,
-            y_train=self.y_train,
-            X_test=self.X_test,
-            y_test=self.y_test,
-        )
+        for model_class in models:
+            for config in configs:
+                model = model_class(**config)
+                model.fit(self.X_train, self.y_train)
 
-        sklearn_model = RandomForestClassifier(random_state=42, n_estimators=32)
-        sklearn_model.fit(self.X_train, self.y_train)
-        self.controller.upload_training_run_split(
-            sklearn_model,
-            X_train=self.X_train,
-            y_train=self.y_train,
-            X_test=self.X_test,
-            y_test=self.y_test,
-        )
+                self.controller.upload_training_run_split(
+                    model,
+                    X_train=self.X_train,
+                    y_train=self.y_train,
+                    X_test=self.X_test,
+                    y_test=self.y_test,
+                )
 
     def step_4_upload_xgboost_training_run(self):
         # xgboost multioutput classification is still experimental - todo add to this section when they add support

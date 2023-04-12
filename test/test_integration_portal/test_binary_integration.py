@@ -10,6 +10,7 @@ from imblearn.over_sampling import SMOTE
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.tree import DecisionTreeClassifier
 from xgboost import DMatrix
 
 from seclea_ai import SecleaAI
@@ -268,26 +269,21 @@ class TestBinaryDataIntegration(TestCase):
 
     def step_3_upload_sklearn_training_run(self):
         # sklearn
-        sklearn_model = RandomForestClassifier(random_state=42)
-        sklearn_model.fit(self.X_sm_scaled, self.y_sm)
+        models = [RandomForestClassifier, DecisionTreeClassifier]
+        configs = [{"random_state": 42}, {"random_state": 42, "max_depth": 3}]
 
-        self.controller.upload_training_run_split(
-            sklearn_model,
-            X_train=self.X_sm_scaled,
-            y_train=self.y_sm,
-            X_test=self.X_test_scaled,
-            y_test=self.y_test,
-        )
+        for model_class in models:
+            for config in configs:
+                model = model_class(**config)
+                model.fit(self.X_sm_scaled, self.y_sm)
 
-        sklearn_model = RandomForestClassifier(random_state=42, n_estimators=32)
-        sklearn_model.fit(self.X_sm, self.y_sm)
-        self.controller.upload_training_run_split(
-            sklearn_model,
-            X_train=self.X_sm,
-            y_train=self.y_sm,
-            X_test=self.X_test,
-            y_test=self.y_test,
-        )
+                self.controller.upload_training_run_split(
+                    model,
+                    X_train=self.X_sm_scaled,
+                    y_train=self.y_sm,
+                    X_test=self.X_test_scaled,
+                    y_test=self.y_test,
+                )
 
     def step_4_upload_xgboost_training_run(self):
         # xgboost
