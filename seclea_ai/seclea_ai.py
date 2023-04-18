@@ -575,17 +575,23 @@ class SecleaAI:
 
         :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
 
-        :param X_train: Samples of the dataset that the model is trained on
+        :param X_train: Samples of the models training dataset. Must be already
+            uploaded using `upload_dataset` or `upload_dataset_split`
 
-        :param y_train: Labels of the dataset that the model is trained on.
+        :param y_train: Labels of the models training dataset. Must be already
+            uploaded using `upload_dataset` or `upload_dataset_split`
 
-        :param X_test: Samples of the dataset that the model is trained on
+        :param X_test: Samples of the models test dataset. Must be already
+            uploaded using `upload_dataset` or `upload_dataset_split`
 
-        :param y_test: Labels of the dataset that the model is trained on.
+        :param y_test: Labels of the models test dataset. Must be already
+            uploaded using `upload_dataset` or `upload_dataset_split`
 
-        :param X_val: Samples of the dataset that the model is trained on
+        :param X_val: Samples of the models validation dataset. Must be already
+            uploaded using `upload_dataset` or `upload_dataset_split`
 
-        :param y_val: Labels of the dataset that the model is trained on.
+        :param y_val: Labels of the models validation dataset. Must be already
+            uploaded using `upload_dataset` or `upload_dataset_split`
 
         :return: None
         """
@@ -615,11 +621,14 @@ class SecleaAI:
 
         :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
 
-        :param train_dataset: DataFrame The Dataset that the model is trained on.
+        :param train_dataset: DataFrame The models training dataset. Must be already
+            uploaded using `upload_dataset` or `upload_dataset_split`
 
-        :param test_dataset: DataFrame The Dataset that the model is trained on.
+        :param test_dataset: DataFrame The models test dataset. Must be already
+            uploaded using `upload_dataset` or `upload_dataset_split`
 
-        :param val_dataset: DataFrame The Dataset that the model is trained on.
+        :param val_dataset: DataFrame The models validation dataset. Must be already
+            uploaded using `upload_dataset` or `upload_dataset_split`
 
         :return: None
 
