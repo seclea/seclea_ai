@@ -50,8 +50,4 @@ def api_request(func: Callable[..., Response]) -> Callable[..., Union[List, Dict
 
 
 def degraded_service_exceptions(exception_type, exception_value) -> bool:
-    if exception_type is ServiceDegradedError:
-        return True
-    if exception_type is ServerError:
-        return True
-    return False
+    return exception_type == ServiceDegradedError or exception_type == ServerError
