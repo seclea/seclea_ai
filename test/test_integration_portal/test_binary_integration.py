@@ -4,6 +4,7 @@ from unittest import TestCase
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
+import pytest
 import tensorflow as tf
 import xgboost as xgb
 from imblearn.over_sampling import SMOTE
@@ -20,6 +21,10 @@ base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
 
 
+@pytest.mark.skipif(
+    "not config.getoption('--run-slow')",
+    reason="Only run when --run-slow is given",
+)
 class TestBinaryDataIntegration(TestCase):
     """
     Monolithic testing of the Seclea AI file

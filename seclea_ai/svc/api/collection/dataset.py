@@ -3,7 +3,7 @@ import os.path
 
 from requests import Response
 
-from seclea_ai.lib.seclea_utils.core.transmission import Transmission
+from ....lib.seclea_utils.core.transmission import Transmission
 
 # from ..errors import throws_api_err
 root = "/collection/datasets"

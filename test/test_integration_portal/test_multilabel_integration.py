@@ -2,6 +2,7 @@ import os
 from unittest import TestCase
 
 import pandas as pd
+import pytest
 import tensorflow as tf
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
@@ -14,6 +15,10 @@ base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
 
 
+@pytest.mark.skipif(
+    "not config.getoption('--run-slow')",
+    reason="Only run when --run-slow is given",
+)
 class TestMultilabelDataIntegration(TestCase):
     """
     Monolithic testing of the Seclea AI file
