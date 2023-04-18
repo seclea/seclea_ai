@@ -649,6 +649,7 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_ids = list()
+        dataset_metadata = None
         for idx, dataset in enumerate([train_dataset, test_dataset, val_dataset]):
             if dataset is not None:
                 dset_record_id = Record.get_or_none(
@@ -664,6 +665,7 @@ class SecleaAI:
                         f"The {dset_map[idx]} dataset was not found on the Platform. Please check and try again"
                     )
                 else:
+                    dataset_metadata = dataset["metadata"]
                     dataset_ids.append(dset_record_id)
 
         # Model stuff
@@ -693,7 +695,9 @@ class SecleaAI:
 
         metadata = {
             "class_name": ".".join([model.__class__.__module__, model.__class__.__name__]),
-            "application_type": model.object_manager.get_application_type(model).value,
+            "application_type": model.object_manager.get_application_type(
+                model, dataset_metadata["outputs_info"]
+            ).value,
         }
 
         # create record

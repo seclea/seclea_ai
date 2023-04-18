@@ -1,14 +1,16 @@
 import datetime
 import os
-import uuid
 from pathlib import Path
 from unittest import TestCase
 
 import lightgbm as lgb
 import pandas as pd
+import tensorflow as tf
 from peewee import SqliteDatabase
+import xgboost as xgb
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
+from xgboost import DMatrix
 
 from seclea_ai import SecleaAI
 from seclea_ai.internal.models.record import Record, RecordStatus
@@ -18,7 +20,7 @@ base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
 
 
-class TestIntegrationLGBM(TestCase):
+class TestMulticlassDataIntegration(TestCase):
     """
     Monolithic testing of the Seclea AI file
     order of functions is preserved.
@@ -33,10 +35,11 @@ class TestIntegrationLGBM(TestCase):
 
     def step_0_project_setup(self):
         self.start_timestamp = datetime.datetime.now()
+        print(self.start_timestamp)
         self.password = "asdf"  # nosec
         self.username = "admin-dev"  # nosec
         self.organization = "Onespan"
-        self.project_name = f"test-project-{uuid.uuid4()}"
+        self.project_name = "Multiclass Classification Project"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
@@ -49,19 +52,41 @@ class TestIntegrationLGBM(TestCase):
         )
 
     def step_1_upload_dataset(self):
-        self.sample_df = pd.read_csv(f"{folder_path}/adult_data.csv", index_col=0)
-        self.sample_df_name = "Census dataset"
+        self.sample_df = pd.read_csv(
+            f"{folder_path}/data/energydata_categorical.csv", index_col="date"
+        )
+        self.sample_df_name = "Energy Data"
         self.sample_df_meta = {
-            "outputs": ["income-per-year"],
-            "favourable_outcome": ">50k",
-            "unfavourable_outcome": "<=50k",
+            "outputs": ["appliances"],
             "continuous_features": [
-                "age",
-                "fnlwgt",
-                "education-num",
-                "capital-gain",
-                "capital-loss",
-                "hours-per-week",
+                "lights",
+                "T1",
+                "T1",
+                "RH_1",
+                "T2",
+                "RH_2",
+                "T3",
+                "RH_3",
+                "T4",
+                "RH_4",
+                "T5",
+                "RH_5",
+                "T6",
+                "RH_6",
+                "T7",
+                "RH_7",
+                "T8",
+                "RH_8",
+                "T9",
+                "RH_9",
+                "T_out",
+                "Press_mm_hg",
+                "RH_out",
+                "Windspeed",
+                "Visibility",
+                "Tdewpoint",
+                "rv1",
+                "rv2",
             ],
         }
         self.controller.upload_dataset(self.sample_df, self.sample_df_name, self.sample_df_meta)
@@ -80,50 +105,16 @@ class TestIntegrationLGBM(TestCase):
             )
             # returns X_train, X_test, y_train, y_test
 
-        def encode_categorical(df):
-            new_df = df.copy(deep=True)
-
-            cat_cols = new_df.select_dtypes(include=["object"]).columns.tolist()
-
-            for col in cat_cols:
-                le = LabelEncoder()
-                le.fit(list(new_df[col].astype(str).values))
-                new_df[col] = le.transform(list(new_df[col].astype(str).values))
-            return new_df
-
         ##############################
 
-        df = encode_categorical(self.sample_df)
-
-        self.transformations_encode = [
-            DatasetTransformation(
-                func=encode_categorical,
-                data_kwargs={"df": self.sample_df},
-                kwargs={},
-                outputs=["df"],
-            ),
-        ]
-
-        # upload dataset here
-        self.controller.upload_dataset(
-            dataset=df,
-            dataset_name=f"{self.sample_df_name} - Encoded",
-            metadata={},
-            transformations=self.transformations_encode,
-        )
-
-        output_col = "income-per-year"
-        X, y = get_samples_labels(df, output_col=output_col)
+        output_col = "appliances"
+        X, y = get_samples_labels(self.sample_df, output_col=output_col)
 
         test_size = 0.2
         random_state = 42
         self.X_train, self.X_test, self.y_train, self.y_test = get_test_train_splits(
             X, y, test_size=test_size, random_state=random_state
         )
-
-        for col in self.X_train.select_dtypes(include=["object"]).columns.tolist():
-            self.X_train[col] = self.X_train[col].astype("category")
-            self.X_test[col] = self.X_test[col].astype("category")
 
         self.transformations_train = [
             DatasetTransformation(
@@ -148,7 +139,7 @@ class TestIntegrationLGBM(TestCase):
             transformations=self.transformations_train,
         )
 
-        self.transformations_test = [
+        self.complicated_transformations_test = [
             DatasetTransformation(
                 get_test_train_splits,
                 {"X": X, "y": y},
@@ -167,63 +158,106 @@ class TestIntegrationLGBM(TestCase):
             y=self.y_test,
             dataset_name=f"{self.sample_df_name} - Test",
             metadata={},
-            transformations=self.transformations_test,
+            transformations=self.complicated_transformations_test,
         )
 
-    def step_3_upload_training_run(self):
+    def step_3_upload_sklearn_training_run(self):
+        # sklearn
+        sklearn_model = RandomForestClassifier(random_state=42)
+        sklearn_model.fit(self.X_train, self.y_train)
 
-        # setup training
-        dtrain = lgb.Dataset(
+        self.controller.upload_training_run_split(
+            sklearn_model,
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            y_test=self.y_test,
+        )
+
+        sklearn_model = RandomForestClassifier(random_state=42, n_estimators=32)
+        sklearn_model.fit(self.X_train, self.y_train)
+        self.controller.upload_training_run_split(
+            sklearn_model,
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            y_test=self.y_test,
+        )
+
+    def step_4_upload_xgboost_training_run(self):
+        xgb_dtrain = DMatrix(data=self.X_train, label=self.y_train, enable_categorical=True)
+        params = dict(max_depth=3, eta=1, objective="multi:softmax", num_class=4)
+        num_rounds = 5
+        xgb_model = xgb.train(params=params, dtrain=xgb_dtrain, num_boost_round=num_rounds)
+
+        self.controller.upload_training_run_split(
+            xgb_model,
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            y_test=self.y_test,
+        )
+
+    def step_5_upload_lgbm_training_run(self):
+
+        lgb_dtrain = lgb.Dataset(
             data=self.X_train,
             label=self.y_train,
             free_raw_data=True,
-            categorical_feature=[
-                "workclass",
-                "education",
-                "marital-status",
-                "occupation",
-                "relationship",
-                "race",
-                "sex",
-                "native-country",
-            ],
+            categorical_feature=[],
         )
 
         # setup training params
-        params = dict(max_depth=2, eta=1, objective="binary", num_threads=4, metric="auc")
-        # TODO test with a custom objective function.
-        # fail_params = dict(max_depth=2, eta=1, fobj="TODO fill in", num_threads=4, metric="auc")
+        params = dict(max_depth=3, eta=1, objective="softmax", num_classes=4)
         num_rounds = 5
         # train model
-        model = lgb.train(
+        lgb_model = lgb.train(
             params=params,
-            train_set=dtrain,
+            train_set=lgb_dtrain,
             num_boost_round=num_rounds,
         )
 
-        sklearn_model = lgb.LGBMClassifier()
-        sklearn_model.fit(self.X_train, self.y_train)
-
         # upload model
         self.controller.upload_training_run_split(
-            model,
+            lgb_model,
             X_train=self.X_train,
             y_train=self.y_train,
             X_test=self.X_test,
             y_test=self.y_test,
         )
+
+    def step_6_upload_tensorflow_training_run(self):
+        # define model
+        normalizer = tf.keras.layers.Normalization(axis=-1)
+        normalizer.adapt(self.X_train)
+
+        tf_model: tf.keras.Sequential = tf.keras.Sequential(
+            [
+                normalizer,
+                tf.keras.layers.Dense(512, activation="relu", input_shape=(111,)),
+                tf.keras.layers.Dropout(0.2),
+                tf.keras.layers.Dense(4),
+            ]
+        )
+
+        tf_model.compile(
+            optimizer="adam",
+            loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+            metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
+        )
+
+        tf_model.fit(x=self.X_train, y=self.y_train, epochs=5)
 
         self.controller.upload_training_run_split(
-            model=sklearn_model,
+            tf_model,
             X_train=self.X_train,
             y_train=self.y_train,
             X_test=self.X_test,
             y_test=self.y_test,
         )
-
         self.controller.complete()
 
-    def step_4_check_all_sent(self):
+    def step_7_check_all_sent(self):
         # check that all record statuses are RecordStatus.SENT
         db = SqliteDatabase(
             Path.home() / ".seclea" / "seclea_ai.db",

@@ -1,12 +1,12 @@
 import datetime
 import os
-import uuid
 from pathlib import Path
 from unittest import TestCase
 
 import pandas as pd
-import tensorflow as tf
 from peewee import SqliteDatabase
+import tensorflow as tf
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
 from seclea_ai import SecleaAI
@@ -17,7 +17,7 @@ base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
 
 
-class TestIntegrationTensorflow(TestCase):
+class TestMultilabelDataIntegration(TestCase):
     """
     Monolithic testing of the Seclea AI file
     order of functions is preserved.
@@ -32,11 +32,10 @@ class TestIntegrationTensorflow(TestCase):
 
     def step_0_project_setup(self):
         self.start_timestamp = datetime.datetime.now()
-        print(self.start_timestamp)
         self.password = "asdf"  # nosec
         self.username = "admin-dev"  # nosec
         self.organization = "Onespan"
-        self.project_name = f"test-project-{uuid.uuid4()}"
+        self.project_name = "Multilabel Classification Project"
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
@@ -49,12 +48,17 @@ class TestIntegrationTensorflow(TestCase):
         )
 
     def step_1_upload_dataset(self):
-        self.sample_df = pd.read_csv(f"{folder_path}/energydata_categorical.csv", index_col="date")
-        self.sample_df_name = "Energy Data"
-        self.sample_df_meta = {
-            "outputs": ["appliances"],
+
+        # multilabel
+        self.multilabel_data = pd.read_csv(
+            f"{folder_path}/data/energydata_multilabel.csv", index_col="date"
+        )
+        self.multilabel_outputs = ["appliances", "lights"]
+
+        self.multilabel_name = "Energy dataset - multilabel"
+        self.multilabel_metadata = {
+            "outputs": self.multilabel_outputs,
             "continuous_features": [
-                "lights",
                 "T1",
                 "T1",
                 "RH_1",
@@ -84,12 +88,16 @@ class TestIntegrationTensorflow(TestCase):
                 "rv2",
             ],
         }
-        self.controller.upload_dataset(self.sample_df, self.sample_df_name, self.sample_df_meta)
+        self.controller.upload_dataset(
+            self.multilabel_data,
+            dataset_name=self.multilabel_name,
+            metadata=self.multilabel_metadata,
+        )
 
     def step_2_define_transformations(self):
-        def get_samples_labels(df, output_col):
-            X = df.drop(output_col, axis=1)
-            y = df[output_col]
+        def get_samples_labels(df, output_cols):
+            X = df.drop(output_cols, axis=1)
+            y = df[output_cols]
 
             return X, y
 
@@ -102,8 +110,7 @@ class TestIntegrationTensorflow(TestCase):
 
         ##############################
 
-        output_col = "appliances"
-        X, y = get_samples_labels(self.sample_df, output_col=output_col)
+        X, y = get_samples_labels(self.multilabel_data, output_cols=self.multilabel_outputs)
 
         test_size = 0.2
         random_state = 42
@@ -129,12 +136,12 @@ class TestIntegrationTensorflow(TestCase):
         self.controller.upload_dataset_split(
             X=self.X_train,
             y=self.y_train,
-            dataset_name=f"{self.sample_df_name} - Train",
+            dataset_name=f"{self.multilabel_name} - Train",
             metadata={},
             transformations=self.transformations_train,
         )
 
-        self.complicated_transformations_test = [
+        self.transformations_test = [
             DatasetTransformation(
                 get_test_train_splits,
                 {"X": X, "y": y},
@@ -151,45 +158,74 @@ class TestIntegrationTensorflow(TestCase):
         self.controller.upload_dataset_split(
             X=self.X_test,
             y=self.y_test,
-            dataset_name=f"{self.sample_df_name} - Test",
+            dataset_name=f"{self.multilabel_name} - Test",
             metadata={},
-            transformations=self.complicated_transformations_test,
+            transformations=self.transformations_test,
         )
 
-    def step_3_upload_training_run(self):
-
-        # define model
-        normalizer = tf.keras.layers.Normalization(axis=-1)
-        normalizer.adapt(self.X_train)
-
-        model: tf.keras.Sequential = tf.keras.Sequential(
-            [
-                normalizer,
-                tf.keras.layers.Dense(512, activation="relu", input_shape=(111,)),
-                tf.keras.layers.Dropout(0.2),
-                tf.keras.layers.Dense(4),
-            ]
-        )
-
-        # TODO find multiclass classification loss and metrics etc.
-        model.compile(
-            optimizer="adam",
-            loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-            metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
-        )
-
-        model.fit(x=self.X_train, y=self.y_train, epochs=5)
+    def step_3_upload_sklearn_training_run(self):
+        # sklearn
+        sklearn_model = RandomForestClassifier(random_state=42)
+        sklearn_model.fit(self.X_train, self.y_train)
 
         self.controller.upload_training_run_split(
-            model,
+            sklearn_model,
             X_train=self.X_train,
             y_train=self.y_train,
             X_test=self.X_test,
             y_test=self.y_test,
         )
+
+        sklearn_model = RandomForestClassifier(random_state=42, n_estimators=32)
+        sklearn_model.fit(self.X_train, self.y_train)
+        self.controller.upload_training_run_split(
+            sklearn_model,
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            y_test=self.y_test,
+        )
+
+    def step_4_upload_xgboost_training_run(self):
+        # xgboost multioutput classification is still experimental - todo add to this section when they add support
+        pass
+
+    def step_5_upload_lgbm_training_run(self):
+        # lightgbm currently doesn't support multioutput classification - todo add to this section when they add support
+        pass
+
+    def step_6_upload_tensorflow_training_run(self):
+
+        multilabel_normalize = tf.keras.layers.Normalization(axis=-1)
+        multilabel_normalize.adapt(self.X_train)
+
+        tf_model: tf.keras.Sequential = tf.keras.Sequential(
+            [
+                multilabel_normalize,
+                tf.keras.layers.Dense(128, activation="relu", input_shape=(26,)),
+                tf.keras.layers.Dropout(0.2),
+                tf.keras.layers.Dense(2),
+            ]
+        )
+
+        tf_model.compile(
+            optimizer="adam",
+            loss=tf.keras.losses.KLDivergence(),
+            metrics=[tf.keras.metrics.CategoricalAccuracy()],
+        )
+
+        tf_model.fit(x=self.X_train, y=self.y_train, epochs=5)
+        self.controller.upload_training_run_split(
+            tf_model,
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            y_test=self.y_test,
+        )
+
         self.controller.complete()
 
-    def step_4_check_all_sent(self):
+    def step_7_check_all_sent(self):
         # check that all record statuses are RecordStatus.SENT
         db = SqliteDatabase(
             Path.home() / ".seclea" / "seclea_ai.db",
