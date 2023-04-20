@@ -670,7 +670,8 @@ class SecleaAI:
 
         # Model stuff
         model_name = model.__class__.__name__
-        framework = self._get_framework(model)
+        model = Tracked(model)
+        framework = model.object_manager.framework  # needs to be on Tracked
         # check the model exists upload if not
         model_type_id = self._set_model(model_name=model_name, framework=framework)
 
@@ -841,23 +842,6 @@ class SecleaAI:
                 )
                 project = resp[0]["uuid"]
         return project
-
-    @staticmethod
-    def _get_framework(model) -> ModelManagers:
-        module = model.__class__.__module__
-        # order is important as xgboost and lightgbm contain sklearn compliant packages.
-        # TODO check if we can treat them as sklearn but for now we avoid that issue by doing sklearn last.
-        if "xgboost" in module:
-            return ModelManagers.XGBOOST
-        elif "lightgbm" in module:
-            return ModelManagers.LIGHTGBM
-        # TODO improve to exclude other keras backends...
-        elif "tensorflow" in module or "keras" in module:
-            return ModelManagers.TENSORFLOW
-        elif "sklearn" in module:
-            return ModelManagers.SKLEARN
-        else:
-            return ModelManagers.NOT_IMPORTED
 
     def _validate_settings(self, required_keys: List[str]) -> None:
         """
