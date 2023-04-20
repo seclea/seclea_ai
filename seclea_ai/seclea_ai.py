@@ -787,21 +787,6 @@ class SecleaAI:
             model_id = resp[0]["uuid"]
         return model_id
 
-    @staticmethod
-    def _assemble_dataset(data: Dict[str, DataFrame]) -> DataFrame:
-        if len(data) == 1:
-            return next(iter(data.values()))
-        elif len(data) == 2:
-            # create dataframe from X and y and upload - will have one item in metadata, the output_col
-            for key, val in data.items():
-                if not (isinstance(val, DataFrame) or isinstance(val, Series)):
-                    data[key] = DataFrame(val)
-            return pd.concat([x for x in data.values()], axis=1)
-        else:
-            raise AssertionError(
-                "Output doesn't match the requirements. Please review the documentation."
-            )
-
     def _init_org(self, organization_name: str) -> str:
         org_res = self._api.get_organization(organization_name=organization_name)
         if len(org_res) == 0:
