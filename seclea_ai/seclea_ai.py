@@ -652,21 +652,21 @@ class SecleaAI:
         dataset_metadata = None
         for idx, dataset in enumerate([train_dataset, test_dataset, val_dataset]):
             if dataset is not None:
-                dset_record_id = Record.get_or_none(
+                dset_record = Record.get_or_none(
                     Record.key
                     == Tracked(dataset).object_manager.hash_object_with_project(
                         dataset, self._project_id
                     )
-                ).id
-                if dset_record_id is None:
+                )
+                if dset_record is None:
                     # we tried to access [0] of an empty return
                     dset_map = {0: "Train", 1: "Test", 2: "Validation"}
                     raise ValueError(
                         f"The {dset_map[idx]} dataset was not found on the Platform. Please check and try again"
                     )
                 else:
-                    dataset_metadata = dataset["metadata"]
-                    dataset_ids.append(dset_record_id)
+                    dataset_metadata = dataset.metadata
+                    dataset_ids.append(dset_record.id)
 
         # Model stuff
         model_name = model.__class__.__name__
