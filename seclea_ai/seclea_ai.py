@@ -665,7 +665,7 @@ class SecleaAI:
                         f"The {dset_map[idx]} dataset was not found on the Platform. Please check and try again"
                     )
                 else:
-                    dataset_metadata = dataset.metadata
+                    dataset_metadata = dset_record.dataset_metadata
                     dataset_ids.append(dset_record.id)
 
         # Model stuff

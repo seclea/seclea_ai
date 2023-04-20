@@ -42,10 +42,10 @@ class TestRegressionDataIntegration(TestCase):
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
-            self.project_name,
-            self.organization,
-            self.portal_url,
-            self.auth_url,
+            project_name=self.project_name,
+            organization=self.organization,
+            platform_url=self.portal_url,
+            auth_url=self.auth_url,
             username=self.username,
             password=self.password,
         )
@@ -253,6 +253,8 @@ class TestRegressionDataIntegration(TestCase):
             y_test=self.y_test,
         )
 
+        self.controller.complete()
+
     def step_7_check_all_sent(self):
         # check that all record statuses are RecordStatus.SENT
         db = SqliteDatabase(
@@ -277,8 +279,4 @@ class TestRegressionDataIntegration(TestCase):
 
     def test_steps(self):
         for name, step in self._steps():
-            try:
-                step()
-                print("STEP COMPLETE")
-            except Exception as e:
-                self.fail(f"{step} failed ({type(e)}: {e})")
+            step()
