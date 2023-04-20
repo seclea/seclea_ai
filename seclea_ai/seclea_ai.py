@@ -843,47 +843,6 @@ class SecleaAI:
         return project
 
     @staticmethod
-    def _aggregate_dataset(datasets: List[str], index) -> DataFrame:
-        """
-        Aggregates a list of dataset paths into a single file for upload.
-        NOTE the files must be split by row and have the same format otherwise this will fail or cause unexpected format
-        issues later.
-        :param datasets:
-        :return:
-        """
-        loaded_datasets = [pd.read_csv(dset, index_col=index) for dset in datasets]
-        aggregated = pd.concat(loaded_datasets, axis=0)
-        return aggregated
-
-    @staticmethod
-    def _ensure_required_metadata(metadata: Dict, defaults_spec: Dict) -> Dict:
-        """
-        Ensures that required metadata that can be specified by the user are filled.
-        @param metadata: The metadata dict
-        @param defaults_spec:
-        @return: metadata
-        """
-        for required_key, default in defaults_spec.items():
-            try:
-                if metadata[required_key] is None:
-                    metadata[required_key] = default
-            except KeyError:
-                metadata[required_key] = default
-        return metadata
-
-    @staticmethod
-    def _add_required_metadata(metadata: Dict, required_spec: Dict) -> Dict:
-        """
-        Adds required - non user specified fields to the metadata
-        @param metadata: The metadata dict
-        @param required_spec:
-        @return: metadata
-        """
-        for required_key, default in required_spec.items():
-            metadata[required_key] = default
-        return metadata
-
-    @staticmethod
     def _get_framework(model) -> ModelManagers:
         module = model.__class__.__module__
         # order is important as xgboost and lightgbm contain sklearn compliant packages.
