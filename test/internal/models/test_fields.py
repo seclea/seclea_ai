@@ -2,7 +2,7 @@ from enum import Enum
 from unittest import TestCase
 from peewee import SqliteDatabase, Model
 
-from seclea_ai.internal.models.fields import JsonField, EnumField
+from seclea_ai.internal.persistence.fields import JsonField, EnumField
 
 
 class BaseFieldTest(TestCase):

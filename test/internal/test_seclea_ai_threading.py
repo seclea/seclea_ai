@@ -8,7 +8,7 @@ import responses
 
 from seclea_ai.internal.api.api_interface import Api
 from seclea_ai.internal.director import Director
-from seclea_ai.internal.models.record import RecordEntity
+from seclea_ai.internal.persistence.record import RecordEntity
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "")

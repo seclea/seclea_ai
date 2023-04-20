@@ -16,7 +16,7 @@ from .exceptions import (
     ServiceDegradedError,
     StorageSpaceError,
 )
-from ..internal.models.record import Record, RecordStatus
+from ..internal.persistence.record import Record, RecordStatus
 from .processors.sender import Sender
 from .processors.writer import Writer
 from .threading import SingleThreadTaskExecutor

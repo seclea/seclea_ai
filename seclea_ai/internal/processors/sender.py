@@ -6,7 +6,7 @@ from typing import Dict
 from .processor import Processor
 from ..exceptions import BadRequestError
 from ...internal.api.api_interface import Api
-from ...internal.models.record import RecordStatus, Record, RecordEntity
+from ...internal.persistence.record import RecordStatus, Record, RecordEntity
 
 logger = logging.getLogger("seclea_ai")
 

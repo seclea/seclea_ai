@@ -27,13 +27,13 @@ class Dataset(BaseModel):
     name = CharField(max_length=256)
     hash = CharField(max_length=200)
     metadata = JsonField()
-    dataset = CharField(max_length=400)  # file where stored locally
+    dataset = CharField(max_length=400, null=True)  # file where stored locally
 
     project = ForeignKeyField(Project)
     parent = ForeignKeyField("self", null=True, backref="children")
 
     class Meta:
-        constraints = [SQL("UNIQUE (project, hash)")]
+        constraints = [SQL("UNIQUE (project, hash)"), SQL("UNIQUE (project, name)")]
 
 
 class DatasetTransformation(BaseModel):
@@ -66,6 +66,7 @@ class TrainingRun(BaseModel):
     metadata = JsonField()
     params = JsonField()
 
+    # TODO think about on_delete and on_update
     project = ForeignKeyField(Project)
     model = ForeignKeyField(Model, backref="training_runs")
     datasets = ManyToManyField(Dataset)
@@ -76,7 +77,7 @@ class ModelState(BaseModel):
     uuid = UUIDField(null=True)
 
     sequence_num = IntegerField()
-    state = CharField(max_length=400)  # file where stored locally
+    state = CharField(max_length=400, null=True)  # file where stored locally
 
     training_run = ForeignKeyField(TrainingRun, backref="model_states")
 

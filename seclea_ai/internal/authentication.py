@@ -7,7 +7,7 @@ from peewee import SqliteDatabase
 from requests import Response, Session
 
 from ..internal.exceptions import AuthenticationError
-from ..internal.models.auth_credentials import AuthCredentials
+from ..internal.persistence.auth_credentials import AuthCredentials
 
 try:
     import google.colab  # noqa F401
