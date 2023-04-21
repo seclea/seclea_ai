@@ -89,6 +89,7 @@ class Director:
         # check for errors and throw if there are any
         self._check_and_throw()
         self._check_resources(entity_dict=entity_dict)
+        # TODO change writer to be functional - pass in db and settings.
         future = self.write_threadpool_executor.submit(
             self.writer.funcs[entity_dict["entity"]], **entity_dict
         )
@@ -185,12 +186,11 @@ class Director:
             return
 
         # get currently used space from db
-        self._db.connect()
-        records = Record.select().where(Record.status == RecordStatus.STORED)
-        current_stored = 0
-        for record in records:
-            current_stored += record.size
-        self._db.close()
+        with self._db.atomic():
+            records = Record.select().where(Record.status == RecordStatus.STORED)
+            current_stored = 0
+            for record in records:
+                current_stored += record.size
 
         # break on storage overflow
         if stored_size + current_stored > self._settings["max_storage_space"]:

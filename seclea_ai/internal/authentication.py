@@ -51,11 +51,10 @@ class AuthenticationService:
 
         :return:
         """
-        self._db.connect()
-        if not self.verify_token():
-            if not self.refresh_token():
-                self._obtain_initial_tokens(username=username, password=password)
-        self._db.close()
+        with self._db.atomic():
+            if not self.verify_token():
+                if not self.refresh_token():
+                    self._obtain_initial_tokens(username=username, password=password)
 
     def verify_token(self) -> bool:
         """

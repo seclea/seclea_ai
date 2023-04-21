@@ -406,15 +406,14 @@ class TestBinaryDataIntegration(TestCase):
             thread_safe=True,
             pragmas={"journal_mode": "wal"},
         )
-        db.connect()
-        records = Record.select().where(Record.created_timestamp > self.start_timestamp)
-        for idx, record in enumerate(records):
-            self.assertEqual(
-                record.status,
-                RecordStatus.SENT,
-                f"Entity {record.entity} at position {idx}, with id {record.id} not sent, current status: {record.status}",
-            )
-        db.close()
+        with db.atomic():
+            records = Record.select().where(Record.created_timestamp > self.start_timestamp)
+            for idx, record in enumerate(records):
+                self.assertEqual(
+                    record.status,
+                    RecordStatus.SENT,
+                    f"Entity {record.entity} at position {idx}, with id {record.id} not sent, current status: {record.status}",
+                )
 
     def _steps(self):
         for name in dir(self):  # dir() result is implicitly sorted
