@@ -7,6 +7,7 @@ from .db import BaseModel
 from .fields import JsonField, EnumField
 
 
+# TODO remove this after restructure of Record.
 class RecordEntity(Enum):
     DATASET = "dataset"
     DATASET_TRANSFORMATION = "transformation"
@@ -23,6 +24,7 @@ class RecordStatus(Enum):
 
 
 # TODO rethink this - may be better split up
+# this will change to just status, timestamp/s, size (and auto created id)
 class Record(BaseModel):
 
     project_id = CharField()
@@ -42,6 +44,7 @@ class Record(BaseModel):
     dataset_metadata = JsonField(null=True)
 
 
+# TODO remove this
 class RecordInfo(BaseModel):
 
     dependencies = JsonField(null=True)  # this will be a list of ids TODO check if needed

@@ -72,6 +72,10 @@ class DatasetTransformationSchema(BaseModel):
 
     dataset: DatasetSchema
 
+    class Config:
+        orm_mode = True
+        getter_dict = PeeweeGetterDict
+
 
 class ModelSchema(BaseModel):
 

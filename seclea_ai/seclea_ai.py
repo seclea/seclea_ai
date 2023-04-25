@@ -14,8 +14,13 @@ import pandas as pd
 from pandas import DataFrame, Series
 from peewee import SqliteDatabase
 
-from .internal.persistence.models import Project
-from .internal.schemas import DatasetSchema, ProjectSchema, ProjectDBSchema
+from .internal.persistence.models import Project, Dataset
+from .internal.schemas import (
+    DatasetSchema,
+    ProjectSchema,
+    ProjectDBSchema,
+    DatasetTransformationSchema,
+)
 from .internal.persistence import models
 from .internal.api.api_interface import Api
 from .internal.director import Director
@@ -282,7 +287,10 @@ class SecleaAI:
             # specific guard against mis specified initial data.
             if not isinstance(list(transformations[0].raw_data_kwargs.values())[0], DataFrame):
                 raise ValueError(
-                    f"The initial DatasetTransformation data_kwargs must be a DataFrame, found {list(transformations[0].raw_data_kwargs.values())[0]}, of type {type(list(transformations[0].raw_data_kwargs.values())[0])}"
+                    f"The initial DatasetTransformation data_kwargs must be a "
+                    f"DataFrame, found "
+                    f"{list(transformations[0].raw_data_kwargs.values())[0]}, of type "
+                    f"{type(list(transformations[0].raw_data_kwargs.values())[0])}"
                 )
 
             parent = Tracked(assemble_dataset(transformations[0].raw_data_kwargs))
@@ -377,6 +385,7 @@ class SecleaAI:
 
         # create local db record.
         # TODO make lack of parent more obvious??
+        # TODO optimize db accesses
         with self._db.atomic():
             dataset_record = Record.create(
                 project_id=str(self._project_id),
@@ -437,8 +446,8 @@ class SecleaAI:
         output = dict()
         # iterate over transformations, assembling intermediate datasets
         # TODO address memory issue of keeping all datasets
-        for idx, trans in enumerate(transformations):
-            output = trans(output)
+        for idx, transformation in enumerate(transformations):
+            output = transformation(output)
 
             # construct the generated dataset from outputs
             dset = assemble_dataset(output)
@@ -472,7 +481,9 @@ class SecleaAI:
                     outputs=dset_metadata["outputs"],
                     outputs_type=dset_metadata["outputs_type"],
                 ),
-                split=trans.split if trans.split is not None else parent_mdata["split"],
+                split=transformation.split
+                if transformation.split is not None
+                else parent_mdata["split"],
                 features=list(features),
                 categorical_features=list(
                     set(list(features))
@@ -497,38 +508,38 @@ class SecleaAI:
                     "Continuous features must be a subset of features. Please check and try again."
                 )
 
-            dset_name = f"{dataset_name}-{trans.func.__name__}"  # TODO improve this.
+            dset_name = f"{dataset_name}-{transformation.func.__name__}"  # TODO improve this.
             dset_hash = Tracked(dset).object_manager.hash_object_with_project(
                 dset, str(self._project_id)
             )
 
             # handle the final dataset - check generated = passed in.
             if idx == last:
-                if dset_hash != final_dataset_hash:  # TODO create or find better exception
+                if dset_hash != final_dataset_hash:
+                    # TODO create or find better exception
                     raise AssertionError(
-                        """Generated Dataset does not match the Dataset passed in.
-                                     Please check your DatasetTransformation definitions and try again.
-                                     Try using less DatasetTransformations if you are having persistent problems"""
+                        "Generated Dataset does not match the Dataset passed in.\n"
+                        "Please check your DatasetTransformation definitions and "
+                        "try again. Try using less DatasetTransformations if you "
+                        "are having persistent problems"
                     )
                 else:
                     dset_name = dataset_name
-            else:
-                if dset_hash == Tracked(parent_dset).object_manager.hash_object_with_project(
-                    parent_dset, str(self._project_id)
-                ):
-                    raise AssertionError(
-                        f"""The transformation {trans.func.__name__} does not change the dataset.
-                        Please remove it and try again."""
-                    )
 
-            # find parent dataset in local db - TODO improve
-            with self._db.atomic():
-                parent_record = Record.get_or_none(
-                    Record.key
-                    == Tracked(parent_dset).object_manager.hash_object_with_project(
-                        parent_dset, str(self._project_id)
-                    )
+            parent_hash = Tracked(parent_dset).object_manager.hash_object_with_project(
+                parent_dset, str(self._project_id)
+            )
+            if dset_hash == parent_hash:
+                raise AssertionError(
+                    f"The transformation {transformation.func.__name__} does not "
+                    f"change the dataset.Please remove it and try again."
                 )
+
+            # here we will fetch the parent Dataset, create a Record and link them into
+            # a new Dataset object. That will then be serialised and added to the queue
+            # TODO optimize db accesses
+            with self._db.atomic():
+                parent_record = Record.get_or_none(Record.key == parent_hash)
                 parent_dataset_record_id = parent_record.id
 
                 # create local db record.
@@ -540,6 +551,18 @@ class SecleaAI:
                     key=str(dset_hash),
                     dataset_metadata=dset_metadata,
                 )
+                dataset_entity = models.Dataset.create(
+                    uuid=uuid.uuid4(),
+                    name=dset_name,
+                    hash=dset_hash,
+                    metadata=dset_metadata,
+                    project=Project.get_by_id(self._project.id),
+                    parent=Dataset.get_or_none(Dataset.hash == parent_hash),
+                )
+
+            # new new arch
+            dataset_entity_model = DatasetSchema.from_orm(dataset_entity)
+            upload_kwargs = dataset_entity_model.dict()
 
             # add data to queue to upload later after final dataset checked
             upload_kwargs = {
@@ -556,25 +579,39 @@ class SecleaAI:
             parent_mdata = copy.deepcopy(dset_metadata)
             upload_queue.append(upload_kwargs)
 
+            # transformation
+            transformation_kwargs = {**transformation.data_kwargs, **transformation.kwargs}
             with self._db.atomic():
                 # add dependency to dataset
-                trans_record = Record.create(
+                transformation_record = Record.create(
                     project_id=str(self._project_id),
                     entity=RecordEntity.DATASET_TRANSFORMATION,
                     status=RecordStatus.IN_MEMORY,
                     dependencies=[dataset_record.id],
                 )
+                transformation_entity = models.DatasetTransformation.create(
+                    uuid=uuid.uuid4(),
+                    name=transformation.func.__name__,
+                    code_raw=inspect.getsource(transformation.func),
+                    code_encoded=encode_func(transformation.func, [], transformation_kwargs),
+                    dataset=dataset_entity,
+                )
+            # validate and get schema
+            transformation_entity_model = DatasetTransformationSchema.from_orm(
+                transformation_entity
+            )
+            # serialize
+            transformation_upload_kwargs = transformation_entity_model.dict()
 
             # TODO unpack transformation into kwargs for upload - need to create trans upload func first.
-            trans_kwargs = {**trans.data_kwargs, **trans.kwargs}
-            transformation_kwargs = {
+            transformation_upload_kwargs = {
                 "entity": RecordEntity.DATASET_TRANSFORMATION,
-                "record_id": trans_record.id,
-                "name": trans.func.__name__,
-                "code_raw": inspect.getsource(trans.func),
-                "code_encoded": encode_func(trans.func, [], trans_kwargs),
+                "record_id": transformation_record.id,
+                "name": transformation.func.__name__,
+                "code_raw": inspect.getsource(transformation.func),
+                "code_encoded": encode_func(transformation.func, [], transformation_kwargs),
             }
-            upload_queue.append(transformation_kwargs)
+            upload_queue.append(transformation_upload_kwargs)
 
         return upload_queue
 
