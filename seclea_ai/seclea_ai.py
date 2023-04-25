@@ -5,14 +5,18 @@ import copy
 import inspect
 import logging
 import traceback
+import uuid
 from pathlib import Path
 from pathlib import PurePath
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Tuple
 
 import pandas as pd
 from pandas import DataFrame, Series
 from peewee import SqliteDatabase
 
+from .internal.persistence.models import Project
+from .internal.schemas import DatasetSchema, ProjectSchema, ProjectDBSchema
+from .internal.persistence import models
 from .internal.api.api_interface import Api
 from .internal.director import Director
 from .internal.exceptions import AuthenticationError
@@ -25,7 +29,6 @@ from .dataset_utils import (
     aggregate_dataset,
     assemble_dataset,
 )
-from .lib.seclea_utils.model_management import ModelManagers
 from .transformations import DatasetTransformation
 from .internal.config import read_config
 from .lib.seclea_utils.object_management import Tracked
@@ -76,6 +79,11 @@ class SecleaAI:
             "cache_dir": (Path(project_root) / ".seclea" / "cache" / project_name).absolute(),
             "platform_url": "https://platform.seclea.com",
             "auth_url": "https://auth.seclea.com",
+            "db": dict(
+                database=Path.home() / ".seclea" / "seclea_ai.db",
+                thread_safe=True,
+                pragmas={"journal_mode": "wal"},
+            ),
         }
         # read in the config files - everything can be specified in there except project root.
         global_config = read_config(Path.home() / ".seclea" / "config.yml")
@@ -95,17 +103,13 @@ class SecleaAI:
 
         self._validate_settings(["project_name", "organization_name"])
 
-        self._db = SqliteDatabase(
-            Path.home() / ".seclea" / "seclea_ai.db",
-            thread_safe=True,
-            pragmas={"journal_mode": "wal"},
-        )
+        self._db = SqliteDatabase(**self._settings.get("db", dict()))
         self._api = Api(
             self._settings, username=username, password=password
         )  # TODO add username and password?
         self._organization_name = organization
         self._organization_id = self._init_org(organization)
-        self._project_id = self._init_project(project_name=project_name)
+        self._project, self._project_id = self._init_project(project_name=project_name)
         self._settings["project_id"] = self._project_id
         self._settings["organization_id"] = self._organization_id
         self._available_frameworks = {"sklearn", "xgboost", "lightgbm"}
@@ -270,7 +274,9 @@ class SecleaAI:
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
 
         tracked_ds = Tracked(dataset)
-        dset_hash = tracked_ds.object_manager.hash_object_with_project(tracked_ds, self._project_id)
+        dset_hash = tracked_ds.object_manager.hash_object_with_project(
+            tracked_ds, str(self._project_id)
+        )
 
         if transformations is not None:
             # specific guard against mis specified initial data.
@@ -285,7 +291,7 @@ class SecleaAI:
             # Validate parent exists and get metadata - check how often on portal, maybe remove?
             #####
             parent_dset_hash = parent.object_manager.hash_object_with_project(
-                parent, self._project_id
+                parent, str(self._project_id)
             )
             # check parent exists - check local db if not else error.
 
@@ -296,9 +302,8 @@ class SecleaAI:
             )
             if len(res) == 0:
                 # check local db
-                self._db.connect()
-                parent_record = Record.get_or_none(Record.key == parent_dset_hash)
-                self._db.close()
+                with self._db.atomic():
+                    parent_record = Record.get_or_none(Record.key == parent_dset_hash)
                 if parent_record is not None:
                     parent_metadata = parent_record.dataset_metadata
                 else:
@@ -372,15 +377,28 @@ class SecleaAI:
 
         # create local db record.
         # TODO make lack of parent more obvious??
-        self._db.connect()
-        dataset_record = Record.create(
-            project_id=self._project_id,
-            entity=RecordEntity.DATASET,
-            status=RecordStatus.IN_MEMORY,
-            key=str(dset_hash),
-            dataset_metadata=metadata,
-        )
-        self._db.close()
+        with self._db.atomic():
+            dataset_record = Record.create(
+                project_id=str(self._project_id),
+                entity=RecordEntity.DATASET,
+                status=RecordStatus.IN_MEMORY,
+                key=str(dset_hash),
+                dataset_metadata=metadata,
+            )
+
+            dataset_entity = models.Dataset.create(
+                uuid=uuid.uuid4(),
+                name=dataset_name,
+                hash=dset_hash,
+                metadata=metadata,
+                project=Project.get_by_id(self._project.id),
+            )
+            print(f"dataset project type: {type(dataset_entity.project)}")
+
+        # new new arch
+        dataset_entity_model = DatasetSchema.from_orm(dataset_entity)
+        dataset_upload_kwargs = dataset_entity_model.dict()
+        # or just pass object directly
 
         # New arch
         dataset_upload_kwargs = {
@@ -481,7 +499,7 @@ class SecleaAI:
 
             dset_name = f"{dataset_name}-{trans.func.__name__}"  # TODO improve this.
             dset_hash = Tracked(dset).object_manager.hash_object_with_project(
-                dset, self._project_id
+                dset, str(self._project_id)
             )
 
             # handle the final dataset - check generated = passed in.
@@ -496,7 +514,7 @@ class SecleaAI:
                     dset_name = dataset_name
             else:
                 if dset_hash == Tracked(parent_dset).object_manager.hash_object_with_project(
-                    parent_dset, self._project_id
+                    parent_dset, str(self._project_id)
                 ):
                     raise AssertionError(
                         f"""The transformation {trans.func.__name__} does not change the dataset.
@@ -504,24 +522,24 @@ class SecleaAI:
                     )
 
             # find parent dataset in local db - TODO improve
-            self._db.connect()
-            parent_record = Record.get_or_none(
-                Record.key
-                == Tracked(parent_dset).object_manager.hash_object_with_project(
-                    parent_dset, self._project_id
+            with self._db.atomic():
+                parent_record = Record.get_or_none(
+                    Record.key
+                    == Tracked(parent_dset).object_manager.hash_object_with_project(
+                        parent_dset, str(self._project_id)
+                    )
                 )
-            )
-            parent_dataset_record_id = parent_record.id
+                parent_dataset_record_id = parent_record.id
 
-            # create local db record.
-            dataset_record = Record.create(
-                project_id=self._project_id,
-                entity=RecordEntity.DATASET,
-                status=RecordStatus.IN_MEMORY,
-                dependencies=[parent_dataset_record_id],
-                key=str(dset_hash),
-                dataset_metadata=dset_metadata,
-            )
+                # create local db record.
+                dataset_record = Record.create(
+                    project_id=str(self._project_id),
+                    entity=RecordEntity.DATASET,
+                    status=RecordStatus.IN_MEMORY,
+                    dependencies=[parent_dataset_record_id],
+                    key=str(dset_hash),
+                    dataset_metadata=dset_metadata,
+                )
 
             # add data to queue to upload later after final dataset checked
             upload_kwargs = {
@@ -538,14 +556,14 @@ class SecleaAI:
             parent_mdata = copy.deepcopy(dset_metadata)
             upload_queue.append(upload_kwargs)
 
-            # add dependency to dataset
-            trans_record = Record.create(
-                project_id=self._project_id,
-                entity=RecordEntity.DATASET_TRANSFORMATION,
-                status=RecordStatus.IN_MEMORY,
-                dependencies=[dataset_record.id],
-            )
-            self._db.close()
+            with self._db.atomic():
+                # add dependency to dataset
+                trans_record = Record.create(
+                    project_id=str(self._project_id),
+                    entity=RecordEntity.DATASET_TRANSFORMATION,
+                    status=RecordStatus.IN_MEMORY,
+                    dependencies=[dataset_record.id],
+                )
 
             # TODO unpack transformation into kwargs for upload - need to create trans upload func first.
             trans_kwargs = {**trans.data_kwargs, **trans.kwargs}
@@ -655,7 +673,7 @@ class SecleaAI:
                 dset_record = Record.get_or_none(
                     Record.key
                     == Tracked(dataset).object_manager.hash_object_with_project(
-                        dataset, self._project_id
+                        dataset, str(self._project_id)
                     )
                 )
                 if dset_record is None:
@@ -678,7 +696,7 @@ class SecleaAI:
         # check the latest training run TODO extract all this stuff
         training_runs = (
             Record.select()
-            .where(Record.project_id == self._project_id)
+            .where(Record.project_id == str(self._project_id))
             .where(Record.entity == RecordEntity.TRAINING_RUN)
         )
 
@@ -702,15 +720,15 @@ class SecleaAI:
         }
 
         # create record
-        self._db.connect()
-        training_run_record = Record.create(
-            project_id=self._project_id,
-            name=training_run_name,
-            entity=RecordEntity.TRAINING_RUN,
-            status=RecordStatus.IN_MEMORY,
-            dependencies=dataset_ids,
-            metadata=metadata,  # TODO this is new - add to uploading.
-        )
+        with self._db.atomic():
+            training_run_record = Record.create(
+                project_id=self._project_id,
+                name=training_run_name,
+                entity=RecordEntity.TRAINING_RUN,
+                status=RecordStatus.IN_MEMORY,
+                dependencies=dataset_ids,
+                metadata=metadata,  # TODO this is new - add to uploading.
+            )
 
         # sent training run for upload.
         training_run_details = {
@@ -722,14 +740,14 @@ class SecleaAI:
         }
         self._director.send_entity(training_run_details)
 
-        # create local db record
-        model_state_record = Record.create(
-            project_id=self._project_id,
-            entity=RecordEntity.MODEL_STATE,
-            status=RecordStatus.IN_MEMORY,
-            dependencies=[training_run_record.id],
-        )
-        self._db.close()
+        with self._db.atomic():
+            # create local db record
+            model_state_record = Record.create(
+                project_id=str(self._project_id),
+                entity=RecordEntity.MODEL_STATE,
+                status=RecordStatus.IN_MEMORY,
+                dependencies=[training_run_record.id],
+            )
 
         # send model state for save and upload
         # TODO make a function interface rather than the queue interface. Need a response to confirm it is okay.
@@ -744,7 +762,7 @@ class SecleaAI:
         self._director.store_entity(model_state_details)
         self._director.send_entity(model_state_details)
 
-    def _set_model(self, model_name: str, framework: ModelManagers) -> int:
+    def _set_model(self, model_name: str, framework: str) -> int:
         """
         Set the model for this session.
         Checks if it has already been uploaded. If not it will upload it.
@@ -760,7 +778,7 @@ class SecleaAI:
             organization_id=self._organization_id,
             project_id=self._project_id,
             name=model_name,
-            framework=framework.name,
+            framework=framework,
         )
         models = res
         # not checking for more because there is a unique constraint across name and framework on backend.
@@ -771,7 +789,7 @@ class SecleaAI:
             organization_id=self._organization_id,
             project_id=self._project_id,
             model_name=model_name,
-            framework_name=framework.name,
+            framework_name=framework,
         )
         # TODO find out if this checking is ever needed - ie does it ever not return the created model object?
         try:
@@ -796,7 +814,7 @@ class SecleaAI:
         else:
             return org_res[0]["uuid"]
 
-    def _init_project(self, project_name) -> str:
+    def _init_project(self, project_name) -> Tuple[ProjectSchema, uuid.UUID]:
         """
         Initialises the project for the object. If the project does not exist on the server it will be created.
 
@@ -809,7 +827,7 @@ class SecleaAI:
                 organization_id=self._organization_id,
                 name=project_name,
             )
-            project = project_json[0]["uuid"]
+            project = ProjectSchema.parse_obj(project_json[0])
         # errors if list is empty
         except IndexError:
             proj_res = self._api.upload_project(
@@ -818,15 +836,19 @@ class SecleaAI:
                 organization_id=self._organization_id,
             )
             try:
-                project = proj_res["uuid"]
+                project = ProjectSchema.parse_obj(proj_res)
             except KeyError:
                 # we want to know when this happens as this is unusual condition.
                 traceback.print_exc()
                 resp = self._api.get_projects(
                     organization_id=self._organization_id, name=project_name
                 )
-                project = resp[0]["uuid"]
-        return project
+                project = ProjectSchema.parse_obj(resp[0])
+        # update db.
+        with self._db.atomic():
+            project, _ = Project.get_or_create(**project.dict())
+            project = ProjectDBSchema.from_orm(project)
+        return project, project.uuid
 
     def _validate_settings(self, required_keys: List[str]) -> None:
         """

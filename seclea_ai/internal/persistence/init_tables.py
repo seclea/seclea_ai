@@ -3,6 +3,7 @@ from pathlib import Path
 from peewee import SqliteDatabase
 
 from .auth_credentials import AuthCredentials
+from .models import Project, Dataset, DatasetTransformation, Model, TrainingRun, ModelState
 from .record import Record
 
 
@@ -13,6 +14,19 @@ def init_tables():
         pragmas={"journal_mode": "wal"},
     )
 
-    db.connect()
-    db.create_tables([Record, AuthCredentials])
-    db.close()
+    with db.atomic():
+        db.create_tables(
+            [
+                Record,
+                AuthCredentials,
+                Project,
+                Dataset,
+                DatasetTransformation,
+                Model,
+                TrainingRun,
+                ModelState,
+            ]
+        )
+
+
+# TODO add migrations - maybe to add constraints to tables after creation?

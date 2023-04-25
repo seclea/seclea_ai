@@ -10,6 +10,12 @@ from peewee import (
 
 from .db import BaseModel
 from .fields import JsonField
+from .record import Record
+
+
+class RecordedModel(BaseModel):
+
+    record = ForeignKeyField(Record, null=True)
 
 
 class Project(BaseModel):
@@ -17,10 +23,10 @@ class Project(BaseModel):
     uuid = UUIDField(null=True)  # uuid - remote id
 
     name = CharField(max_length=250)
-    description = CharField(default="My project description", max_length=5000)
+    description = CharField(default="Please update project description", max_length=5000)
 
 
-class Dataset(BaseModel):
+class Dataset(RecordedModel):
 
     uuid = UUIDField(null=True)  # uuid - remote id
 
@@ -32,11 +38,11 @@ class Dataset(BaseModel):
     project = ForeignKeyField(Project)
     parent = ForeignKeyField("self", null=True, backref="children")
 
-    class Meta:
-        constraints = [SQL("UNIQUE (project, hash)"), SQL("UNIQUE (project, name)")]
+    # class Meta:
+    #     constraints = [SQL("UNIQUE (project, hash)"), SQL("UNIQUE (project, name)")]
 
 
-class DatasetTransformation(BaseModel):
+class DatasetTransformation(RecordedModel):
 
     uuid = UUIDField(null=True)  # uuid - remote id
 
@@ -58,7 +64,7 @@ class Model(BaseModel):
         constraints = [SQL("UNIQUE (name, framework)")]
 
 
-class TrainingRun(BaseModel):
+class TrainingRun(RecordedModel):
 
     uuid = UUIDField(null=False)  # uuid - remote id
 
@@ -72,7 +78,7 @@ class TrainingRun(BaseModel):
     datasets = ManyToManyField(Dataset)
 
 
-class ModelState(BaseModel):
+class ModelState(RecordedModel):
 
     uuid = UUIDField(null=True)
 
@@ -81,5 +87,7 @@ class ModelState(BaseModel):
 
     training_run = ForeignKeyField(TrainingRun, backref="model_states")
 
-    class Meta:
-        constraints = [SQL("UNIQUE (training_run, sequence_num)")]
+    # TODO add constraints on FK in a way that still can be initialised.
+    #  currently throws OperationalError - training_run column doesn't exist.
+    # class Meta:
+    #     constraints = [SQL("UNIQUE (training_run, sequence_num)")]

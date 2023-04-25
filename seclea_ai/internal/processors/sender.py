@@ -203,7 +203,7 @@ class Sender(Processor):
         except BadRequestError as e:
             # need to check content - if it's duplicate we need to get the remote id for use in other reqs
             logger.debug(e)
-            if "already exists" in str(e):
+            if "already exists" in str(e) or "must make a unique set." in str(e):
                 logger.warning(f"Entity already exists, skipping Dataset, id: {record_id}")
                 dataset = self._api.get_datasets(
                     project_id=self._settings["project_id"],

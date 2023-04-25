@@ -32,9 +32,7 @@ Major constraints are:
     - RC file?
 
 We will use sqlite3 as a local persistent store. This will store various information about the records being processed
-so that we can use them for clean up and ensuring consistency. 
-
-We may also use it for circuit breaker pattern - but we can also use memory I think.
+so that we can use them for clean up and ensuring consistency.
 
 Need to decide whether to use cron or on restart for clean up of incomplete/failed requests.
 
@@ -182,13 +180,11 @@ if they make sense for validation etc.
 ```mermaid
     classDiagram
 
-    Entity <|-- Dataset
-    Entity <|-- ModelState
-    Entity <|-- TrainingRun
-    Entity <|-- DatasetTransformation
-    Entity <|-- Model
-    Entity <|-- Project
-    Record *-- Entity
+    Dataset *-- Record
+    Model *-- Record
+    TrainingRun *-- Record
+    ModelState *-- Record
+    DatasetTransformation *-- Record
 
     class Record {
         record: Record
@@ -202,6 +198,7 @@ if they make sense for validation etc.
         name: str
         file_path: str
         size: int
+        
     }
 
     class Dataset {
@@ -209,6 +206,7 @@ if they make sense for validation etc.
         size: int
         intermediate: bool
         metadata: dict (to str for sqlite)
+        record: Record
     }
 
     class ModelState {
@@ -217,7 +215,7 @@ if they make sense for validation etc.
         file_path: str
         size: int
         metadata: dict (to str for sqlite)
-        
+        record: Record
     }
 
     class DatasetTransformation {
@@ -225,12 +223,14 @@ if they make sense for validation etc.
       remote_id: str
       name: str
       dataset: Dataset
+      record: Record
     }
 
     class TrainingRun {
       id: int (autogen)
       remote_id: str
       name: str
+      record: Record
     }
 
     class Model {
