@@ -85,6 +85,10 @@ class ModelSchema(BaseModel):
     framework: str
     # TODO add validation
 
+    class Config:
+        orm_mode = True
+        getter_dict = PeeweeGetterDict
+
 
 class TrainingRunSchema(BaseModel):
     uuid: Optional[UUID] = None
@@ -97,11 +101,19 @@ class TrainingRunSchema(BaseModel):
     model: ModelSchema
     datasets: List[DatasetSchema]
 
+    class Config:
+        orm_mode = True
+        getter_dict = PeeweeGetterDict
+
 
 class ModelStateSchema(BaseModel):
     uuid: Optional[UUID] = None
 
     sequence_num: int
-    state: str
+    state: Optional[str]
 
     training_run: TrainingRunSchema
+
+    class Config:
+        orm_mode = True
+        getter_dict = PeeweeGetterDict

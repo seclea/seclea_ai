@@ -35,7 +35,7 @@ class Dataset(RecordedModel):
     metadata = JsonField()
     dataset = CharField(max_length=400, null=True)  # file where stored locally
 
-    project = ForeignKeyField(Project)
+    project = ForeignKeyField(Project, backref="datasets")
     parent = ForeignKeyField("self", null=True, backref="children")
 
     # class Meta:
@@ -73,9 +73,12 @@ class TrainingRun(RecordedModel):
     params = JsonField()
 
     # TODO think about on_delete and on_update
-    project = ForeignKeyField(Project)
+    project = ForeignKeyField(Project, backref="training_runs")
     model = ForeignKeyField(Model, backref="training_runs")
-    datasets = ManyToManyField(Dataset)
+    datasets = ManyToManyField(Dataset, backref="training_runs")
+
+
+TrainingRunDataset = TrainingRun.datasets.get_through_model()
 
 
 class ModelState(RecordedModel):

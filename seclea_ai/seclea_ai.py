@@ -14,12 +14,14 @@ import pandas as pd
 from pandas import DataFrame, Series
 from peewee import SqliteDatabase
 
-from .internal.persistence.models import Project, Dataset
+from .internal.persistence.models import Project, Dataset, TrainingRun, Model, ModelState
 from .internal.schemas import (
     DatasetSchema,
     ProjectSchema,
     ProjectDBSchema,
     DatasetTransformationSchema,
+    TrainingRunSchema,
+    ModelStateSchema,
 )
 from .internal.persistence import models
 from .internal.api.api_interface import Api
@@ -704,23 +706,27 @@ class SecleaAI:
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_ids = list()
+        datasets = list()
         dataset_metadata = None
         for idx, dataset in enumerate([train_dataset, test_dataset, val_dataset]):
             if dataset is not None:
-                dset_record = Record.get_or_none(
-                    Record.key
-                    == Tracked(dataset).object_manager.hash_object_with_project(
-                        dataset, str(self._project_id)
-                    )
+                # TODO add db connection management - here auto for now.
+                dset_hash = Tracked(dataset).object_manager.hash_object_with_project(
+                    dataset, str(self._project_id)
                 )
+                dset_record = Record.get_or_none(Record.key == dset_hash)
+                dataset_entity = Dataset.get_or_none(Dataset.hash == dset_hash)
                 if dset_record is None:
                     # we tried to access [0] of an empty return
                     dset_map = {0: "Train", 1: "Test", 2: "Validation"}
                     raise ValueError(
-                        f"The {dset_map[idx]} dataset was not found on the Platform. Please check and try again"
+                        f"The {dset_map[idx]} dataset was not found on the Platform. "
+                        f"Please check and try again"
                     )
                 else:
+                    dataset_metadata = dataset_entity.metadata
                     dataset_metadata = dset_record.dataset_metadata
+                    datasets.append(dataset_entity)
                     dataset_ids.append(dset_record.id)
 
         # Model stuff
@@ -730,7 +736,15 @@ class SecleaAI:
         # check the model exists upload if not
         model_type_id = self._set_model(model_name=model_name, framework=framework)
 
-        # check the latest training run TODO extract all this stuff
+        model_type = self._set_model_type(model_name=model_name, framework=framework)
+
+        # check the latest training run TODO rethink training run naming.
+        training_runs = (
+            TrainingRun.select()
+            .where(TrainingRun.project == self._project)
+            .where(TrainingRun.model == model_type)
+        )
+        # TODO remove this - it has a bug anyway.
         training_runs = (
             Record.select()
             .where(Record.project_id == str(self._project_id))
@@ -766,6 +780,21 @@ class SecleaAI:
                 dependencies=dataset_ids,
                 metadata=metadata,  # TODO this is new - add to uploading.
             )
+            training_run_entity = TrainingRun.create(
+                uuid=uuid.uuid4(),
+                name=training_run_name,
+                metadata=metadata,
+                params=params,
+                project=self._project.id,
+                model=model_type,
+            )
+            training_run_entity.datasets.add(datasets)
+
+        training_run_entity_model = TrainingRunSchema.from_orm(training_run_entity)
+        training_run_upload_kwargs = training_run_entity_model.dict()
+        # just for testing
+        for dataset in training_run_upload_kwargs["datasets"]:
+            print(dataset["uuid"])
 
         # sent training run for upload.
         training_run_details = {
@@ -785,6 +814,15 @@ class SecleaAI:
                 status=RecordStatus.IN_MEMORY,
                 dependencies=[training_run_record.id],
             )
+            # TODO add final to model - figure out migration?
+            model_state_entity = ModelState.create(
+                sequence_num=0,
+                training_run=training_run_entity,
+            )
+        model_state_entity_model = ModelStateSchema.from_orm(model_state_entity)
+        model_state_upload_kwargs = model_state_entity_model.dict()
+        # just for testing
+        print(model_state_upload_kwargs)
 
         # send model state for save and upload
         # TODO make a function interface rather than the queue interface. Need a response to confirm it is okay.
@@ -798,6 +836,14 @@ class SecleaAI:
         }
         self._director.store_entity(model_state_details)
         self._director.send_entity(model_state_details)
+
+    def _set_model_type(self, model_name: str, framework: str) -> Model:
+        with self._db.atomic():
+            model, _ = Model.get_or_create(
+                name=model_name,
+                framework=framework,
+            )
+        return model
 
     def _set_model(self, model_name: str, framework: str) -> int:
         """
