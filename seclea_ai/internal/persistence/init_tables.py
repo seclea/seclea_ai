@@ -40,4 +40,3 @@ def init_tables():
 
 
 # TODO add migrations - maybe to add constraints to tables after creation?
-# TODO figure out how to initialise the ManyToMany relation correctly
