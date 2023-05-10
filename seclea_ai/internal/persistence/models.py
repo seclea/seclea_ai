@@ -8,6 +8,7 @@ from peewee import (
     SQL,
 )
 
+import uuid
 from .db import BaseModel
 from .fields import JsonField
 from .record import Record
@@ -20,7 +21,7 @@ class RecordedModel(BaseModel):
 
 class Project(BaseModel):
 
-    uuid = UUIDField(null=True)  # uuid - remote id
+    uuid = UUIDField(null=True, default=uuid.uuid4)  # uuid - remote id
 
     name = CharField(max_length=250)
     description = CharField(default="Please update project description", max_length=5000)
@@ -28,7 +29,7 @@ class Project(BaseModel):
 
 class Dataset(RecordedModel):
 
-    uuid = UUIDField(null=True)  # uuid - remote id
+    uuid = UUIDField(null=True, default=uuid.uuid4)  # uuid - remote id
 
     name = CharField(max_length=256)
     hash = CharField(max_length=200)
@@ -38,13 +39,15 @@ class Dataset(RecordedModel):
     project = ForeignKeyField(Project, backref="datasets")
     parent = ForeignKeyField("self", null=True, backref="children")
 
+    # TODO add constraints on FK in a way that still can be initialised.
+    #  currently throws OperationalError - project column doesn't exist.
     # class Meta:
     #     constraints = [SQL("UNIQUE (project, hash)"), SQL("UNIQUE (project, name)")]
 
 
 class DatasetTransformation(RecordedModel):
 
-    uuid = UUIDField(null=True)  # uuid - remote id
+    uuid = UUIDField(null=True, default=uuid.uuid4)  # uuid - remote id
 
     name = CharField(max_length=50)
     code_raw = TextField()
@@ -55,7 +58,7 @@ class DatasetTransformation(RecordedModel):
 
 class Model(BaseModel):
 
-    uuid = UUIDField(null=True)  # uuid - remote id
+    uuid = UUIDField(null=True, default=uuid.uuid4)  # uuid - remote id
 
     name = CharField(max_length=100)
     framework = CharField(max_length=100)
@@ -66,7 +69,7 @@ class Model(BaseModel):
 
 class TrainingRun(RecordedModel):
 
-    uuid = UUIDField(null=False)  # uuid - remote id
+    uuid = UUIDField(null=False, default=uuid.uuid4)  # uuid - remote id
 
     name = CharField(max_length=256)
     metadata = JsonField()
@@ -83,7 +86,7 @@ TrainingRunDataset = TrainingRun.datasets.get_through_model()
 
 class ModelState(RecordedModel):
 
-    uuid = UUIDField(null=True)
+    uuid = UUIDField(null=True, default=uuid.uuid4)  # uuid - remote id
 
     sequence_num = IntegerField()
     state = CharField(max_length=400, null=True)  # file where stored locally
