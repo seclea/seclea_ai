@@ -1,10 +1,10 @@
 import datetime
 from enum import Enum
 
-from peewee import IntegerField, CharField, DateTimeField
+from peewee import IntegerField, DateTimeField
 
 from .db import BaseModel
-from .fields import JsonField, EnumField
+from .fields import EnumField
 
 
 # TODO remove this after restructure of Record.
@@ -23,33 +23,7 @@ class RecordStatus(Enum):
     SEND_FAIL = "send_fail"
 
 
-# TODO rethink this - may be better split up
-# this will change to just status, timestamp/s, size (and auto created id)
 class Record(BaseModel):
-
-    project_id = CharField()
-    name = CharField(null=True)
-    remote_id = IntegerField(null=True)  # TODO this may change to string for uuids
-    entity = EnumField(
-        enum_class=RecordEntity
-    )  # TODO remove or convert to ForeignKey - here for debugging for now.
-    key = CharField(null=True)  # mainly for tracking datasets and training runs may need to remove
-    dependencies = JsonField(null=True)  # this will be a list of ids
     status = EnumField(enum_class=RecordStatus)
-    created_timestamp = DateTimeField(default=datetime.datetime.now)
-    # only used for datasets and modelstates.
-    path = CharField(null=True)
     size = IntegerField(null=False, default=0)
-    # only used for datasets - probably need to factor out a lot of this.
-    dataset_metadata = JsonField(null=True)
-
-
-# TODO remove this
-class RecordInfo(BaseModel):
-
-    dependencies = JsonField(null=True)  # this will be a list of ids TODO check if needed
-    status = EnumField(enum_class=RecordStatus)
     created_timestamp = DateTimeField(default=datetime.datetime.now)
-    # only used for datasets and modelstates.
-    path = CharField(null=True)
-    size = IntegerField(null=False, default=0)

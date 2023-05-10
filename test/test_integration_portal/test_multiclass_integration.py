@@ -270,7 +270,8 @@ class TestMulticlassDataIntegration(TestCase):
                 self.assertEqual(
                     record.status,
                     RecordStatus.SENT,
-                    f"Entity {record.entity} at position {idx}, with id {record.id} not sent, current status: {record.status}",
+                    f"Entity at position {idx}, with id {record.id} not sent, "
+                    f"current status: {record.status}",
                 )
 
     def _steps(self):

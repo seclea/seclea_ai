@@ -91,7 +91,7 @@ class Director:
         self._check_resources(entity_dict=entity_dict)
         # TODO change writer to be functional - pass in db and settings.
         future = self.write_threadpool_executor.submit(
-            self.writer.funcs[entity_dict["entity"]], **entity_dict
+            self.writer.func_map[entity_dict["type"]], entity_dict["entity"]
         )
         self.write_executing.append(future)
         future.add_done_callback(self._write_completed)
@@ -106,7 +106,7 @@ class Director:
         self._check_and_throw()
         # put in queue for sending
         future = self.send_thread_executor.submit(
-            self.sender.funcs[entity_dict["entity"]], **entity_dict
+            self.sender.func_map[entity_dict["type"]], entity_dict["entity"]
         )
         self.send_executing[future] = entity_dict
         future.add_done_callback(self._send_completed)

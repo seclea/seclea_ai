@@ -26,8 +26,8 @@ from .internal.schemas import (
 from .internal.persistence import models
 from .internal.api.api_interface import Api
 from .internal.director import Director
-from .internal.exceptions import AuthenticationError
-from .internal.persistence.record import Record, RecordStatus, RecordEntity
+from .internal.exceptions import AuthenticationError, BadRequestError
+from .internal.persistence.record import Record, RecordStatus
 from .lib.seclea_utils.core.transformations import encode_func
 from .dataset_utils import (
     get_dataset_type,
@@ -303,8 +303,9 @@ class SecleaAI:
             parent_dset_hash = parent.object_manager.hash_object_with_project(
                 parent, str(self._project_id)
             )
-            # check parent exists - check local db if not else error.
 
+            # check parent exists - check local db if not else error.
+            # TODO remove request - only check local db once syncing resolved.
             res = self._api.get_datasets(
                 organization_id=self._organization_id,
                 project_id=self._project_id,
@@ -313,9 +314,9 @@ class SecleaAI:
             if len(res) == 0:
                 # check local db
                 with self._db.atomic():
-                    parent_record = Record.get_or_none(Record.key == parent_dset_hash)
-                if parent_record is not None:
-                    parent_metadata = parent_record.dataset_metadata
+                    parent_dataset = Dataset.get_or_none(Dataset.hash == parent_dset_hash)
+                if parent_dataset is not None:
+                    parent_metadata = parent_dataset.metadata
                 else:
                     raise AssertionError(
                         "Parent Dataset does not exist on the Platform or locally. Please check your arguments and "
@@ -336,10 +337,7 @@ class SecleaAI:
 
             # upload all the datasets and transformations.
             for up_kwargs in upload_queue:
-                # need to get dataset uuid from response to put into transformation?
-                up_kwargs["project"] = self._project_id
-                # add to storage and sending queues
-                if up_kwargs["entity"] == RecordEntity.DATASET:
+                if up_kwargs["type"] == DatasetSchema:
                     self._director.store_entity(up_kwargs)
                 self._director.send_entity(up_kwargs)
             return
@@ -386,41 +384,29 @@ class SecleaAI:
         ]
 
         # create local db record.
-        # TODO make lack of parent more obvious??
         # TODO optimize db accesses
         with self._db.atomic():
+            # TODO check for dataset with this hash
             dataset_record = Record.create(
-                project_id=str(self._project_id),
-                entity=RecordEntity.DATASET,
                 status=RecordStatus.IN_MEMORY,
-                key=str(dset_hash),
-                dataset_metadata=metadata,
             )
-
+            # TODO this will throw error on duplicate name, hash etc. need to catch
+            #  and warn user - probably just use existing dset though.
             dataset_entity = models.Dataset.create(
                 uuid=uuid.uuid4(),
                 name=dataset_name,
                 hash=dset_hash,
                 metadata=metadata,
                 project=Project.get_by_id(self._project.id),
+                record=dataset_record,
             )
             print(f"dataset project type: {type(dataset_entity.project)}")
 
         # new new arch
         dataset_entity_model = DatasetSchema.from_orm(dataset_entity)
-        dataset_upload_kwargs = dataset_entity_model.dict()
-        # or just pass object directly
+        dataset_entity_model.dataset = copy.deepcopy(dataset)
+        dataset_upload_kwargs = {"type": DatasetSchema, "entity": dataset_entity_model.dict()}
 
-        # New arch
-        dataset_upload_kwargs = {
-            "entity": RecordEntity.DATASET,
-            "record_id": dataset_record.id,
-            "dataset": dataset,
-            "dataset_name": dataset_name,
-            "dataset_hash": dset_hash,
-            "metadata": metadata,
-            "project": self._project_id,
-        }
         # add to storage and sending queues
         self._director.store_entity(dataset_upload_kwargs)
         self._director.send_entity(dataset_upload_kwargs)
@@ -541,17 +527,10 @@ class SecleaAI:
             # a new Dataset object. That will then be serialised and added to the queue
             # TODO optimize db accesses
             with self._db.atomic():
-                parent_record = Record.get_or_none(Record.key == parent_hash)
-                parent_dataset_record_id = parent_record.id
 
                 # create local db record.
                 dataset_record = Record.create(
-                    project_id=str(self._project_id),
-                    entity=RecordEntity.DATASET,
                     status=RecordStatus.IN_MEMORY,
-                    dependencies=[parent_dataset_record_id],
-                    key=str(dset_hash),
-                    dataset_metadata=dset_metadata,
                 )
                 dataset_entity = models.Dataset.create(
                     uuid=uuid.uuid4(),
@@ -560,21 +539,16 @@ class SecleaAI:
                     metadata=dset_metadata,
                     project=Project.get_by_id(self._project.id),
                     parent=Dataset.get_or_none(Dataset.hash == parent_hash),
+                    record=dataset_record,
                 )
 
             # new new arch
             dataset_entity_model = DatasetSchema.from_orm(dataset_entity)
-            upload_kwargs = dataset_entity_model.dict()
+            # add dataset reference to pass for storage.
+            dataset_entity_model.dataset = copy.deepcopy(dset)
+            # TODO rethink this. Would like it to be consistent for all types.
+            upload_kwargs = {"type": DatasetSchema, "entity": dataset_entity_model.dict()}
 
-            # add data to queue to upload later after final dataset checked
-            upload_kwargs = {
-                "entity": RecordEntity.DATASET,
-                "record_id": dataset_record.id,
-                "dataset": copy.deepcopy(dset),  # TODO change keys
-                "dataset_name": copy.deepcopy(dset_name),
-                "dataset_hash": dset_hash,
-                "metadata": dset_metadata,
-            }
             # update the parent dataset - these chained transformations only make sense if they are pushing the
             # same dataset through multiple transformations.
             parent_dset = copy.deepcopy(dset)
@@ -586,10 +560,7 @@ class SecleaAI:
             with self._db.atomic():
                 # add dependency to dataset
                 transformation_record = Record.create(
-                    project_id=str(self._project_id),
-                    entity=RecordEntity.DATASET_TRANSFORMATION,
                     status=RecordStatus.IN_MEMORY,
-                    dependencies=[dataset_record.id],
                 )
                 transformation_entity = models.DatasetTransformation.create(
                     uuid=uuid.uuid4(),
@@ -597,22 +568,26 @@ class SecleaAI:
                     code_raw=inspect.getsource(transformation.func),
                     code_encoded=encode_func(transformation.func, [], transformation_kwargs),
                     dataset=dataset_entity,
+                    record=transformation_record,
                 )
             # validate and get schema
             transformation_entity_model = DatasetTransformationSchema.from_orm(
                 transformation_entity
             )
             # serialize
-            transformation_upload_kwargs = transformation_entity_model.dict()
+            transformation_upload_kwargs = {
+                "type": DatasetTransformationSchema,
+                "entity": transformation_entity_model.dict(),
+            }
 
             # TODO unpack transformation into kwargs for upload - need to create trans upload func first.
-            transformation_upload_kwargs = {
-                "entity": RecordEntity.DATASET_TRANSFORMATION,
-                "record_id": transformation_record.id,
-                "name": transformation.func.__name__,
-                "code_raw": inspect.getsource(transformation.func),
-                "code_encoded": encode_func(transformation.func, [], transformation_kwargs),
-            }
+            # transformation_upload_kwargs = {
+            #     "entity": RecordEntity.DATASET_TRANSFORMATION,
+            #     "record_id": transformation_record.id,
+            #     "name": transformation.func.__name__,
+            #     "code_raw": inspect.getsource(transformation.func),
+            #     "code_encoded": encode_func(transformation.func, [], transformation_kwargs),
+            # }
             upload_queue.append(transformation_upload_kwargs)
 
         return upload_queue
@@ -630,7 +605,7 @@ class SecleaAI:
         """
         Takes a model and extracts the necessary data for uploading the training run.
 
-        :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
+        :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Booster}.
 
         :param X_train: Samples of the models training dataset. Must be already
             uploaded using `upload_dataset` or `upload_dataset_split`
@@ -705,7 +680,6 @@ class SecleaAI:
         self._api.authenticate()
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
-        dataset_ids = list()
         datasets = list()
         dataset_metadata = None
         for idx, dataset in enumerate([train_dataset, test_dataset, val_dataset]):
@@ -714,9 +688,8 @@ class SecleaAI:
                 dset_hash = Tracked(dataset).object_manager.hash_object_with_project(
                     dataset, str(self._project_id)
                 )
-                dset_record = Record.get_or_none(Record.key == dset_hash)
                 dataset_entity = Dataset.get_or_none(Dataset.hash == dset_hash)
-                if dset_record is None:
+                if dataset_entity is None:
                     # we tried to access [0] of an empty return
                     dset_map = {0: "Train", 1: "Test", 2: "Validation"}
                     raise ValueError(
@@ -725,30 +698,22 @@ class SecleaAI:
                     )
                 else:
                     dataset_metadata = dataset_entity.metadata
-                    dataset_metadata = dset_record.dataset_metadata
                     datasets.append(dataset_entity)
-                    dataset_ids.append(dset_record.id)
 
         # Model stuff
         model_name = model.__class__.__name__
         model = Tracked(model)
         framework = model.object_manager.framework  # needs to be on Tracked
-        # check the model exists upload if not
-        model_type_id = self._set_model(model_name=model_name, framework=framework)
 
+        # check the model exists upload if not
         model_type = self._set_model_type(model_name=model_name, framework=framework)
 
-        # check the latest training run TODO rethink training run naming.
+        # check the latest training run
+        # TODO rethink training run naming.
         training_runs = (
             TrainingRun.select()
-            .where(TrainingRun.project == self._project)
+            .where(TrainingRun.project == self._project.id)
             .where(TrainingRun.model == model_type)
-        )
-        # TODO remove this - it has a bug anyway.
-        training_runs = (
-            Record.select()
-            .where(Record.project_id == str(self._project_id))
-            .where(Record.entity == RecordEntity.TRAINING_RUN)
         )
 
         # Create the training run name
@@ -773,12 +738,7 @@ class SecleaAI:
         # create record
         with self._db.atomic():
             training_run_record = Record.create(
-                project_id=self._project_id,
-                name=training_run_name,
-                entity=RecordEntity.TRAINING_RUN,
                 status=RecordStatus.IN_MEMORY,
-                dependencies=dataset_ids,
-                metadata=metadata,  # TODO this is new - add to uploading.
             )
             training_run_entity = TrainingRun.create(
                 uuid=uuid.uuid4(),
@@ -787,117 +747,88 @@ class SecleaAI:
                 params=params,
                 project=self._project.id,
                 model=model_type,
+                record=training_run_record,
             )
             training_run_entity.datasets.add(datasets)
 
         training_run_entity_model = TrainingRunSchema.from_orm(training_run_entity)
-        training_run_upload_kwargs = training_run_entity_model.dict()
-        # just for testing
-        for dataset in training_run_upload_kwargs["datasets"]:
-            print(dataset["uuid"])
-
-        # sent training run for upload.
-        training_run_details = {
-            "entity": RecordEntity.TRAINING_RUN,
-            "record_id": training_run_record.id,
-            "training_run_name": training_run_name,
-            "model_id": model_type_id,
-            "params": params,
+        training_run_upload_kwargs = {
+            "type": TrainingRunSchema,
+            "entity": training_run_entity_model.dict(),
         }
-        self._director.send_entity(training_run_details)
+
+        self._director.send_entity(training_run_upload_kwargs)
 
         with self._db.atomic():
             # create local db record
             model_state_record = Record.create(
-                project_id=str(self._project_id),
-                entity=RecordEntity.MODEL_STATE,
                 status=RecordStatus.IN_MEMORY,
-                dependencies=[training_run_record.id],
             )
             # TODO add final to model - figure out migration?
             model_state_entity = ModelState.create(
+                uuid=uuid.uuid4(),
                 sequence_num=0,
                 training_run=training_run_entity,
+                record=model_state_record,
             )
         model_state_entity_model = ModelStateSchema.from_orm(model_state_entity)
-        model_state_upload_kwargs = model_state_entity_model.dict()
-        # just for testing
-        print(model_state_upload_kwargs)
-
-        # send model state for save and upload
-        # TODO make a function interface rather than the queue interface. Need a response to confirm it is okay.
-        model_state_details = {
-            "entity": RecordEntity.MODEL_STATE,
-            "record_id": model_state_record.id,
-            "model": model,
-            "sequence_num": 0,
-            "final": True,
-            "model_manager": framework,  # TODO move framework to sender.
+        # add the model reference for passing to writer.
+        model_state_entity_model.state = model
+        # TODO think - do we need to send the schema or just uuid - fetch from db?
+        #  or we don't store anything in db except the paths and just pass everything
+        #  else around in the schema/dict serialization of it. (that is faster than
+        #  always fetching from the db)
+        model_state_upload_kwargs = {
+            "type": ModelStateSchema,
+            "entity": model_state_entity_model.dict(),
         }
-        self._director.store_entity(model_state_details)
-        self._director.send_entity(model_state_details)
+
+        self._director.store_entity(model_state_upload_kwargs)
+        self._director.send_entity(model_state_upload_kwargs)
 
     def _set_model_type(self, model_name: str, framework: str) -> Model:
         with self._db.atomic():
-            model, _ = Model.get_or_create(
+            model, created = Model.get_or_create(
                 name=model_name,
                 framework=framework,
             )
+        if created:
+            try:
+                self._api.upload_model(
+                    organization_id=self._organization_id,
+                    project_id=self._project_id,
+                    model_name=model.name,
+                    framework_name=model.framework,
+                    model_id=model.uuid,
+                )
+            except BadRequestError as e:
+                # need to check content - if it's duplicate we need to get the remote id for use in other reqs
+                logger.debug(e)
+                if "already exists" in str(e):
+                    logger.warning(
+                        f"Entity already exists, updating local Model, " f"id: {model.uuid}"
+                    )
+                    models = self._api.get_models(
+                        organization_id=self._organization_id,
+                        project_id=self._project_id,
+                        name=model.name,
+                        framework=model.framework,
+                    )
+                    # update uuid with remote uuid
+                    model.uuid = models[0]["uuid"]
+                    model.save()
         return model
 
-    def _set_model(self, model_name: str, framework: str) -> int:
-        """
-        Set the model for this session.
-        Checks if it has already been uploaded. If not it will upload it.
-
-        :param model_name: The name for the architecture/algorithm. eg. "GradientBoostedMachine" or "3-layer CNN".
-
-        :return: int The model id.
-
-        :raises: ValueError - if the framework is not one of the supported frameworks or if there is an issue uploading
-         the model.
-        """
-        res = self._api.get_models(
-            organization_id=self._organization_id,
-            project_id=self._project_id,
-            name=model_name,
-            framework=framework,
-        )
-        models = res
-        # not checking for more because there is a unique constraint across name and framework on backend.
-        if len(models) == 1:
-            return models[0]["uuid"]
-        # if we got here that means that the model has not been uploaded yet. So we upload it.
-        res = self._api.upload_model(
-            organization_id=self._organization_id,
-            project_id=self._project_id,
-            model_name=model_name,
-            framework_name=framework,
-        )
-        # TODO find out if this checking is ever needed - ie does it ever not return the created model object?
-        try:
-            model_id = res["uuid"]
-        except KeyError:
-            traceback.print_exc()
-            resp = self._api.get_models(
-                organization_id=self._organization_id,
-                project_id=self._project_id,
-                name=model_name,
-                framework=framework.name,
-            )
-            model_id = resp[0]["uuid"]
-        return model_id
-
-    def _init_org(self, organization_name: str) -> str:
+    def _init_org(self, organization_name: str) -> uuid.UUID:
         org_res = self._api.get_organization(organization_name=organization_name)
         if len(org_res) == 0:
             raise ValueError(
                 f"Specified Organization {self._organization_name} does not exist. Please check and try again."
             )
         else:
-            return org_res[0]["uuid"]
+            return uuid.UUID(org_res[0]["uuid"])
 
-    def _init_project(self, project_name) -> Tuple[ProjectSchema, uuid.UUID]:
+    def _init_project(self, project_name) -> Tuple[ProjectDBSchema, uuid.UUID]:
         """
         Initialises the project for the object. If the project does not exist on the server it will be created.
 
