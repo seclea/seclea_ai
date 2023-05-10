@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Union
 from uuid import UUID
 
 import peewee
@@ -51,7 +51,7 @@ class DatasetSchema(BaseModel):
     name: str
     hash: str
     metadata: Dict
-    dataset: Optional[str] = None
+    dataset: Optional[Union[str, Any]] = None
 
     project: ProjectSchema
     parent: Optional[DatasetSchema] = None
@@ -110,7 +110,7 @@ class ModelStateSchema(BaseModel):
     uuid: Optional[UUID] = None
 
     sequence_num: int
-    state: Optional[str]
+    state: Optional[Union[str, Any]]
 
     training_run: TrainingRunSchema
 
