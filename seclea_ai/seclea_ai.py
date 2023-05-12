@@ -3,6 +3,7 @@ Description for seclea_ai.py
 """
 import copy
 import inspect
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -28,6 +29,9 @@ from .lib.seclea_utils.object_management import Tracked
 from .svc.api.collection.dataset import post_dataset, get_dataset
 from .svc.api.collection.model_state import post_model_state
 from .transformations import DatasetTransformation
+
+
+logger = logging.getLogger("seclea_ai")
 
 
 def handle_response(res: Response, expected: int, msg: str) -> Response:
@@ -775,9 +779,19 @@ class SecleaAI:
             response.status_code == 400
             and "fields project, hash must make a unique set" in response.text
         ):
-            print(
-                "Warning: you are uploading the same dataset again, "
-                "if this is expected (for example you are re running a script) feel free to ignore this warning."
+            logger.warning(
+                "You are uploading the same dataset again, "
+                "if this is expected (for example you are re-running a script) "
+                "feel free to ignore this warning."
+            )
+        elif (
+            response.status_code == 400
+            and "fields project, name must make a unique set" in response.text
+        ):
+            logger.warning(
+                "You are uploading a dataset with the same name as an existing "
+                "dataset, if this is expected (for example you are re-running a script) "
+                "feel free to ignore this warning."
             )
         else:
             handle_response(
