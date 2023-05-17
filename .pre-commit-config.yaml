@@ -28,3 +28,5 @@ repos:
     hooks:
       - id: prettier
         exclude: ^docs/
+        exclude_types:
+          - yaml

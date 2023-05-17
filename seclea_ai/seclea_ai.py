@@ -3,6 +3,7 @@ Description for seclea_ai.py
 """
 import copy
 import inspect
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -28,6 +29,9 @@ from .lib.seclea_utils.object_management import Tracked
 from .svc.api.collection.dataset import post_dataset, get_dataset
 from .svc.api.collection.model_state import post_model_state
 from .transformations import DatasetTransformation
+
+
+logger = logging.getLogger("seclea_ai")
 
 
 def handle_response(res: Response, expected: int, msg: str) -> Response:
@@ -236,7 +240,7 @@ class SecleaAI:
         elif isinstance(dataset, str):
             dataset = pd.read_csv(dataset, index_col=metadata["index"])
         tracked_ds = Tracked(dataset)
-        dset_pk = tracked_ds.object_manager.hash_object_with_project(tracked_ds, self._project)
+        dset_pk = tracked_ds.object_manager.hash_object(tracked_ds)
 
         if transformations is not None:
             # specific guard against mis specified initial data.
@@ -250,7 +254,7 @@ class SecleaAI:
             #####
             # Validate parent exists and get metadata - can factor out
             #####
-            parent_dset_pk = parent.object_manager.hash_object_with_project(parent, self._project)
+            parent_dset_pk = parent.object_manager.hash_object(parent)
             # check parent exists - throw an error if not.
             res = self._transmission.get(
                 url_path="/collection/datasets",
@@ -280,9 +284,7 @@ class SecleaAI:
             # check for duplicates
             for up_kwargs in upload_queue:
                 if (
-                    Tracked(up_kwargs["dataset"]).object_manager.hash_object_with_project(
-                        up_kwargs["dataset"], self._project
-                    )
+                    Tracked(up_kwargs["dataset"]).object_manager.hash_object(up_kwargs["dataset"])
                     == up_kwargs["parent_hash"]
                 ):
                     raise AssertionError(
@@ -425,8 +427,7 @@ class SecleaAI:
             # handle the final dataset - check generated = passed in.
             if idx == last:
                 if (
-                    Tracked(dset).object_manager.hash_object_with_project(dset, self._project)
-                    != dset_pk
+                    Tracked(dset).object_manager.hash_object(dset) != dset_pk
                 ):  # TODO create or find better exception
                     raise AssertionError(
                         """Generated Dataset does not match the Dataset passed in.
@@ -441,9 +442,7 @@ class SecleaAI:
                 "dataset": copy.deepcopy(dset),  # TODO change keys
                 "dataset_name": copy.deepcopy(dset_name),
                 "metadata": dset_metadata,
-                "parent_hash": Tracked(parent_dset).object_manager.hash_object_with_project(
-                    parent_dset, self._project
-                ),
+                "parent_hash": Tracked(parent_dset).object_manager.hash_object(parent_dset),
                 "transformation": copy.deepcopy(trans),
             }
             # update the parent dataset - these chained transformations only make sense if they are pushing the
@@ -541,9 +540,7 @@ class SecleaAI:
                         self._transmission,
                         self._project,
                         self._organization_id,
-                        hash=Tracked(dataset).object_manager.hash_object_with_project(
-                            dataset, self._project
-                        ),
+                        hash=Tracked(dataset).object_manager.hash_object(dataset),
                     ).json()[0]
                     dataset_metadata = dataset["metadata"]
                     dataset_pks.append(dataset["uuid"])
@@ -758,7 +755,7 @@ class SecleaAI:
         dataset.object_manager.full_path = self._cache_dir, uuid.uuid4().__str__()
         dataset_file_path = os.path.join(*dataset.save_tracked(path=self._cache_dir))
 
-        dset_hash = Tracked(dataset).object_manager.hash_object_with_project(dataset, self._project)
+        dset_hash = Tracked(dataset).object_manager.hash_object(dataset)
 
         response = post_dataset(
             transmission=self._transmission,
@@ -775,9 +772,19 @@ class SecleaAI:
             response.status_code == 400
             and "fields project, hash must make a unique set" in response.text
         ):
-            print(
-                "Warning: you are uploading the same dataset again, "
-                "if this is expected (for example you are re running a script) feel free to ignore this warning."
+            logger.warning(
+                "WARNING: You are uploading the same dataset again, "
+                "if this is expected (for example you are re-running a script) "
+                "feel free to ignore this warning."
+            )
+        elif (
+            response.status_code == 400
+            and "fields project, name must make a unique set" in response.text
+        ):
+            logger.warning(
+                "WARNING: You are uploading a dataset with the same name as an "
+                "existing dataset, if this is expected (for example you are "
+                "re-running a script) feel free to ignore this warning."
             )
         else:
             handle_response(
