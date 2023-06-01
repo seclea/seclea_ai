@@ -357,23 +357,16 @@ class SecleaAI:
         )
         metadata = ensure_required_metadata(metadata=metadata, defaults_spec=metadata_defaults_spec)
         # set up automatic values
-        try:
-            features = (
-                dataset.columns
-            )  # TODO - drop the outcome name but requires changes on frontend.
-        except KeyError:
-            # this means outcome was set to None
-            features = dataset.columns
+        features = list(dataset.columns)
         automatic_metadata = dict(
             index=0 if dataset.index.name is None else dataset.index.name,
             outputs_info=tracked_ds.object_manager.get_outputs_info(
                 dataset=dataset, outputs=metadata["outputs"], outputs_type=metadata["outputs_type"]
             ),
             split=None,
-            features=list(features),
+            features=features,
             categorical_features=list(
-                set(list(features))
-                - set(metadata["continuous_features"]).intersection(set(list(features)))
+                set(features) - set(metadata["continuous_features"]).intersection(set(features))
             ),
             framework=tracked_ds.object_manager.framework,  # needs to be on a Tracked object.
         )
@@ -454,13 +447,8 @@ class SecleaAI:
             dset_metadata = ensure_required_metadata(
                 metadata=dset_metadata, defaults_spec=metadata_defaults_spec
             )
-            try:
-                features = (
-                    dset.columns
-                )  # TODO - drop the outcome name but requires changes on frontend.
-            except KeyError:
-                # this means outcome was set to None
-                features = dset.columns
+
+            features = list(dset.columns)
 
             automatic_metadata = dict(
                 index=0 if dset.index.name is None else dset.index.name,
@@ -472,10 +460,10 @@ class SecleaAI:
                 split=transformation.split
                 if transformation.split is not None
                 else parent_mdata["split"],
-                features=list(features),
+                features=features,
                 categorical_features=list(
-                    set(list(features))
-                    - set(dset_metadata["continuous_features"]).intersection(set(list(features)))
+                    set(features)
+                    - set(dset_metadata["continuous_features"]).intersection(set(features))
                 ),
                 framework=parent.object_manager.framework,  # needs to be on a Tracked object.
             )
