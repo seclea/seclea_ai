@@ -1,6 +1,5 @@
-from seclea_ai.lib.seclea_utils.core.transmission import Transmission
-
 from ..errors import throws_api_err
+from ....lib.seclea_utils.core.transmission import Transmission
 
 root = "/collection/projects"
 
