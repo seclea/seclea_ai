@@ -3,7 +3,7 @@ import unittest
 
 import pandas as pd
 
-from seclea_ai.dataset_utils import get_dataset_type
+from internal.dataset_utils import get_dataset_type
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "")

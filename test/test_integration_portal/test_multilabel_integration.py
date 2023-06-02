@@ -40,12 +40,13 @@ class TestMultilabelDataIntegration(TestCase):
         self.portal_url = "http://localhost:8000"
         self.auth_url = "http://localhost:8010"
         self.controller = SecleaAI(
-            self.project_name,
-            self.organization,
-            self.portal_url,
-            self.auth_url,
+            project_name=self.project_name,
+            organization=self.organization,
+            platform_url=self.portal_url,
+            auth_url=self.auth_url,
             username=self.username,
             password=self.password,
+            create_project=True,
         )
 
     def step_1_upload_dataset(self):

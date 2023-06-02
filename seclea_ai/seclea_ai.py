@@ -1,72 +1,52 @@
-"""
-Description for seclea_ai.py
-"""
 import copy
 import inspect
 import logging
 import os
 import uuid
+from uuid import UUID
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Dict, List, Union
 
 import pandas as pd
 from pandas import DataFrame, Series
-from requests import Response
 
-from .authentication import AuthenticationService
-from .dataset_utils import (
+from .internal.api.api_interface import Api
+from .internal.config import read_config
+from .internal.dataset_utils import (
     get_dataset_type,
     ensure_required_metadata,
     add_required_metadata,
     aggregate_dataset,
     assemble_dataset,
 )
-from .exceptions import AuthenticationError
-from .lib.seclea_utils.core.transformations import encode_func, decode_func
-from .lib.seclea_utils.core.transmission import RequestWrapper
-from .lib.seclea_utils.model_management import ModelManagers
+from .internal.exceptions import AuthenticationError, BadRequestError, NotFoundError
+from .lib.seclea_utils.core.transformations import encode_func
 from .lib.seclea_utils.object_management import Tracked
-from .svc.api.collection.dataset import post_dataset, get_dataset
-from .svc.api.collection.model_state import post_model_state
 from .transformations import DatasetTransformation
 
-
+logging.basicConfig(format="[seclea_ai] [%(levelname)s] %(message)s", level=logging.WARNING)
 logger = logging.getLogger("seclea_ai")
-
-
-def handle_response(res: Response, expected: int, msg: str) -> Response:
-    """
-    Handle responses from the server
-
-    :param res: Response The response from the server.
-
-    :param expected: int The expected HTTP status code (ie. 200, 201 etc.)
-
-    :param msg: str The message to include in the Exception that is raised if the response doesn't have the expected
-        status code
-
-    :return: Response
-
-    :raises: ValueError - if the response code doesn't match the expected code.
-
-    """
-    if not res.status_code == expected:
-        raise ValueError(f"Response Status code {res.status_code}, expected:{expected}. \n{msg}")
-    return res
 
 
 class SecleaAI:
     def __init__(
         self,
-        project_name: str,
-        organization: str,
-        platform_url: str = "https://platform.seclea.com",
-        auth_url: str = "https://auth.seclea.com",
+        project_root: str = ".",
+        project_name: str = None,
+        organization: str = None,
+        platform_url: str = None,
+        auth_url: str = None,
         username: str = None,
         password: str = None,
+        create_project: bool = False,
     ):
         """
-        Create a SecleaAI object to manage a session. Requires a project name and framework.
+        Create a SecleaAI object to manage a session.
+        Can be configured with config files, both globally and per project.
+        Init args override project config which overrides global config.
+        Project name and organization must be specified somewhere for correct function.
+
+        :param project_root: The root directory of the project. Default: "."
 
         :param project_name: The name of the project
 
@@ -74,9 +54,12 @@ class SecleaAI:
 
         :param auth_url: The url of the auth server. Default: "https://auth.seclea.com"
 
-        :param username: seclea username
+        :param username: Username for the seclea platform.
 
-        :param password: seclea password
+        :param password: Password for the seclea platform.
+
+        :param create_project: Whether to create the project if it does not exist yet
+            on the Seclea platform. Default: False.
 
         :return: SecleaAI object
 
@@ -86,18 +69,41 @@ class SecleaAI:
 
             >>> seclea = SecleaAI(project_name="Test Project")
         """
-        self._auth_service = AuthenticationService(RequestWrapper(auth_url))
-        self._transmission = RequestWrapper(server_root_url=platform_url)
-        self._auth_service.authenticate(self._transmission, username=username, password=password)
-        self._project = None
         self._project_name = project_name
-        self._organization_name = organization
+        settings_defaults = {
+            "project_root": project_root,
+            # note this is an exception - must be configured in init or use default.
+            "max_storage_space": int(10e9),  # default is 10GB for now.
+            "offline": False,
+            "cache_dir": (Path(project_root) / ".seclea" / "cache" / project_name).absolute(),
+            "platform_url": "https://platform.seclea.com",
+            "auth_url": "https://auth.seclea.com",
+        }
+        # read in the config files - everything can be specified in there except project root.
+        global_config = read_config(Path.home() / ".seclea" / "config.yml")
+        project_config = read_config(Path(project_root) / ".seclea" / "config.yml")
+        # order is important {least_important -> most_important} so default values are first overridden
+        self._settings = {**settings_defaults, **global_config, **project_config}
+
+        # apply init args - if specified TODO find a more elegant way to do this.
+        if platform_url is not None:
+            self._settings["platform_url"] = platform_url
+        if auth_url is not None:
+            self._settings["auth_url"] = auth_url
+        if project_name is not None:
+            self._settings["project_name"] = project_name
+        if organization is not None:
+            self._settings["organization_name"] = organization
+
+        self._validate_settings(["project_name", "organization_name"])
+
+        self._api = Api(settings=self._settings, username=username, password=password)
         self._organization_id = self._init_org(organization)
-        self._available_frameworks = {"sklearn", "xgboost", "lightgbm"}
+        self._project_id = self._init_project(
+            project_name=project_name, create_project=create_project
+        )
         self._training_run = None
-        self._cache_dir = os.path.join(Path.home(), f".seclea/{self._project_name}")
-        self._init_project(project_name=project_name)
-        print("success")
+        logger.debug("Successfully initialised SecleaAI class")
 
     def login(self, username=None, password=None) -> None:
         """
@@ -115,9 +121,7 @@ class SecleaAI:
         success = False
         for i in range(3):
             try:
-                self._auth_service.authenticate(
-                    self._transmission, username=username, password=password
-                )
+                self._api.authenticate(username=username, password=password)
                 success = True
                 break
             except AuthenticationError as e:
@@ -232,7 +236,7 @@ class SecleaAI:
             raise ValueError("outcome_name is deprecated - use outputs instead.")
 
         # processing the final dataset - make sure it's a DataFrame
-        if self._project is None:
+        if self._project_id is None:
             raise Exception("You need to create a project before uploading a dataset")
 
         if isinstance(dataset, List):
@@ -254,22 +258,19 @@ class SecleaAI:
             #####
             # Validate parent exists and get metadata - can factor out
             #####
-            parent_dset_pk = parent.object_manager.hash_object(parent)
+            parent_dset_hash = parent.object_manager.hash_object(parent)
             # check parent exists - throw an error if not.
-            res = self._transmission.get(
-                url_path="/collection/datasets",
-                query_params={
-                    "project": self._project,
-                    "organization": self._organization_id,
-                    "hash": parent_dset_pk,
-                },
+            res = self._api.get_datasets(
+                project_id=self._project_id,
+                organization_id=self._organization_id,
+                hash=parent_dset_hash,
             )
-            if not res.status_code == 200 or len(res.json()) == 0:
+            if len(res) == 0:
                 raise AssertionError(
                     "Parent Dataset does not exist on the Platform. Please check your arguments and "
                     "that you have uploaded the parent dataset already"
                 )
-            parent_metadata = res.json()[0]["metadata"]
+            parent_metadata = res[0]["metadata"]
             #####
 
             upload_queue = self._generate_intermediate_datasets(
@@ -294,7 +295,6 @@ class SecleaAI:
             # upload all the datasets and transformations.
             for up_kwargs in upload_queue:
                 # need to get dataset uuid from response to put into transformation.
-
                 self._upload_dataset(**up_kwargs)  # TODO change
             return
 
@@ -345,8 +345,9 @@ class SecleaAI:
             transformation=None,
         )
 
+    @staticmethod
     def _generate_intermediate_datasets(
-        self, transformations, dataset_name, dset_pk, user_metadata, parent, parent_metadata
+        transformations, dataset_name, dset_pk, user_metadata, parent, parent_metadata
     ):
         # setup for generating datasets.
         last = len(transformations) - 1
@@ -439,7 +440,7 @@ class SecleaAI:
 
             # add data to queue to upload later after final dataset checked
             upload_kwargs = {
-                "dataset": copy.deepcopy(dset),  # TODO change keys
+                "dataset": copy.deepcopy(dset),
                 "dataset_name": copy.deepcopy(dset_name),
                 "metadata": dset_metadata,
                 "parent_hash": Tracked(parent_dset).object_manager.hash_object(parent_dset),
@@ -468,17 +469,17 @@ class SecleaAI:
 
         :param model: An ML Model instance. This should be one of {sklearn.Estimator, xgboost.Booster, lgbm.Boster}.
 
-        :param X_train: Samples of the dataset that the model is trained on
+        :param X_train: Training dataset samples
 
-        :param y_train: Labels of the dataset that the model is trained on.
+        :param y_train: Training dataset labels/targets
 
-        :param X_test: Samples of the dataset that the model is trained on
+        :param X_test: Test dataset samples
 
-        :param y_test: Labels of the dataset that the model is trained on.
+        :param y_test: Test dataset labels/targets
 
-        :param X_val: Samples of the dataset that the model is trained on
+        :param X_val: Validation dataset samples
 
-        :param y_val: Labels of the dataset that the model is trained on.
+        :param y_val: Validation dataset labels/targets
 
         :return: None
         """
@@ -528,7 +529,7 @@ class SecleaAI:
                     dataset_name="Test Dataset",
                 )
         """
-        self._auth_service.authenticate(self._transmission)
+        self._api.authenticate()
 
         # validate the splits? maybe later when we have proper Dataset class to manage these things.
         dataset_pks = list()
@@ -536,12 +537,11 @@ class SecleaAI:
         for idx, dataset in enumerate([train_dataset, test_dataset, val_dataset]):
             if dataset is not None:
                 try:
-                    dataset = get_dataset(
-                        self._transmission,
-                        self._project,
-                        self._organization_id,
+                    dataset = self._api.get_datasets(
+                        project_id=self._project_id,
+                        organization_id=self._organization_id,
                         hash=Tracked(dataset).object_manager.hash_object(dataset),
-                    ).json()[0]
+                    )[0]
                     dataset_metadata = dataset["metadata"]
                     dataset_pks.append(dataset["uuid"])
                 except IndexError:
@@ -550,24 +550,20 @@ class SecleaAI:
                     raise ValueError(
                         f"The {dset_map[idx]} dataset was not found on the Platform. Please check and try again"
                     )
-
-        model_name = model.__class__.__name__
-
-        framework = self._get_framework(model)
+        model = Tracked(model)
 
         # check the model exists upload if not
-        model_type_pk = self._set_model(model_name=model_name, framework=framework)
+        model_name = str(model.__class__.__name__)
+        framework = model.object_manager.framework
+
+        model_type_id = self._set_model(model_name=model_name, framework=framework)
 
         # check the latest training run
-        training_runs_res = self._transmission.get(
-            "/collection/training-runs",
-            query_params={
-                "project": self._project,
-                "model": model_type_pk,
-                "organization": self._organization_id,
-            },
+        training_runs = self._api.get_training_runs(
+            project_id=self._project_id,
+            organization_id=self._organization_id,
+            model=model_type_id,
         )
-        training_runs = training_runs_res.json()
 
         # Create the training run name
         largest = -1
@@ -578,7 +574,6 @@ class SecleaAI:
         training_run_name = f"Training Run {largest + 1}"
 
         # extract params from the model
-        model = Tracked(model)
         params = model.object_manager.get_params(model)
 
         metadata = {
@@ -589,107 +584,76 @@ class SecleaAI:
         }
 
         # upload training run
-        tr_res = self._upload_training_run(
-            training_run_name=training_run_name,
-            model_pk=model_type_pk,
-            dataset_pks=dataset_pks,
+        tr_res = self._api.upload_training_run(
+            project_id=self._project_id,
+            organization_id=self._organization_id,
+            datasets=dataset_pks,
+            model=model_type_id,
+            name=training_run_name,
             params=params,
             metadata=metadata,
         )
-        # if the upload was successful, add the new training_run to the list to keep the names updated.
-        self._training_run = tr_res.json()["uuid"]
 
         # upload model state. TODO figure out how this fits with multiple model states.
         self._upload_model_state(
             model=model,
-            training_run_pk=self._training_run,
+            training_run_id=UUID(tr_res["uuid"]),
             dataset_pks=dataset_pks,
             sequence_num=0,
-            final=True,
         )
 
-    def _init_org(self, organization_name: str) -> str:
-        orgs_res = self._transmission.get(url_path="/organization/")
-        orgs_res = handle_response(
-            orgs_res, 200, f"There was an issue getting the project: {orgs_res.reason}"
-        )
-        orgs = orgs_res.json()
+    def _init_org(self, organization_name: str) -> UUID:
+        orgs: List[Dict] = self._api.get_organization_by_name(organization_name=organization_name)
         for org in orgs:
             if org["name"] == organization_name:
-                return org["uuid"]
+                return UUID(org["uuid"])
         raise ValueError(
-            f"Specified Organization {self._organization_name} does not exist. Please check and try again."
+            f"Specified Organization {organization_name} does not exist. Please check and try again."
         )
 
-    def _init_project(self, project_name) -> None:
+    def _init_project(self, project_name: str, create_project: bool) -> UUID:
         """
         Initialises the project for the object. If the project does not exist on the server it will be created.
 
         :param project_name: The name of the project
 
+        :param create_project: Whether to create the project if it doesn't exist on
+            the platform
+
         :return: None
         """
-        self._project = self._get_project(project_name)
-        if self._project is None:
-            proj_res = self._create_project(project_name=project_name)
+        projects = self._api.get_projects(organization_id=self._organization_id, name=project_name)
+        # name and org are unique together so 1 is the max expected
+        if len(projects) > 0:
+            return UUID(projects[0]["uuid"])
+        # this means it is 0 - so it doesn't exist
+        if create_project:
+            proj_res = self._api.upload_project(
+                organization_id=self._organization_id,
+                name=project_name,
+                description="Please add a description.",
+            )
             try:
-                self._project = proj_res.json()["uuid"]
+                return UUID(proj_res["uuid"])
             except KeyError:
-                print(f"There was an issue: {proj_res.text}")
-                resp = self._transmission.get(
-                    url_path="/collection/projects", query_params={"name": project_name}
+                logger.debug(
+                    f"There was an issue getting the uuid from the "
+                    f"upload_project response: {proj_res.text}"
                 )
-                resp = handle_response(
-                    resp, 200, f"There was an issue getting the project: {resp.reason}"
+                resp = self._api.get_projects(
+                    organization_id=self._organization_id, name=project_name
                 )
-                self._project = resp.json()[0]["uuid"]
+                return UUID(resp[0]["uuid"])
+        else:
+            raise NotFoundError(
+                "Project doesn't exist on the Seclea Platform and you "
+                "have not set create_project=True. Either "
+                "create a new Project on the Platform and try again "
+                "or set create_project=True in your SecleaAI init "
+                "args."
+            )
 
-    def _get_project(self, project_name: str) -> Any:
-        """
-        Checks if a project exists on the server. If it does not it will return None otherwise the id of the project.
-
-        :param project_name: str The name of the project.
-
-        :return: int | None The id of the project else None.
-        """
-        project_res = self._transmission.get(
-            url_path="/collection/projects",
-            query_params={"name": project_name, "organization": self._organization_id},
-        )
-        handle_response(
-            project_res, 200, f"There was an issue getting the projects: {project_res.reason}"
-        )
-        if len(project_res.json()) == 0:
-            return None
-        return project_res.json()[0]["uuid"]
-
-    def _create_project(self, project_name: str, description: str = "Please add a description.."):
-        """
-        Creates a new project.
-
-        :param project_name: str The name of the project, must be unique within your Organisation.
-
-        :param description: str Optional The description of the project. This has a default value that can be changed
-            at a later date
-
-        :return: Response The response from the server.
-
-        :raises ValueError if the response status is not 201.
-        """
-        res = self._transmission.send_json(
-            url_path="/collection/projects",
-            obj={
-                "name": project_name,
-                "description": description,
-                "organization": self._organization_id,
-            },
-            query_params={"organization": self._organization_id},
-        )
-        return handle_response(
-            res, expected=201, msg=f"There was an issue creating the project: {res.reason}"
-        )
-
-    def _set_model(self, model_name: str, framework: ModelManagers) -> int:
+    def _set_model(self, model_name: str, framework: str) -> UUID:
         """
         Set the model for this session.
         Checks if it has already been uploaded. If not it will upload it.
@@ -701,42 +665,33 @@ class SecleaAI:
         :raises: ValueError - if the framework is not one of the supported frameworks or if there is an issue uploading
          the model.
         """
-        res = handle_response(
-            self._transmission.get(
-                url_path="/collection/models",
-                query_params={
-                    "organization": self._organization_id,
-                    "project": self._project,
-                    "name": model_name,
-                    "framework": framework.name,
-                },
-            ),
-            expected=200,
-            msg="There was an issue getting the model list",
+
+        models = self._api.get_models(
+            project_id=self._project_id,
+            organization_id=self._organization_id,
+            name=model_name,
+            framework=framework,
         )
-        models = res.json()
         if len(models) == 1:
-            return models[0]["uuid"]
-        # if we got here that means that the model has not been uploaded yet. So we upload it.
-        res = self._upload_model(model_name=model_name, framework=framework)
+            return UUID(models[0]["uuid"])
+        # model not found on platform - upload it.
+        res = self._api.upload_model(
+            project_id=self._project_id,
+            organization_id=self._organization_id,
+            name=model_name,
+            framework=framework,
+        )
         try:
-            model_pk = res.json()["uuid"]
+            model_id = UUID(res["uuid"])
         except KeyError:
-            resp = handle_response(
-                self._transmission.get(
-                    url_path="/collection/models",
-                    query_params={
-                        "organization": self._organization_id,
-                        "project": self._project,
-                        "name": model_name,
-                        "framework": framework.name,
-                    },
-                ),
-                expected=200,
-                msg="There was an issue getting the model list",
+            models = self._api.get_models(
+                project_id=self._project_id,
+                organization_id=self._organization_id,
+                name=model_name,
+                framework=framework,
             )
-            model_pk = resp.json()[0]["uuid"]
-        return model_pk
+            model_id = UUID(models[0]["uuid"])
+        return model_id
 
     def _upload_dataset(
         self,
@@ -747,201 +702,103 @@ class SecleaAI:
         transformation: Union[DatasetTransformation, None],
     ):
         # upload a dataset - only works for a single transformation.
-        if not os.path.exists(self._cache_dir):
-            os.makedirs(self._cache_dir)
+        os.makedirs(self._settings["cache_dir"], exist_ok=True)
 
         # TODO refactor to make multithreading safe.
         dataset = Tracked(dataset)
-        dataset.object_manager.full_path = self._cache_dir, uuid.uuid4().__str__()
-        dataset_file_path = os.path.join(*dataset.save_tracked(path=self._cache_dir))
+        dataset.object_manager.full_path = self._settings["cache_dir"], uuid.uuid4().__str__()
+        dataset_file_path = os.path.join(*dataset.save_tracked(path=self._settings["cache_dir"]))
 
         dset_hash = Tracked(dataset).object_manager.hash_object(dataset)
 
-        response = post_dataset(
-            transmission=self._transmission,
-            dataset_file_path=dataset_file_path,
-            project_pk=self._project,
-            organization_pk=self._organization_id,
-            name=dataset_name,
-            metadata=metadata,
-            dataset_hash=dset_hash,
-            parent_dataset_hash=str(parent_hash) if parent_hash is not None else None,
-        )
+        try:
+            response = self._api.upload_dataset(
+                project_id=self._project_id,
+                organization_id=self._organization_id,
+                dataset_file_path=dataset_file_path,
+                name=dataset_name,
+                metadata=metadata,
+                hash=dset_hash,
+                parent_hash=str(parent_hash) if parent_hash is not None else None,
+            )
         # handle duplicate upload with warning only.
-        if (
-            response.status_code == 400
-            and "fields project, hash must make a unique set" in response.text
-        ):
-            logger.warning(
-                "WARNING: You are uploading the same dataset again, "
-                "if this is expected (for example you are re-running a script) "
-                "feel free to ignore this warning."
-            )
-        elif (
-            response.status_code == 400
-            and "fields project, name must make a unique set" in response.text
-        ):
-            logger.warning(
-                "WARNING: You are uploading a dataset with the same name as an "
-                "existing dataset, if this is expected (for example you are "
-                "re-running a script) feel free to ignore this warning."
-            )
-        else:
-            handle_response(
-                response, 201, f"There was some issue uploading the dataset: {response.reason}"
-            )
-        # tidy up files.
-        os.remove(dataset_file_path)
-
-        # upload the transformations
-        if response.status_code == 201:
-            if transformation is not None:
-                # upload transformations.
-                self._upload_transformation(
-                    transformation=transformation,
-                    dataset_pk=response.json()["uuid"],
+        except BadRequestError as e:
+            if "fields project, hash must make a unique set" in str(e):
+                logger.warning(
+                    "You are uploading the same dataset again, "
+                    "if this is expected (for example you are re running a script) "
+                    "you can ignore this."
                 )
-
-    def _upload_model(self, model_name: str, framework: ModelManagers):
-        """
-
-        :param model_name:
-        :param framework: instance of seclea_ai.Frameworks
-        :return:
-        """
-        res = self._transmission.send_json(
-            url_path="/collection/models",
-            obj={
-                "organization": self._organization_id,
-                "project": self._project,
-                "name": model_name,
-                "framework": framework.name,
-            },
-            query_params={"organization": self._organization_id, "project": self._project},
-        )
-        return handle_response(
-            res, expected=201, msg=f"There was an issue uploading the model: {res.reason}"
-        )
-
-    def _upload_training_run(
-        self,
-        training_run_name: str,
-        model_pk: int,
-        dataset_pks: List[str],
-        params: Dict,
-        metadata: Dict,
-    ):
-        """
-
-        :param training_run_name: eg. "Training Run 0"
-        :param params: Dict The hyper parameters of the model - can auto extract?
-        :return:
-        """
-        if self._project is None:
-            raise Exception("You need to create a project before uploading a training run")
-        res = self._transmission.send_json(
-            url_path="/collection/training-runs",
-            obj={
-                "organization": self._organization_id,
-                "project": self._project,
-                "datasets": dataset_pks,
-                "model": model_pk,
-                "name": training_run_name,
-                "params": params,
-                "metadata": metadata,
-            },
-            query_params={"organization": self._organization_id, "project": self._project},
-        )
-        return handle_response(
-            res, expected=201, msg=f"There was an issue uploading the training run: {res.reason}"
-        )
+            elif "fields project, name must make a unique set" in str(e):
+                logger.warning(
+                    "You are uploading a dataset with the same name as an "
+                    "existing dataset, if this is expected (for example you are "
+                    "re-running a script) you can ignore this."
+                )
+            else:
+                raise
+        else:
+            # upload the transformation
+            if transformation is not None:
+                # upload transformation
+                self._api.upload_transformation(
+                    project_id=self._project_id,
+                    organization_id=self._organization_id,
+                    name=transformation.func.__name__,
+                    code_raw=inspect.getsource(transformation.func),
+                    code_encoded=encode_func(
+                        transformation.func,
+                        [],
+                        {**transformation.data_kwargs, **transformation.kwargs},
+                    ),
+                    dataset=response["uuid"],
+                )
+        finally:
+            # tidy up files.
+            os.remove(dataset_file_path)
 
     def _upload_model_state(
         self,
         model: Tracked,
-        training_run_pk: int,
+        training_run_id: UUID,
         dataset_pks: List[str],
         sequence_num: int,
-        final: bool,
     ):
         os.makedirs(
-            os.path.join(self._cache_dir, str(training_run_pk)),
+            os.path.join(self._settings["cache_dir"], str(training_run_id)),
             exist_ok=True,
         )
         file_name = f"data-{dataset_pks[0]}-model-{sequence_num}"
-        save_path = os.path.join(Path.home(), f".seclea/{self._project_name}/{training_run_pk}")
+
+        save_path = (
+            self._settings["cache_dir"] / str(self._settings["project_name"]) / str(training_run_id)
+        )
+
         model.object_manager.full_path = save_path, file_name
 
         save_path = os.path.join(*model.save_tracked(path=save_path))
 
-        res = post_model_state(
-            self._transmission,
-            save_path,
-            self._organization_id,
-            self._project,
-            str(training_run_pk),
-            sequence_num,
-            final,
-        )
+        try:
+            self._api.upload_model_state(
+                project_id=self._project_id,
+                organization_id=self._organization_id,
+                model_state_file_path=save_path,
+                training_run=training_run_id,
+                sequence_num=sequence_num,
+            )
+        finally:
+            # tidy up files.
+            os.remove(save_path)
 
-        # tidy up files.
-        os.remove(save_path)
-
-        res = handle_response(
-            res, expected=201, msg=f"There was an issue uploading a model state: {res.reason}"
-        )
-        return res
-
-    def _upload_transformation(self, transformation: DatasetTransformation, dataset_pk):
-        idx = 0
-        trans_kwargs = {**transformation.data_kwargs, **transformation.kwargs}
-        data = {
-            "name": transformation.func.__name__,
-            "code_raw": inspect.getsource(transformation.func),
-            "code_encoded": encode_func(transformation.func, [], trans_kwargs),
-            "order": idx,
-            "dataset": dataset_pk,
-        }
-        res = self._transmission.send_json(
-            url_path="/collection/dataset-transformations",
-            obj=data,
-            query_params={"organization": self._organization_id, "project": self._project},
-        )
-        res = handle_response(
-            res,
-            expected=201,
-            msg=f"There was an issue uploading the transformations on transformation {idx} with name {transformation.func.__name__}: {res.reason}",
-        )
-        return res
-
-    def _load_transformations(self, training_run_pk: int):
+    def _validate_settings(self, required_keys: List[str]) -> None:
         """
-        Expects a list of code_encoded as set by upload_transformations.
-        TODO replace or remove
+        Validates that settings contains non None values for the required keys
+        :param required_keys: List[str] list of required keys
+        :return: None
+        :raises: KeyError: if one of the keys is not present.
         """
-        res = self._transmission.get(
-            url_path="/collection/dataset-transformations",
-            query_params={"training_run": training_run_pk},
-        )
-        res = handle_response(
-            res, expected=200, msg=f"There was an issue loading the transformations: {res.reason}"
-        )
-        transformations = list(map(lambda x: x["code_encoded"], res.json()))
-        return list(map(decode_func, transformations))
-
-    @staticmethod
-    def _get_framework(model) -> ModelManagers:
-        module = model.__class__.__module__
-        # order is important as xgboost and lightgbm contain sklearn compliant packages.
-        # TODO check if we can treat them as sklearn but for now we avoid that issue by doing sklearn last.
-        if "xgboost" in module:
-            return ModelManagers.XGBOOST
-        elif "lightgbm" in module:
-            return ModelManagers.LIGHTGBM
-        # TODO improve to exclude other keras backends...
-        elif "tensorflow" in module or "keras" in module:
-            return ModelManagers.TENSORFLOW
-        elif "sklearn" in module:
-            return ModelManagers.SKLEARN
-        else:
-            return ModelManagers.NOT_IMPORTED
+        for key in required_keys:
+            if self._settings[key] is None:
+                raise KeyError(
+                    f"Key: {key} must be specified either in creation args or in the config files."
+                )

@@ -1,8 +1,10 @@
-import traceback
+import logging
 from getpass import getpass
 
+from requests import Session
+
 from .exceptions import AuthenticationError
-from .lib.seclea_utils.core.transmission import Transmission
+from ..lib.seclea_utils.core.transmission import Transmission
 from .storage import Storage
 
 try:
@@ -13,9 +15,13 @@ except ImportError:
     IN_COLAB = False
 
 
+logger = logging.getLogger(__name__)
+
+
 class AuthenticationService:
-    def __init__(self, transmission: Transmission):
-        self._transmission = transmission
+    def __init__(self, url: str, session: Session):
+        self._url = url
+        self._session = session
         self._db = Storage(db_name="auth_service", root="." if IN_COLAB else None)
         self._path_token_obtain = (
             "/api/token/obtain/"  # nosec - bandit thinks this is a pw or key..
@@ -36,23 +42,19 @@ class AuthenticationService:
         :param transmission: transmission service we wish to authenticate
         :return:
         """
-        if not self.refresh_token():
-            self._obtain_initial_tokens(username=username, password=password)
         if not self.verify_token():
-            raise AuthenticationError("Failed to verify token")
-        transmission.cookies = self._transmission.cookies
+            if not self.refresh_token():
+                self._obtain_initial_tokens(username=username, password=password)
 
     def verify_token(self) -> bool:
         """
         Verifies if access token in database is valid
         :return: bool valid
         """
-        self._transmission.cookies = {self._key_token_access: self._db.get(self._key_token_access)}
-        try:
-            response = self._transmission.send_json(url_path=self._path_token_verify, obj={})
-        except TypeError:
-            traceback.print_exc()
-            return False
+        cookies = {self._key_token_access: self._db.get(self._key_token_access)}
+        self._session.cookies.update(cookies)
+        logger.debug(f"Cookies: {cookies}")
+        response = self._session.post(url=f"{self._url}/{self._path_token_verify}")
         return response.status_code == 200
 
     def refresh_token(self) -> bool:
@@ -62,14 +64,14 @@ class AuthenticationService:
         """
         if not self._db.get(self._key_token_refresh):
             return False
-        self._transmission.cookies = {
-            self._key_token_refresh: self._db.get(self._key_token_refresh)
-        }
-        response = self._transmission.send_json(url_path=self._path_token_refresh, obj={})
+        cookies = {self._key_token_refresh: self._db.get(self._key_token_refresh)}
+        self._session.cookies.update(cookies)
+        response = self._session.post(url=f"{self._url}/{self._path_token_refresh}")
         self._save_response_tokens(response)
         return response.status_code == 200
 
-    def _request_user_credentials(self) -> dict:
+    @staticmethod
+    def _request_user_credentials() -> dict:
         """
         Gets user credentials manually
         :return:
@@ -82,17 +84,24 @@ class AuthenticationService:
         :param response:
         :return:
         """
-        if self._key_token_refresh in response.cookies:
-            self._db.write(self._key_token_refresh, response.cookies[self._key_token_refresh])
-        if self._key_token_access in response.cookies:
-            self._db.write(self._key_token_access, response.cookies[self._key_token_access])
+        cookies = response.cookies.get_dict()
+        if self._key_token_refresh in cookies:
+            self._db.write(self._key_token_refresh, cookies[self._key_token_refresh])
+        if self._key_token_access in cookies:
+            self._db.write(self._key_token_access, cookies[self._key_token_access])
 
     def _obtain_initial_tokens(self, username=None, password=None):
         if username is None or password is None:
             credentials = self._request_user_credentials()
         else:
+            logger.warning("Warning - Avoid storing credentials in code where possible!")
             credentials = {"username": username, "password": password}
-        response = self._transmission.send_json(url_path=self._path_token_obtain, obj=credentials)
+        response = self._session.post(
+            url=f"{self._url}/{self._path_token_obtain}", data=credentials
+        )
+        logger.debug(
+            f"Initial Tokens - Status: {response.status_code} - content {response.content} - cookies - {response.cookies}"
+        )
 
         if response.status_code != 200:
             raise AuthenticationError(f"status:{response.status_code}, content:{response.content}")
