@@ -63,4 +63,4 @@ jobs:
         run: |
           poetry env info
           poetry --version
-          poetry run python -m unittest discover
+          poetry run pytest

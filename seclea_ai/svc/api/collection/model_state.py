@@ -1,6 +1,6 @@
 import os.path
 
-from seclea_ai.lib.seclea_utils.core.transmission import Transmission
+from ....lib.seclea_utils.core.transmission import Transmission
 
 root = "/collection/model-states"
 

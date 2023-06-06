@@ -1,8 +1,8 @@
 import traceback
 from getpass import getpass
 
-from seclea_ai.exceptions import AuthenticationError
-from seclea_ai.lib.seclea_utils.core.transmission import Transmission
+from .exceptions import AuthenticationError
+from .lib.seclea_utils.core.transmission import Transmission
 from .storage import Storage
 
 try:

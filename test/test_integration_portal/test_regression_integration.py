@@ -3,6 +3,7 @@ from unittest import TestCase
 
 import lightgbm as lgb
 import pandas as pd
+import pytest
 import tensorflow as tf
 import xgboost as xgb
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
@@ -16,6 +17,10 @@ base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 folder_path = os.path.join(base_dir, "test_integration_portal")
 
 
+@pytest.mark.skipif(
+    "not config.getoption('--run-slow')",
+    reason="Only run when --run-slow is given",
+)
 class TestRegressionDataIntegration(TestCase):
     """
     Monolithic testing of the Seclea AI file
